@@ -144,7 +144,7 @@ export default function Login() {
           target="_blank"
           rel="noopener noreferrer"
         >
-          انضم لمجتمعنا
+          المطور أدهم عطية سالم
         </a>
       </footer>
     </div>
