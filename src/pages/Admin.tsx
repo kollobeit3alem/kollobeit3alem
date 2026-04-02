@@ -259,7 +259,7 @@ export default function Admin() {
       const res = await apiCall('/api/admin/codes', token, 'POST', {
         course_id: parseInt(formData.get('course_id') as string),
         count: count,
-      });
+      }) as { codes: string[] };
       toast.success(`تم توليد ${count} كود بنجاح!\nمثال لأحد الأكواد: ${res.codes[0]}`);
       form.reset();
       
