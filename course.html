@@ -743,9 +743,8 @@
         }
 
         function chooseAnswer(opt) { userAnswers[currentQIndex] = opt; renderQuestion(currentQIndex); }
-        function goNext() { if(currentQIndex < quizQuestions.length - 1) { currentQIndex++; renderQuestion(currentQIndex); } }
-        function goPrev() { if(currentQIndex > 0) { currentQIndex--; renderQuestion(currentQIndex); } }
-
+        function nextQuestion() { if(currentQIndex < quizQuestions.length - 1) { currentQIndex++; renderQuestion(currentQIndex); } }
+        function prevQuestion() { if(currentQIndex > 0) { currentQIndex--; renderQuestion(currentQIndex); } }
         function submitExam() {
             clearInterval(timerInterval);
             
