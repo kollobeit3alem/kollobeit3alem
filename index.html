@@ -8,7 +8,6 @@
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     
     <style>
-        /* تعريف الخط الخاص بالمنصة */
         @font-face {
             font-family: 'AbdoLogo';
             src: url('alfont_com_Abdo.Fonts_Abdo.Logo_.ttf') format('truetype');
@@ -16,19 +15,17 @@
             font-style: normal;
         }
 
-        /* متغيرات الألوان المعدلة بناءً على كودك للحصول على مظهر مريح وشبابي */
         :root {
-            --primary-color: #015669; /* لون الشعار الأساسي الغامق */
-            --primary-light-bg: rgba(1, 86, 105, 0.05); /* لون فاتح جداً للخلفيات من نفس الدرجة */
-            --bg-gradient: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); /* خلفية فاتحة جداً وأنيقة */
-            --text-title: #015669; /* اللون الغامق للعناوين فقط */
-            --text-body: #1e293b; /* لون أسود مزرق ناعم للنصوص الأساسية */
-            --text-muted: #64748b; /* لون رمادي للنصوص الثانوية والتاجلين */
+            --primary-color: #015669;
+            --primary-light-bg: rgba(1, 86, 105, 0.05);
+            --bg-gradient: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+            --text-title: #015669;
+            --text-body: #1e293b;
+            --text-muted: #64748b;
             --card-bg: #ffffff;
             --card-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.08);
         }
 
-        /* تطبيق الهوية البصرية والخط على كامل الصفحة */
         * {
             margin: 0;
             padding: 0;
@@ -57,7 +54,7 @@
 
         .login-card {
             background-color: var(--card-bg);
-            border-radius: 28px; /* حواف أنعم للكارت */
+            border-radius: 28px;
             box-shadow: var(--card-shadow);
             width: 100%;
             max-width: 450px;
@@ -68,12 +65,11 @@
             align-items: center;
             gap: 20px;
             border: 1px solid rgba(0,0,0,0.03);
-            border-top: 6px solid var(--primary-color); /* الخط العلوي بهوية الشعار */
+            border-top: 6px solid var(--primary-color);
             position: relative;
             overflow: hidden;
         }
 
-        /* تأثير إضاءة خلف الشعار بألوانك */
         .login-card::before {
             content: '';
             position: absolute;
@@ -99,8 +95,8 @@
         .logo-img {
             max-width: 150px;
             height: auto;
-            border-radius: 20px; /* حواف دائرية شبابية وليست دائرة كاملة */
-            box-shadow: 0 10px 20px rgba(0,0,0,0.05); /* ظل خفيف خلف الصورة لإبرازها */
+            border-radius: 20px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
             transition: transform 0.3s ease;
         }
 
@@ -111,13 +107,13 @@
         .platform-name {
             font-size: 28px;
             font-weight: 700;
-            color: var(--text-title); /* اسم المنصة بلون الشعار الغامق */
+            color: var(--text-title);
             margin-bottom: -5px;
         }
 
         .tagline {
             font-size: 15px;
-            color: var(--text-muted); /* نص الشرح بلون رمادي مريح */
+            color: var(--text-muted);
             margin-bottom: 10px;
             z-index: 1;
             line-height: 1.6;
@@ -139,7 +135,7 @@
             transform: translate(-50%, -50%);
             background-color: var(--card-bg);
             padding: 0 15px;
-            color: var(--primary-color); /* كلمة الترحيب بلون الشعار */
+            color: var(--primary-color);
             font-size: 13px;
             font-weight: bold;
         }
@@ -152,7 +148,6 @@
             margin-top: 10px;
         }
 
-        /* تنسيق الفوتر */
         footer {
             width: 100%;
             padding: 25px;
@@ -221,7 +216,6 @@
 
     <script>
         async function handleGoogleLogin(response) {
-            // تم تحديث الرابط هنا ليطابق الدومين الخاص بك
             const workerUrl = 'https://kollobeit3alem.pages.dev/api/auth/google';
 
             try {
@@ -238,7 +232,12 @@
                 if (data.success) {
                     localStorage.setItem('auth_token', data.token);
                     localStorage.setItem('user_info', JSON.stringify(data.user));
-                    window.location.href = '/courses.html';
+                    
+                    if (data.user.role === 'admin' || data.user.role === 'instructor') {
+                        window.location.href = '/admin.kollobeit3alem';
+                    } else {
+                        window.location.href = '/courses.html';
+                    }
                 } else {
                     alert('عذراً، فشل تسجيل الدخول. تأكد من إعدادات الـ Worker وقاعدة البيانات.');
                 }
