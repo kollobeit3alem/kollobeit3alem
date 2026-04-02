@@ -79,45 +79,60 @@ export default function CoursePage() {
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const courseId = searchParams.get('id');
 
-  // Load saved progress from Database (Fallback to localStorage)
+  // جلب التقدم سواء من قاعدة البيانات (بين الأجهزة) أو من الجهاز المحلي
   useEffect(() => {
     const loadProgress = async () => {
       if (user && token && courseId) {
+        // 1. استرجاع الفيديوهات المكتملة من المتصفح فورا لسرعة العرض
+        const savedVideoProgress = localStorage.getItem(`video_progress_${user.id}`);
+        if (savedVideoProgress) {
+          setCompletedVideos(new Set(JSON.parse(savedVideoProgress)));
+        }
+
+        const savedLessonProgress = localStorage.getItem(`progress_${user.id}`);
+        if (savedLessonProgress) {
+          setCompletedLessons(new Set(JSON.parse(savedLessonProgress)));
+        }
+
+        // 2. المزامنة مع قاعدة البيانات لضمان تحديث الأجهزة الأخرى
         try {
-          // استخدام any هنا يمنع TypeScript من إظهار أي أخطاء أثناء عملية البناء
+          // استدعاء مسار التقدم الشامل
           const data: any = await apiCall(`/api/courses/${courseId}/progress`, token);
           
-          if (data && data.completedLessons) {
-            setCompletedLessons(new Set(data.completedLessons));
+          if (data && data.completedLessons && Array.isArray(data.completedLessons)) {
+            setCompletedLessons(prev => {
+              const merged = new Set([...prev, ...data.completedLessons]);
+              localStorage.setItem(`progress_${user.id}`, JSON.stringify(Array.from(merged)));
+              return merged;
+            });
           }
-          if (data && data.completedVideos) {
-            setCompletedVideos(new Set(data.completedVideos));
+          
+          if (data && data.completedVideos && Array.isArray(data.completedVideos)) {
+            setCompletedVideos(prev => {
+              const merged = new Set([...prev, ...data.completedVideos]);
+              localStorage.setItem(`video_progress_${user.id}`, JSON.stringify(Array.from(merged)));
+              return merged;
+            });
           }
         } catch (error) {
-          console.error('Failed to load progress from DB, using fallback:', error);
-          // في حال فشل الاتصال بقاعدة البيانات، نستخدم التخزين المحلي كاحتياطي
-          const savedProgress = localStorage.getItem(`progress_${user.id}`);
-          if (savedProgress) setCompletedLessons(new Set(JSON.parse(savedProgress)));
-          
-          const savedVideoProgress = localStorage.getItem(`video_progress_${user.id}`);
-          if (savedVideoProgress) setCompletedVideos(new Set(JSON.parse(savedVideoProgress)));
+          console.warn('Backend progress sync failed, relying on local storage.');
         }
       }
     };
     loadProgress();
   }, [user, token, courseId]);
 
-  // Save progress locally as a backup
-  const saveProgressLocally = useCallback(() => {
+  // حفظ محلي تلقائي لأي تغيير يحدث في الفيديوهات أو الدروس المكتملة
+  useEffect(() => {
     if (user) {
-      localStorage.setItem(`progress_${user.id}`, JSON.stringify(Array.from(completedLessons)));
-      localStorage.setItem(`video_progress_${user.id}`, JSON.stringify(Array.from(completedVideos)));
+      if (completedLessons.size > 0) {
+        localStorage.setItem(`progress_${user.id}`, JSON.stringify(Array.from(completedLessons)));
+      }
+      if (completedVideos.size > 0) {
+        localStorage.setItem(`video_progress_${user.id}`, JSON.stringify(Array.from(completedVideos)));
+      }
     }
   }, [completedLessons, completedVideos, user]);
-
-  useEffect(() => {
-    saveProgressLocally();
-  }, [completedLessons, completedVideos, saveProgressLocally]);
 
   // Fetch course details
   const fetchCourseDetails = useCallback(async () => {
@@ -364,14 +379,14 @@ export default function CoursePage() {
     
     const videoKey = `${activeLessonId}_${activeVideoIndex}`;
 
-    // تعليم هذا الجزء كمنتهي في الواجهة
+    // 1. تعليم هذا الجزء فقط كمنتهي في الواجهة بشكل فوري لتحديث الزر
     setCompletedVideos(prev => {
       const newSet = new Set(prev);
       newSet.add(videoKey);
       return newSet;
     });
 
-    // حفظ تقدم الفيديو في قاعدة البيانات
+    // 2. محاولة الحفظ في قاعدة البيانات
     if (token) {
       try {
         await apiCall('/api/progress/video', token, 'POST', { 
@@ -380,7 +395,7 @@ export default function CoursePage() {
           videoKey: videoKey 
         });
       } catch (error) {
-        console.error('Failed to save video progress to DB:', error);
+        // يتم التجاهل لو كان مسار API غير موجود في السيرفر بعد
       }
     }
 
@@ -396,7 +411,7 @@ export default function CoursePage() {
     }
     
     if (lesson.hasQuiz) {
-      toast.info('ممتاز! لقد أكملت جميع أجزاء الشرح، يرجى فتح الامتحان من القائمة لإتمام المحاضرة بالكامل.');
+      toast.success('ممتاز! لقد أكملت جميع الفيديوهات، يرجى فتح الامتحان لإتمام المحاضرة.');
       closeVideo();
     } else {
       closeVideo();
@@ -418,10 +433,26 @@ export default function CoursePage() {
     }
   };
 
-  // Open exam
+  // Open exam with checking videos
   const openExam = (lesson: Lesson) => {
     if (completedLessons.has(lesson.id)) {
       toast.info('لقد اجتزت هذا الاختبار مسبقاً بنجاح!');
+      return;
+    }
+
+    // التحقق الصارم: هل الطالب شاهد جميع أجزاء الفيديوهات الخاصة بهذه المحاضرة؟
+    const videoUrls = lesson.video_url.split(/[,|\s]+/).filter(url => url.trim() !== '');
+    let allVideosWatched = true;
+    for (let i = 0; i < videoUrls.length; i++) {
+      if (!completedVideos.has(`${lesson.id}_${i}`)) {
+        allVideosWatched = false;
+        break;
+      }
+    }
+
+    // منع الدخول للامتحان في حال عدم استكمال الفيديوهات
+    if (!allVideosWatched) {
+      toast.error('تنبيه! لا يمكنك الدخول للامتحان قبل الانتهاء من مشاهدة جميع أجزاء فيديوهات الشرح.');
       return;
     }
     
@@ -526,9 +557,11 @@ export default function CoursePage() {
       frame();
     });
     
-    const newCompleted = new Set(completedLessons);
-    newCompleted.add(lessonId);
-    setCompletedLessons(newCompleted);
+    setCompletedLessons(prev => {
+      const newSet = new Set(prev);
+      newSet.add(lessonId);
+      return newSet;
+    });
     
     try {
       await apiCall('/api/progress', token, 'POST', { lessonId });
@@ -634,7 +667,7 @@ export default function CoursePage() {
                 >
                   <div className="p-5 flex flex-col gap-4 bg-[#fdfdfd] border-t border-border">
                     {videoUrls.map((vUrl, vIdx) => {
-                      // التحقق مما إذا كان هذا الجزء بالذات من الفيديو قد اكتمل أو المحاضرة بالكامل مكتملة
+                      // الفيديو يكتمل فقط إذا كان لديه علامة (تم المشاهدة) أو المحاضرة كلها مكتملة
                       const isVideoCompleted = completedVideos.has(`${lesson.id}_${vIdx}`) || isCompleted;
                       
                       return (
