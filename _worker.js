@@ -219,9 +219,9 @@ export default {
           const lessonId = path.split("/")[3];
           const quiz = await env.DB.prepare(
             "SELECT * FROM quizzes WHERE lesson_id = ?"
-          ).bind(lessonId).first();
+          ).bind(lessonId).all();
           
-          return new Response(JSON.stringify(quiz || null), {
+          return new Response(JSON.stringify(quiz.results || []), {
             headers: { "Content-Type": "application/json", ...corsHeaders }
           });
         }
