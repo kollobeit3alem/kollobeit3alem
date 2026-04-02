@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-// دالة التحقق من صلاحيات الإدارة (ترجع الـ ID والرتبة)
+// دالة التحقق من صلاحيات الإدارة والجلسة الأحادية
 async function verifyAdmin(request, env) {
   let token = null;
   const authHeader = request.headers.get("Authorization");
@@ -26,9 +26,17 @@ async function verifyAdmin(request, env) {
     const sessionData = JSON.parse(atob(token));
     if (sessionData.exp < Date.now()) return null;
     
-    const user = await env.DB.prepare("SELECT id, role FROM users WHERE id = ?").bind(sessionData.userId).first();
+    // التعديل: التحقق من session_id بالإضافة للصلاحيات
+    const user = await env.DB.prepare("SELECT id, role, session_id FROM users WHERE id = ?").bind(sessionData.userId).first();
     
-    if (user && (user.role === 'admin' || user.role === 'instructor')) {
+    if (!user) return null;
+    
+    // التحقق من الجلسة الأحادية (طرد الجهاز القديم)
+    if (user.session_id !== sessionData.sessionId) {
+      return null; // التوكن غير صالح لأن الجلسة تغيرت
+    }
+    
+    if (user.role === 'admin' || user.role === 'instructor') {
       return user;
     }
     return null;
@@ -54,7 +62,7 @@ export default {
       
       if (!adminUser) {
         if (path.startsWith("/api/")) {
-          return new Response(JSON.stringify({ error: "Access Denied" }), { 
+          return new Response(JSON.stringify({ error: "Access Denied or Session Invalidated" }), { 
             status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } 
           });
         } else {
@@ -85,7 +93,7 @@ export default {
     // --- 2. مسارات الـ API ---
     if (path.startsWith("/api/")) {
       try {
-        // --- مسار تسجيل الدخول بجوجل ---
+        // --- مسار تسجيل الدخول بجوجل (إنشاء الجلسة الأحادية) ---
         if (path === "/api/auth/google" && request.method === "POST") {
           const body = await request.json();
           const googleToken = body.credential;
@@ -99,20 +107,33 @@ export default {
           const name = payload.name;
           const avatarUrl = payload.picture;
 
+          // توليد معرّف جلسة عشوائي فريد
+          const newSessionId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+
           let user = await env.DB.prepare(
             "SELECT * FROM users WHERE email = ?"
           ).bind(email).first();
 
           if (!user) {
+            // مستخدم جديد: إدخال البيانات مع الجلسة الجديدة
             const insertInfo = await env.DB.prepare(
-              "INSERT INTO users (google_id, name, email, avatar_url) VALUES (?, ?, ?, ?) RETURNING *"
-            ).bind(googleId, name, email, avatarUrl).first();
+              "INSERT INTO users (google_id, name, email, avatar_url, session_id) VALUES (?, ?, ?, ?, ?) RETURNING *"
+            ).bind(googleId, name, email, avatarUrl, newSessionId).first();
             user = insertInfo;
+          } else {
+            // مستخدم موجود: تحديث الجلسة لمعرّف جديد لطرد الجلسة القديمة
+            await env.DB.prepare(
+              "UPDATE users SET session_id = ? WHERE id = ?"
+            ).bind(newSessionId, user.id).run();
+            // تحديث بيانات المستخدم المرجعة
+            user.session_id = newSessionId; 
           }
 
+          // دمج معرف الجلسة داخل التوكن
           const sessionToken = btoa(JSON.stringify({ 
             userId: user.id, 
-            role: user.role, 
+            role: user.role,
+            sessionId: newSessionId,
             exp: Date.now() + 86400000 
           }));
 
@@ -343,6 +364,30 @@ export default {
         // مسارات الطلاب العامة (والمنصة بشكل عام)
         // ==========================================
 
+        // دالة مساعدة داخلية للتحقق من التوكن وصلاحية الجلسة للطلاب
+        async function verifyStudentSession(request, env) {
+            const authHeader = request.headers.get("Authorization");
+            if (!authHeader) return { error: "Unauthorized", status: 401 };
+            
+            try {
+                const token = authHeader.split(" ")[1];
+                const sessionData = JSON.parse(atob(token));
+                
+                if (sessionData.exp < Date.now()) return { error: "Session Expired", status: 401 };
+
+                // التحقق من قاعدة البيانات لمطابقة session_id
+                const user = await env.DB.prepare("SELECT session_id FROM users WHERE id = ?").bind(sessionData.userId).first();
+                
+                if (!user || user.session_id !== sessionData.sessionId) {
+                    return { error: "تم تسجيل الدخول من جهاز آخر. يرجى تسجيل الدخول مجدداً.", status: 403, invalidSession: true };
+                }
+
+                return { userId: sessionData.userId };
+            } catch (e) {
+                return { error: "Invalid Token", status: 401 };
+            }
+        }
+
         // جلب الكورسات (ديناميكية: المدير يرى الكل، المعلم يرى كورساته فقط، الطالب يرى الكل)
         if (path === "/api/courses" && request.method === "GET") {
           let isInstructor = false;
@@ -362,11 +407,9 @@ export default {
           }
 
           let courses;
-          // إذا كان المستخدم الذي يطلب الكورسات هو "معلم"، نرسل له كورساته فقط
           if (isInstructor) {
             courses = await env.DB.prepare("SELECT * FROM courses WHERE instructor_id = ? ORDER BY id DESC").bind(instId).all();
           } else {
-            // المدير أو الطالب العادي يرى جميع الكورسات
             courses = await env.DB.prepare("SELECT * FROM courses ORDER BY id DESC").all();
           }
           
@@ -396,39 +439,28 @@ export default {
 
         // جلب معرفات الكورسات التي اشترك فيها الطالب
         if (path === "/api/my-enrollments" && request.method === "GET") {
-          const authHeader = request.headers.get("Authorization");
-          if (!authHeader) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } });
+          const authCheck = await verifyStudentSession(request, env);
+          if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
           
-          const token = authHeader.split(" ")[1];
-          const sessionData = JSON.parse(atob(token));
-          const userId = sessionData.userId;
-
-          const enrollments = await env.DB.prepare("SELECT course_id FROM enrollments WHERE user_id = ?").bind(userId).all();
+          const enrollments = await env.DB.prepare("SELECT course_id FROM enrollments WHERE user_id = ?").bind(authCheck.userId).all();
           const enrolledCourseIds = enrollments.results.map(e => e.course_id);
           
           return new Response(JSON.stringify(enrolledCourseIds), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // 🌟 المسار الجديد: جلب بيانات لوحة تحكم الطالب (Profile Dashboard) 🌟
+        // جلب بيانات لوحة تحكم الطالب (Profile Dashboard)
         if (path === "/api/my-dashboard" && request.method === "GET") {
-          const authHeader = request.headers.get("Authorization");
-          if (!authHeader) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } });
+          const authCheck = await verifyStudentSession(request, env);
+          if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
           
-          const token = authHeader.split(" ")[1];
-          const sessionData = JSON.parse(atob(token));
-          if (sessionData.exp < Date.now()) return new Response(JSON.stringify({ error: "Session Expired" }), { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } });
+          const userId = authCheck.userId;
 
-          const userId = sessionData.userId;
-
-          // حساب إجمالي الكورسات المشترك بها
           const enrollments = await env.DB.prepare("SELECT course_id FROM enrollments WHERE user_id = ?").bind(userId).all();
           const totalCourses = enrollments.results.length;
 
-          // حساب إجمالي المحاضرات التي أتمها
           const completed = await env.DB.prepare("SELECT COUNT(*) as count FROM student_progress WHERE user_id = ?").bind(userId).first();
           const completedLessons = completed.count;
 
-          // جلب تفاصيل الكورسات المشترك بها مع حساب شريط التقدم لكل كورس
           const coursesQuery = `
             SELECT c.id, c.title, c.image_url,
                    (SELECT COUNT(*) FROM lessons l WHERE l.course_id = c.id) as total_lessons,
@@ -447,14 +479,10 @@ export default {
 
         // الاشتراك في كورس
         if (path === "/api/enroll" && request.method === "POST") {
-          const authHeader = request.headers.get("Authorization");
-          if (!authHeader) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } });
+          const authCheck = await verifyStudentSession(request, env);
+          if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
           
-          const token = authHeader.split(" ")[1];
-          const sessionData = JSON.parse(atob(token));
-          if (sessionData.exp < Date.now()) return new Response(JSON.stringify({ error: "Session Expired" }), { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } });
-
-          const userId = sessionData.userId;
+          const userId = authCheck.userId;
           const body = await request.json();
           const course_id = body.course_id;
           const code = body.code;
@@ -490,21 +518,12 @@ export default {
 
         // حفظ تقدم الطالب (إنهاء المحاضرة)
         if (path === "/api/progress" && request.method === "POST") {
-          const authHeader = request.headers.get("Authorization");
-          if (!authHeader) {
-            return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } });
-          }
-
-          const token = authHeader.split(" ")[1];
-          const sessionData = JSON.parse(atob(token));
+          const authCheck = await verifyStudentSession(request, env);
+          if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
           
-          if (sessionData.exp < Date.now()) {
-            return new Response(JSON.stringify({ error: "Session Expired" }), { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } });
-          }
-
           const body = await request.json();
           const lessonId = body.lessonId;
-          const userId = sessionData.userId;
+          const userId = authCheck.userId;
 
           await env.DB.prepare(
             "INSERT INTO student_progress (user_id, lesson_id, is_completed, completed_at) VALUES (?, ?, 1, CURRENT_TIMESTAMP)"
