@@ -64,12 +64,12 @@
         .lesson-card:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.08); }
         .lesson-card.completed { border-color: var(--success); }
         
-        /* تصميم المحاضرة المغلقة (Admin Lock) */
-        .lesson-card.locked { opacity: 0.7; border-color: #cbd5e1; }
-        .lesson-card.locked:hover { transform: none; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        .lesson-card.locked .lesson-header { background: #f8fafc; cursor: not-allowed; }
-        .lesson-card.locked .lesson-icon { color: var(--text-muted); background: #e2e8f0; }
-        .lesson-card.locked .lesson-title, .lesson-card.locked .lesson-subtitle { color: var(--text-muted); }
+        /* تصميم المحاضرة المغلقة (Admin Lock) والمقفولة تتابعياً (Seq Lock) */
+        .lesson-card.locked, .lesson-card.seq-locked { opacity: 0.7; border-color: #cbd5e1; }
+        .lesson-card.locked:hover, .lesson-card.seq-locked:hover { transform: none; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .lesson-card.locked .lesson-header, .lesson-card.seq-locked .lesson-header { background: #f8fafc; cursor: not-allowed; }
+        .lesson-card.locked .lesson-icon, .lesson-card.seq-locked .lesson-icon { color: var(--text-muted); background: #e2e8f0; }
+        .lesson-card.locked .lesson-title, .lesson-card.locked .lesson-subtitle, .lesson-card.seq-locked .lesson-title, .lesson-card.seq-locked .lesson-subtitle { color: var(--text-muted); }
         
         .lesson-header { padding: 25px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: var(--white); transition: 0.3s; user-select: none; }
         .lesson-header.completed-header { background: var(--success-light); }
@@ -394,8 +394,29 @@
 
             lessonsData.forEach((lesson, index) => {
                 const isCompleted = completedLessons.has(lesson.id);
-                const isLocked = lesson.is_admin_locked == 1;
+                const isAdminLocked = lesson.is_admin_locked == 1;
                 
+                // تحديد القفل التتابعي (Sequential Lock)
+                let isSeqLocked = false;
+                // المحاضرة الأولى (index = 0) دائماً مفتوحة ما لم تغلقها الإدارة
+                if (index > 0) {
+                    const prevLesson = lessonsData[index - 1];
+                    // إذا لم تكن المحاضرة السابقة مكتملة، نغلق المحاضرة الحالية تتابعياً
+                    if (!completedLessons.has(prevLesson.id)) {
+                        isSeqLocked = true;
+                    }
+                }
+
+                // الكارت يكون مغلقاً إذا كان مقفولاً من الإدارة أو مقفولاً تتابعياً
+                const isLocked = isAdminLocked || isSeqLocked;
+                
+                let lockMessage = '';
+                if (isAdminLocked) {
+                    lockMessage = "هذه المحاضرة مغلقة حالياً من قبل الإدارة.";
+                } else if (isSeqLocked) {
+                    lockMessage = "عذراً، يجب إتمام المحاضرة السابقة أولاً لتتمكن من فتح هذه المحاضرة.";
+                }
+
                 // استخراج روابط الفيديوهات المتعددة إن وجدت (مفصولين بفاصلة أو مسافة)
                 const videoUrls = lesson.video_url.split(/[,|\s]+/).filter(url => url.trim() !== "");
                 
@@ -407,7 +428,7 @@
                     const partLabel = videoUrls.length > 1 ? ` (الجزء ${vIdx + 1})` : '';
 
                     videosHTML += `
-                        <div class="sub-item ${videoBtnClass}" onclick="${isLocked ? `alert('هذه المحاضرة مغلقة من قبل الإدارة.');` : `openVideo(${index}, '${vUrl}', ${vIdx}, ${videoUrls.length})`}">
+                        <div class="sub-item ${videoBtnClass}" onclick="${isLocked ? `alert('${lockMessage}');` : `openVideo(${index}, '${vUrl}', ${vIdx}, ${videoUrls.length})`}">
                             <div style="display:flex; align-items:center; gap:15px;">
                                 <i class="${videoIconClass}"></i> <span>جزء الشرح والتدريبات${partLabel}</span>
                             </div>
@@ -423,7 +444,7 @@
                     const quizBtnClass = isCompleted ? 'completed' : 'quiz-item';
                     
                     quizHTML = `
-                        <div class="sub-item ${quizBtnClass}" onclick="${isLocked ? `alert('هذه المحاضرة مغلقة من قبل الإدارة.');` : `openExam(${index})`}">
+                        <div class="sub-item ${quizBtnClass}" onclick="${isLocked ? `alert('${lockMessage}');` : `openExam(${index})`}">
                             <div style="display:flex; align-items:center; gap:15px;">
                                 <i class="${quizIconClass}"></i> <span>امتحان المحاضرة</span>
                             </div>
@@ -433,13 +454,32 @@
                 }
 
                 const card = document.createElement('div');
-                card.className = `lesson-card ${isCompleted ? 'completed' : ''} ${isLocked ? 'locked' : ''}`;
+                
+                // تحديد الفئة (Class) بناءً على حالة الإكمال ونوع القفل
+                let cardClass = 'lesson-card';
+                if (isCompleted) cardClass += ' completed';
+                if (isAdminLocked) cardClass += ' locked';
+                else if (isSeqLocked) cardClass += ' seq-locked';
+                
+                card.className = cardClass;
+                
+                // تحديد الأيقونة والنص التحذيري بجوار العنوان
+                let iconClass = 'fa-solid fa-border-all';
+                let titleBadge = '';
+                
+                if (isAdminLocked) {
+                    iconClass = 'fa-solid fa-lock';
+                    titleBadge = '<span style="color:var(--danger); font-size:14px;">(مغلقة من الإدارة)</span>';
+                } else if (isSeqLocked) {
+                    iconClass = 'fa-solid fa-lock';
+                    titleBadge = '<span style="color:var(--text-muted); font-size:14px;">(مقفولة تتابعياً)</span>';
+                }
                 
                 card.innerHTML = `
-                    <div class="lesson-header ${isCompleted ? 'completed-header' : ''}" onclick="${isLocked ? `alert('هذه المحاضرة مغلقة حالياً من قبل الإدارة.');` : `toggleAccordion(this)`}">
-                        <div class="lesson-icon"><i class="${isLocked ? 'fa-solid fa-lock' : 'fa-solid fa-border-all'}"></i></div>
+                    <div class="lesson-header ${isCompleted ? 'completed-header' : ''}" onclick="${isLocked ? `alert('${lockMessage}');` : `toggleAccordion(this)`}">
+                        <div class="lesson-icon"><i class="${iconClass}"></i></div>
                         <div class="lesson-title-area">
-                            <div class="lesson-title">المحاضرة ${index + 1} ${isLocked ? '<span style="color:var(--danger); font-size:14px;">(مغلقة)</span>' : ''}</div>
+                            <div class="lesson-title">المحاضرة ${index + 1} ${titleBadge}</div>
                             <div class="lesson-subtitle">${lesson.title}</div>
                         </div>
                         <div class="chevron-area"><i class="fa-solid fa-chevron-down chevron"></i></div>
@@ -457,7 +497,8 @@
 
         function toggleAccordion(headerElement) {
             const card = headerElement.parentElement;
-            if(card.classList.contains('locked')) return;
+            // منع الفتح إذا كانت مقفولة سواء من الإدارة أو تتابعياً
+            if(card.classList.contains('locked') || card.classList.contains('seq-locked')) return;
 
             const body = card.querySelector('.lesson-body');
             const isActive = card.classList.contains('active');
@@ -754,7 +795,7 @@
             triggerConfetti();
 
             completedLessons.add(lessonId);
-            renderAccordion();
+            renderAccordion(); // سيتم إعادة رسم الشاشة هنا وفتح المحاضرة التالية فوراً بفضل القفل التتابعي
 
             localStorage.setItem(`progress_${userInfo.id}`, JSON.stringify(Array.from(completedLessons)));
 
