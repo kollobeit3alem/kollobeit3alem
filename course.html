@@ -314,7 +314,7 @@
             const savedProgress = localStorage.getItem(`progress_${userInfo.id}`);
             if(savedProgress) { completedLessons = new Set(JSON.parse(savedProgress)); }
 
-            const urlParams = newSearchParams(window.location.search);
+            const urlParams = new URLSearchParams(window.location.search);
             const courseId = urlParams.get('id');
             if(!courseId) { alert("رابط غير صحيح"); window.location.href = '/courses.html'; return; }
 
