@@ -1,77 +1,177 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<title>صفحة عشوائية</title>
-<style>
-    body {
-        font-family: Arial, sans-serif;
-        background: linear-gradient(135deg, #6dd5ed, #2193b0);
-        color: white;
-        text-align: center;
-        margin: 0;
-        padding: 0;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تسجيل الدخول - كله بيتعلم لتعلم المهارات</title>
+    
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    
+    <style>
+        /* تعريف الخط الخاص بالمنصة */
+        @font-face {
+            font-family: 'AbdoLogo';
+            src: url('alfont_com_Abdo.Fonts_Abdo.Logo_.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
 
-    header {
-        background: rgba(0,0,0,0.3);
-        padding: 20px;
-    }
+        /* تطبيق الهوية البصرية والخط على كامل الصفحة */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'AbdoLogo', sans-serif !important;
+        }
 
-    section {
-        padding: 40px;
-    }
+        :root {
+            --bg-color: #f0f4f8; 
+            --text-color: #333;
+            --card-bg: #ffffff;
+            --card-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        }
 
-    button {
-        padding: 10px 20px;
-        font-size: 16px;
-        border: none;
-        border-radius: 8px;
-        background: orange;
-        cursor: pointer;
-    }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
 
-    button:hover {
-        background: darkorange;
-    }
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+        }
 
-    ul {
-        list-style: none;
-        padding: 0;
-    }
+        .login-card {
+            background-color: var(--card-bg);
+            border-radius: 24px;
+            box-shadow: var(--card-shadow);
+            width: 100%;
+            max-width: 480px;
+            padding: 50px 40px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 25px;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
 
-    li {
-        background: rgba(255,255,255,0.2);
-        margin: 10px;
-        padding: 10px;
-        border-radius: 6px;
-    }
-</style>
+        .platform-identity {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .logo-img {
+            max-width: 180px;
+            height: auto;
+        }
+
+        .platform-name {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text-color);
+        }
+
+        .tagline {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .login-separator {
+            width: 100%;
+            height: 1px;
+            background-color: #eee;
+            margin: 10px 0;
+        }
+
+        #g_id_signin_wrapper {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+    </style>
 </head>
-
 <body>
 
-<header>
-    <h1>مرحبا بك في صفحة عشوائية 🌍</h1>
-</header>
+    <div class="login-container">
+        <div class="login-card">
+            
+            <div class="platform-identity">
+                <img src="كله بيتعلم (1).png" alt="شعار كله بيتعلم" class="logo-img">
+                <h1 class="platform-name">كله بيتعلم لتعلم المهارات</h1>
+            </div>
 
-<section>
-    <p>دي مجرد صفحة HTML بسيطة للتجربة والتعلم.</p>
+            <p class="tagline">منصتك المتكاملة لإتقان المهارات العملية بيسر.</p>
+            
+            <div class="login-separator"></div>
 
-    <img src="https://picsum.photos/300" alt="صورة عشوائية">
+            <div id="g_id_onload"
+                 data-client_id="543687035134-d64j2ncr5bcfuv7s9e61psp7qb2dj276.apps.googleusercontent.com"
+                 data-context="signin"
+                 data-ux_mode="popup"
+                 data-callback="handleGoogleLogin"
+                 data-auto_prompt="false">
+            </div>
 
-    <br><br>
+            <div id="g_id_signin_wrapper">
+                <div class="g_id_signin"
+                     data-type="standard"
+                     data-shape="pill"
+                     data-theme="outline"
+                     data-text="signin_with"
+                     data-size="large"
+                     data-logo_alignment="center">
+                </div>
+            </div>
 
-    <button onclick="alert('أهلاً بيك!')">اضغط هنا</button>
+        </div>
+    </div>
 
-    <h2>حاجات عشوائية:</h2>
-    <ul>
-        <li>برمجة</li>
-        <li>تصميم</li>
-        <li>تكنولوجيا</li>
-        <li>ذكاء اصطناعي</li>
-    </ul>
-</section>
+    <script>
+        async function handleGoogleLogin(response) {
+            // استبدل الرابط أدناه برابط الـ Worker الخاص بك عند النشر
+            const workerUrl = 'https://your-worker-name.your-subdomain.workers.dev/api/auth/google';
+
+            try {
+                const apiResponse = await fetch(workerUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ credential: response.credential })
+                });
+
+                const data = await apiResponse.json();
+
+                if (data.success) {
+                    // تخزين التوكن وبيانات المستخدم في المتصفح
+                    localStorage.setItem('auth_token', data.token);
+                    localStorage.setItem('user_info', JSON.stringify(data.user));
+
+                    // الانتقال المباشر لصفحة المحتوى التعليمي
+                    window.location.href = '/courses.html';
+                } else {
+                    alert('عذراً، فشل تسجيل الدخول. تأكد من إعدادات الـ Worker وقاعدة البيانات.');
+                }
+            } catch (error) {
+                console.error('Connection Error:', error);
+                alert('خطأ في الاتصال بالسيرفر. يرجى مراجعة حالة الـ Worker.');
+            }
+        }
+    </script>
 
 </body>
 </html>
