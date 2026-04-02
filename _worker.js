@@ -46,8 +46,8 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    // 1. حماية صفحات الإدارة من جهة السيرفر
-    if (path === "/admin.html" || path.startsWith("/admin_") || path.startsWith("/api/admin/")) {
+    // 1. حماية صفحات الإدارة من جهة السيرفر (بما فيها الرابط الجديد)
+    if (path === "/admin.kollobeit3alem" || path === "/admin.html" || path.startsWith("/admin_") || path.startsWith("/api/admin/")) {
       const admin = await verifyAdmin(request, env);
       if (!admin) {
         if (path.startsWith("/api/")) {
@@ -55,8 +55,8 @@ export default {
             status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } 
           });
         } else {
-          // تحويل أي شخص غير أدمن لصفحة تسجيل الدخول إذا حاول فتح الصفحة
-          return Response.redirect(url.origin + "/", 302);
+          // تحويل أي شخص غير أدمن لصفحة الكورسات إذا حاول فتح صفحة الإدارة
+          return Response.redirect(url.origin + "/courses.html", 302);
         }
       }
     }
