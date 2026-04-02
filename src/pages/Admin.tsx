@@ -19,11 +19,15 @@ export default function Admin() {
   const [codes, setCodes] = useState<ActivationCode[]>([]);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   
-  // Form states
+  // Form handling states
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [selectedLessonId, setSelectedLessonId] = useState('');
   const [selectedCodeCourseId, setSelectedCodeCourseId] = useState('');
   
+  // UI logic states (replacing DOM manipulation)
+  const [isNewCourseFree, setIsNewCourseFree] = useState(true);
+  const [isEditCourseFree, setIsEditCourseFree] = useState(true);
+
   // Modal states
   const [showEditModal, setShowEditModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -49,9 +53,8 @@ export default function Admin() {
   useEffect(() => {
     if (token && user) {
       loadCourses();
-      if (user.role === 'admin') {
-        loadUsers();
-      }
+      // Users are loaded for both admin and instructor (instructor sees their students)
+      loadUsers();
     }
   }, [token, user]);
 
@@ -124,6 +127,7 @@ export default function Admin() {
       });
       toast.success('تمت إضافة الدورة بنجاح!');
       form.reset();
+      setIsNewCourseFree(true); // Reset the toggle
       loadCourses();
     } catch (error) {
       toast.error('فشل إضافة الدورة');
@@ -138,6 +142,10 @@ export default function Admin() {
       await apiCall(`/api/admin/courses/${id}`, token, 'DELETE');
       toast.success('تم حذف الدورة');
       loadCourses();
+      if (selectedCourseId === id.toString()) {
+        setSelectedCourseId('');
+        setLessons([]);
+      }
     } catch (error) {
       toast.error('فشل حذف الدورة');
     }
@@ -159,7 +167,11 @@ export default function Admin() {
         order_num: parseInt(formData.get('order_num') as string),
       });
       toast.success('تمت إضافة المحاضرة!');
-      form.reset();
+      
+      // Reset specific fields
+      (form.elements.namedItem('title') as HTMLInputElement).value = '';
+      (form.elements.namedItem('video_url') as HTMLInputElement).value = '';
+      
       loadLessons(selectedCourseId);
     } catch (error) {
       toast.error('فشل إضافة المحاضرة');
@@ -209,7 +221,12 @@ export default function Admin() {
         correct_option: formData.get('correct_option'),
       });
       toast.success('تم إضافة السؤال!');
-      form.reset();
+      
+      // Reset input fields
+      ['image_url', 'option_a', 'option_b', 'option_c', 'option_d'].forEach(name => {
+        (form.elements.namedItem(name) as HTMLInputElement).value = '';
+      });
+
       loadQuestions(selectedLessonId);
     } catch (error) {
       toast.error('فشل إضافة السؤال');
@@ -238,14 +255,17 @@ export default function Admin() {
     const formData = new FormData(form);
     
     try {
-      await apiCall('/api/admin/codes', token, 'POST', {
+      const count = parseInt(formData.get('count') as string);
+      const res = await apiCall('/api/admin/codes', token, 'POST', {
         course_id: parseInt(formData.get('course_id') as string),
-        count: parseInt(formData.get('count') as string),
+        count: count,
       });
-      toast.success(`تم توليد ${formData.get('count')} كود بنجاح!`);
+      toast.success(`تم توليد ${count} كود بنجاح!\nمثال لأحد الأكواد: ${res.codes[0]}`);
       form.reset();
-      if (selectedCodeCourseId) {
-        loadCodes(selectedCodeCourseId);
+      
+      const courseId = formData.get('course_id') as string;
+      if (selectedCodeCourseId === courseId) {
+        loadCodes(courseId);
       }
     } catch (error) {
       toast.error('فشل توليد الأكواد');
@@ -284,6 +304,11 @@ export default function Admin() {
     setEditingType(type);
     setEditingId(item.id);
     setEditFormData({ ...item } as unknown as Record<string, unknown>);
+    
+    if (type === 'course') {
+      setIsEditCourseFree((item as Course).is_free === 1);
+    }
+    
     setShowEditModal(true);
   };
 
@@ -355,21 +380,20 @@ export default function Admin() {
             <i className="fas fa-spell-check"></i> الامتحانات
           </button>
           
+          <button 
+            onClick={() => setActiveTab('users')}
+            className={`nav-btn ${activeTab === 'users' ? 'active' : ''}`}
+          >
+            <i className="fas fa-users-cog"></i> الطلاب والتقارير
+          </button>
+
           {isAdmin && (
-            <>
-              <button 
-                onClick={() => setActiveTab('users')}
-                className={`nav-btn ${activeTab === 'users' ? 'active' : ''}`}
-              >
-                <i className="fas fa-users-cog"></i> الطلاب والتقارير
-              </button>
-              <button 
-                onClick={() => setActiveTab('codes')}
-                className={`nav-btn ${activeTab === 'codes' ? 'active' : ''}`}
-              >
-                <i className="fas fa-key"></i> أكواد التفعيل
-              </button>
-            </>
+            <button 
+              onClick={() => setActiveTab('codes')}
+              className={`nav-btn ${activeTab === 'codes' ? 'active' : ''}`}
+            >
+              <i className="fas fa-key"></i> أكواد التفعيل
+            </button>
           )}
           
           <button 
@@ -430,22 +454,20 @@ export default function Admin() {
                   <label className="block mb-2 font-bold text-text-main">نوع الدورة</label>
                   <select 
                     name="is_free" 
+                    value={isNewCourseFree ? '1' : '0'}
                     className="form-input"
-                    onChange={(e) => {
-                      const priceGroup = document.getElementById('c-price-group');
-                      if (priceGroup) {
-                        priceGroup.style.display = e.target.value === '0' ? 'block' : 'none';
-                      }
-                    }}
+                    onChange={(e) => setIsNewCourseFree(e.target.value === '1')}
                   >
                     <option value="1">مجانية</option>
                     <option value="0">مدفوعة</option>
                   </select>
                 </div>
-                <div id="c-price-group" className="hidden">
-                  <label className="block mb-2 font-bold text-text-main">سعر الدورة (بالجنيه)</label>
-                  <input type="number" name="price" defaultValue="0" min="0" className="form-input" />
-                </div>
+                {!isNewCourseFree && (
+                  <div>
+                    <label className="block mb-2 font-bold text-text-main">سعر الدورة (بالجنيه)</label>
+                    <input type="number" name="price" defaultValue="0" min="0" className="form-input" />
+                  </div>
+                )}
                 <div className="md:col-span-2">
                   <button type="submit" className="btn-primary">
                     <i className="fas fa-save ml-2"></i> حفظ ونشر الدورة
@@ -600,10 +622,12 @@ export default function Admin() {
                   <label className="block mb-2 font-bold text-text-main">اختر الدورة</label>
                   <select 
                     className="form-input"
+                    required
                     onChange={(e) => {
                       const courseId = e.target.value;
                       if (courseId) {
                         loadLessons(courseId);
+                        setSelectedLessonId(''); // Reset lesson selection
                       }
                     }}
                   >
@@ -617,6 +641,7 @@ export default function Admin() {
                     name="lesson_id" 
                     required
                     className="form-input"
+                    value={selectedLessonId}
                     onChange={(e) => {
                       setSelectedLessonId(e.target.value);
                       loadQuestions(e.target.value);
@@ -663,7 +688,10 @@ export default function Admin() {
                     type="button" 
                     onClick={(e) => {
                       const form = e.currentTarget.closest('form');
-                      if (form) form.reset();
+                      if (form) {
+                        form.reset();
+                        // Optional: you can manually clear React states if they were controlled
+                      }
                     }}
                     className="bg-border text-text-main border-none py-4 px-8 rounded-xl font-bold cursor-pointer transition-all hover:bg-slate-300"
                   >
@@ -696,8 +724,8 @@ export default function Admin() {
           </section>
         )}
 
-        {/* Users Tab */}
-        {activeTab === 'users' && isAdmin && (
+        {/* Users Tab (Visible to both Admin and Instructor) */}
+        {activeTab === 'users' && (
           <section className="animate-fade-in">
             <h1 className="text-[28px] text-primary mb-8 flex items-center gap-2.5">
               <i className="fas fa-users-cog"></i> الطلاب والتقارير
@@ -717,53 +745,61 @@ export default function Admin() {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((u) => (
-                    <tr key={u.id} className="hover:bg-slate-50">
-                      <td className="p-4 border-b border-border"><strong>{u.name}</strong></td>
-                      <td className="p-4 border-b border-border text-text-muted">{u.email}</td>
-                      <td className="p-4 border-b border-border">
-                        {u.role === 'admin' ? (
-                          <span className="badge-paid">مدير</span>
-                        ) : u.role === 'instructor' ? (
-                          <span className="badge-free">مدرس</span>
-                        ) : (
-                          'طالب'
-                        )}
-                      </td>
-                      <td className="p-4 border-b border-border">
-                        <div className="flex gap-1.5">
-                          <button 
-                            onClick={() => openEditModal('user', u)}
-                            className="py-2 px-3 border-none rounded-lg cursor-pointer font-bold transition-all text-center text-sm bg-sky-100 text-sky-600 hover:bg-sky-500 hover:text-white"
-                            title="تعديل الرتبة والاسم"
-                          >
-                            <i className="fas fa-edit"></i>
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteUser(u.id)}
-                            className="py-2 px-3 border-none rounded-lg cursor-pointer font-bold transition-all text-center text-sm bg-red-100 text-red-500 hover:bg-red-500 hover:text-white"
-                            title="حذف نهائي"
-                          >
-                            <i className="fas fa-trash"></i>
-                          </button>
-                          <button 
-                            onClick={() => handleViewReport(u.id, u.name)}
-                            className="py-2 px-3 border-none rounded-lg cursor-pointer font-bold transition-all text-center text-sm bg-slate-200 text-slate-900 hover:bg-slate-300"
-                            title="عرض تقرير الطالب"
-                          >
-                            <i className="fas fa-chart-pie"></i>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {users.length === 0 ? (
+                    <tr><td colSpan={4} className="text-center p-4">لا يوجد مستخدمين.</td></tr>
+                  ) : (
+                    users.map((u) => (
+                      <tr key={u.id} className="hover:bg-slate-50">
+                        <td className="p-4 border-b border-border"><strong>{u.name}</strong></td>
+                        <td className="p-4 border-b border-border text-text-muted">{u.email}</td>
+                        <td className="p-4 border-b border-border">
+                          {u.role === 'admin' ? (
+                            <span className="badge-paid">مدير</span>
+                          ) : u.role === 'instructor' ? (
+                            <span className="badge-free">مدرس</span>
+                          ) : (
+                            'طالب'
+                          )}
+                        </td>
+                        <td className="p-4 border-b border-border">
+                          <div className="flex gap-1.5">
+                            {isAdmin && (
+                              <>
+                                <button 
+                                  onClick={() => openEditModal('user', u)}
+                                  className="py-2 px-3 border-none rounded-lg cursor-pointer font-bold transition-all text-center text-sm bg-sky-100 text-sky-600 hover:bg-sky-500 hover:text-white"
+                                  title="تعديل الرتبة والاسم"
+                                >
+                                  <i className="fas fa-edit"></i>
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteUser(u.id)}
+                                  className="py-2 px-3 border-none rounded-lg cursor-pointer font-bold transition-all text-center text-sm bg-red-100 text-red-500 hover:bg-red-500 hover:text-white"
+                                  title="حذف نهائي"
+                                >
+                                  <i className="fas fa-trash"></i>
+                                </button>
+                              </>
+                            )}
+                            <button 
+                              onClick={() => handleViewReport(u.id, u.name)}
+                              className="py-2 px-3 border-none rounded-lg cursor-pointer font-bold transition-all text-center text-sm bg-slate-200 text-slate-900 hover:bg-slate-300"
+                              title="عرض تقرير الطالب"
+                            >
+                              <i className="fas fa-chart-pie"></i> التقرير
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </section>
         )}
 
-        {/* Codes Tab */}
+        {/* Codes Tab (Admin Only) */}
         {activeTab === 'codes' && isAdmin && (
           <section className="animate-fade-in">
             <h1 className="text-[28px] text-primary mb-8 flex items-center gap-2.5">
@@ -814,7 +850,7 @@ export default function Admin() {
                 </select>
               </div>
               
-              {selectedCodeCourseId && codes.length > 0 && (
+              {selectedCodeCourseId && (
                 <div className="mt-5 overflow-x-auto">
                   <table className="w-full border-collapse">
                     <thead>
@@ -825,23 +861,27 @@ export default function Admin() {
                       </tr>
                     </thead>
                     <tbody>
-                      {codes.map((code) => (
-                        <tr key={code.id} className="hover:bg-slate-50">
-                          <td className="p-4 border-b border-border">
-                            <strong className="tracking-wider font-mono text-base">{code.code}</strong>
-                          </td>
-                          <td className="p-4 border-b border-border">
-                            {code.is_used === 1 ? (
-                              <span className="badge-paid">مُستخدم بواسطة ({code.used_by})</span>
-                            ) : (
-                              <span className="badge-free">متاح للاستخدام</span>
-                            )}
-                          </td>
-                          <td className="p-4 border-b border-border text-text-muted">
-                            {code.used_at ? new Date(code.used_at).toLocaleDateString('ar-EG') : '-'}
-                          </td>
-                        </tr>
-                      ))}
+                      {codes.length === 0 ? (
+                        <tr><td colSpan={3} className="text-center p-4">لا توجد أكواد لهذه الدورة حالياً.</td></tr>
+                      ) : (
+                        codes.map((code) => (
+                          <tr key={code.id} className="hover:bg-slate-50">
+                            <td className="p-4 border-b border-border">
+                              <strong className="tracking-wider font-mono text-base">{code.code}</strong>
+                            </td>
+                            <td className="p-4 border-b border-border">
+                              {code.is_used === 1 ? (
+                                <span className="badge-paid">مُستخدم بواسطة ({code.used_by})</span>
+                              ) : (
+                                <span className="badge-free">متاح للاستخدام</span>
+                              )}
+                            </td>
+                            <td className="p-4 border-b border-border text-text-muted">
+                              {code.used_at ? new Date(code.used_at).toLocaleDateString('ar-EG') : '-'}
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -897,6 +937,37 @@ export default function Admin() {
                       className="form-input" 
                     />
                   </div>
+                  <div>
+                    <label className="block mb-2 font-bold text-text-main">نوع الدورة</label>
+                    <select 
+                      value={isEditCourseFree ? '1' : '0'}
+                      className="form-input"
+                      onChange={(e) => {
+                        const isFree = e.target.value === '1';
+                        setIsEditCourseFree(isFree);
+                        setEditFormData({
+                          ...editFormData, 
+                          is_free: isFree ? 1 : 0,
+                          price: isFree ? 0 : editFormData.price // reset price if free
+                        });
+                      }}
+                    >
+                      <option value="1">مجانية</option>
+                      <option value="0">مدفوعة</option>
+                    </select>
+                  </div>
+                  {!isEditCourseFree && (
+                    <div>
+                      <label className="block mb-2 font-bold text-text-main">السعر (بالجنيه)</label>
+                      <input 
+                        type="number" 
+                        value={(editFormData.price as number) || 0} 
+                        onChange={(e) => setEditFormData({...editFormData, price: parseFloat(e.target.value)})}
+                        min="0"
+                        className="form-input" 
+                      />
+                    </div>
+                  )}
                 </>
               )}
               {editingType === 'lesson' && (
@@ -984,7 +1055,7 @@ export default function Admin() {
               </button>
             </div>
             <div className="leading-relaxed">
-              <div className="bg-page-bg p-4 rounded-xl mb-5">
+              <div className="bg-page-bg p-4 rounded-xl mb-5 border border-border">
                 <h4 className="text-primary mb-2.5 font-bold"><i className="fas fa-book-open ml-2"></i> الدورات المشترك بها ({reportData.enrollments.length})</h4>
                 {reportData.enrollments.length > 0 ? (
                   <ul className="list-inside pr-4 text-text-main">
