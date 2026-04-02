@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>مشاهدة الدورة - كله بيتعلم لتعلم المهارات</title>
+    <title>مشاهدة الدورة - كله بيتعلم</title>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
@@ -11,8 +11,7 @@
         @font-face {
             font-family: 'AbdoLogo';
             src: url('alfont_com_Abdo.Fonts_Abdo.Logo_.ttf') format('truetype');
-            font-weight: normal;
-            font-style: normal;
+            font-weight: normal; font-style: normal;
         }
 
         :root {
@@ -28,272 +27,66 @@
             --success: #10b981;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'AbdoLogo', sans-serif !important;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'AbdoLogo', sans-serif !important; }
 
-        body {
-            background-color: var(--bg-page);
-            color: var(--text-main);
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
-        }
+        body { background-color: var(--bg-page); color: var(--text-main); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
-        header {
-            background-color: #ffffff;
-            padding: 15px 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 2px 15px rgba(0,0,0,0.05);
-            z-index: 10;
-            border-bottom: 3px solid var(--primary-color);
-        }
+        header { background-color: #ffffff; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 15px rgba(0,0,0,0.05); z-index: 10; border-bottom: 3px solid var(--primary-color); }
+        .logo-area { display: flex; align-items: center; gap: 15px; }
+        .logo-area img { height: 45px; border-radius: 10px; }
+        .logo-area h1 { font-size: 22px; color: var(--primary-color); }
+        .user-info { display: flex; align-items: center; gap: 10px; font-weight: bold; color: var(--text-main); }
+        .user-info img { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--primary-color); }
 
-        .logo-area {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
+        .main-container { display: flex; flex: 1; overflow: hidden; }
 
-        .logo-area img {
-            height: 45px;
-            border-radius: 10px;
-        }
+        .video-section { flex: 1; padding: 25px; display: flex; flex-direction: column; overflow-y: auto; }
+        .video-wrapper { background: #000; border-radius: var(--radius); overflow: hidden; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.15); aspect-ratio: 16 / 9; width: 100%; }
+        .video-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        #player { width: 100%; height: 100%; pointer-events: none; }
+        .player-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: transparent; z-index: 5; cursor: pointer; }
 
-        .logo-area h1 {
-            font-size: 22px;
-            color: var(--primary-color);
-        }
-
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-weight: bold;
-            color: var(--text-main);
-        }
-
-        .user-info img {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            border: 2px solid var(--primary-color);
-        }
-
-        .main-container {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-        }
-
-        .video-section {
-            flex: 1;
-            padding: 25px;
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-        }
-
-        .video-wrapper {
-            background: #000;
-            border-radius: var(--radius);
-            overflow: hidden;
-            position: relative;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-            aspect-ratio: 16 / 9;
-            width: 100%;
-        }
-
-        .video-container {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none;
-        }
-
-        #player {
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-        }
-
-        .player-overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: transparent;
-            z-index: 5;
-            cursor: pointer;
-        }
-
-        .custom-controls {
-            background: var(--bg-sidebar);
-            padding: 20px;
-            border-radius: var(--radius);
-            margin-top: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
-            border: 1px solid var(--border);
-        }
-
-        .progress-container {
-            width: 100%;
-            height: 8px;
-            background: var(--border);
-            border-radius: 4px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .progress-bar {
-            height: 100%;
-            background: var(--primary-color);
-            width: 0%;
-            transition: width 0.1s linear;
-        }
-
-        .controls-buttons {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .play-btn {
-            background: var(--primary-color);
-            color: white;
-            border: none;
-            width: 50px; height: 50px;
-            border-radius: 50%;
-            font-size: 20px;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            transition: transform 0.2s;
-        }
-
+        .custom-controls { background: var(--bg-sidebar); padding: 20px; border-radius: var(--radius); margin-top: 20px; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.05); border: 1px solid var(--border); }
+        .progress-container { width: 100%; height: 8px; background: var(--border); border-radius: 4px; position: relative; overflow: hidden; }
+        .progress-bar { height: 100%; background: var(--primary-color); width: 0%; transition: width 0.1s linear; }
+        .controls-buttons { display: flex; justify-content: space-between; align-items: center; }
+        .play-btn { background: var(--primary-color); color: white; border: none; width: 50px; height: 50px; border-radius: 50%; font-size: 20px; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: transform 0.2s; }
         .play-btn:hover { transform: scale(1.05); }
+        .time-display { font-size: 16px; font-weight: bold; color: var(--primary-color); }
 
-        .time-display {
-            font-size: 16px;
-            font-weight: bold;
-            color: var(--primary-color);
-        }
+        .lesson-info { margin-top: 20px; background: var(--bg-sidebar); padding: 25px; border-radius: var(--radius); border: 1px solid var(--border); }
+        .lesson-info h2 { font-size: 24px; color: var(--primary-color); margin-bottom: 10px; }
+        
+        .status-alert { margin-top: 15px; padding: 15px; border-radius: 10px; display: none; font-weight: bold; align-items: center; gap: 10px; }
+        .status-alert.warning { background: #fef2f2; color: var(--danger); border: 1px solid #f87171; }
 
-        .lesson-info {
-            margin-top: 20px;
-            background: var(--bg-sidebar);
-            padding: 25px;
-            border-radius: var(--radius);
-            border: 1px solid var(--border);
-        }
+        .sidebar { width: 380px; background: var(--bg-sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; box-shadow: -5px 0 20px rgba(0,0,0,0.02); z-index: 5; }
+        .sidebar-header { padding: 25px; border-bottom: 1px solid var(--border); background: var(--primary-light); }
+        .sidebar-header h3 { color: var(--primary-color); font-size: 20px; }
+        .playlist { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .lesson-item { padding: 15px; background: var(--bg-page); border: 1px solid var(--border); border-radius: 12px; cursor: pointer; display: flex; align-items: center; gap: 15px; transition: all 0.3s; }
+        .lesson-item:hover { border-color: var(--primary-color); transform: translateX(-5px); }
+        .lesson-item.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+        .lesson-item.active .lesson-num { background: white; color: var(--primary-color); }
+        .lesson-num { width: 35px; height: 35px; background: var(--primary-light); color: var(--primary-color); border-radius: 50%; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 14px; }
 
-        .lesson-info h2 {
-            font-size: 24px;
-            color: var(--primary-color);
-            margin-bottom: 10px;
-        }
-
-        .status-alert {
-            margin-top: 15px;
-            padding: 15px;
-            border-radius: 10px;
-            display: none;
-            font-weight: bold;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .status-alert.warning {
-            display: flex;
-            background: #fef2f2;
-            color: var(--danger);
-            border: 1px solid #f87171;
-        }
-
-        .sidebar {
-            width: 380px;
-            background: var(--bg-sidebar);
-            border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            box-shadow: -5px 0 20px rgba(0,0,0,0.02);
-            z-index: 5;
-        }
-
-        .sidebar-header {
-            padding: 25px;
-            border-bottom: 1px solid var(--border);
-            background: var(--primary-light);
-        }
-
-        .sidebar-header h3 {
-            color: var(--primary-color);
-            font-size: 20px;
-        }
-
-        .playlist {
-            flex: 1;
-            overflow-y: auto;
-            padding: 15px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .lesson-item {
-            padding: 15px;
-            background: var(--bg-page);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            transition: all 0.3s;
-        }
-
-        .lesson-item:hover {
-            border-color: var(--primary-color);
-            transform: translateX(-5px);
-        }
-
-        .lesson-item.active {
-            background: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-
-        .lesson-item.active .lesson-num {
-            background: white;
-            color: var(--primary-color);
-        }
-
-        .lesson-item.locked {
-            opacity: 0.6;
-            cursor: not-allowed;
-            background: #f1f5f9;
-        }
-
-        .lesson-num {
-            width: 35px; height: 35px;
-            background: var(--primary-light);
-            color: var(--primary-color);
-            border-radius: 50%;
-            display: flex; justify-content: center; align-items: center;
-            font-weight: bold;
-            font-size: 14px;
-        }
+        /* --- تصميم نافذة الامتحان (Quiz Modal) --- */
+        .quiz-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 1000; display: none; justify-content: center; align-items: center; }
+        .quiz-card { background: white; width: 90%; max-width: 600px; border-radius: 20px; padding: 30px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        .quiz-card h2 { color: var(--primary-color); margin-bottom: 20px; font-size: 24px; }
+        .quiz-image { width: 100%; max-height: 250px; object-fit: contain; border-radius: 10px; margin-bottom: 20px; border: 1px solid var(--border); }
+        .quiz-options { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        .quiz-btn { background: var(--bg-page); border: 2px solid var(--border); padding: 15px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; color: var(--text-main); }
+        .quiz-btn:hover { background: var(--primary-light); border-color: var(--primary-color); }
+        .quiz-btn.correct { background: var(--success); color: white; border-color: var(--success); }
+        .quiz-btn.wrong { background: var(--danger); color: white; border-color: var(--danger); }
+        .quiz-result { margin-top: 15px; font-size: 18px; font-weight: bold; display: none; }
+        .btn-continue { margin-top: 20px; background: var(--primary-color); color: white; border: none; padding: 12px 25px; border-radius: 10px; cursor: pointer; font-size: 16px; font-weight: bold; display: none; margin-left: auto; margin-right: auto; }
 
         @media (max-width: 900px) {
             .main-container { flex-direction: column; }
             .sidebar { width: 100%; height: 300px; border-right: none; border-top: 1px solid var(--border); }
+            .quiz-options { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -311,7 +104,6 @@
     </header>
 
     <div class="main-container">
-        
         <div class="video-section">
             <div class="video-wrapper" oncontextmenu="return false;">
                 <div class="video-container" id="video-container">
@@ -334,9 +126,9 @@
 
             <div class="lesson-info">
                 <h2 id="lesson-title">اختر درساً للبدء</h2>
-                <div class="status-alert warning" id="cheat-alert">
+                <div class="status-alert warning" id="cheat-alert" style="display: none;">
                     <i class="fas fa-exclamation-triangle"></i>
-                    <span>تنبيه: غير مسموح بتخطي أجزاء من الفيديو أو تسريعه. يرجى المشاهدة بالسرعة الطبيعية.</span>
+                    <span>تنبيه: غير مسموح بتخطي أجزاء من الفيديو. يرجى المشاهدة بالسرعة الطبيعية.</span>
                 </div>
             </div>
         </div>
@@ -345,10 +137,23 @@
             <div class="sidebar-header">
                 <h3>محتوى الكورس</h3>
             </div>
-            <div class="playlist" id="playlist-container">
-                </div>
+            <div class="playlist" id="playlist-container"></div>
         </div>
+    </div>
 
+    <div class="quiz-overlay" id="quiz-overlay">
+        <div class="quiz-card">
+            <h2>اختبار تأكيد الفهم</h2>
+            <img id="quiz-image" class="quiz-image" src="" alt="صورة السؤال">
+            <div class="quiz-options">
+                <button class="quiz-btn" onclick="submitAnswer('A')" id="btn-A"></button>
+                <button class="quiz-btn" onclick="submitAnswer('B')" id="btn-B"></button>
+                <button class="quiz-btn" onclick="submitAnswer('C')" id="btn-C"></button>
+                <button class="quiz-btn" onclick="submitAnswer('D')" id="btn-D"></button>
+            </div>
+            <div id="quiz-result" class="quiz-result"></div>
+            <button class="btn-continue" id="btn-continue" onclick="closeQuizAndSave()">حفظ ومتابعة الكورس</button>
+        </div>
     </div>
 
     <script src="https://www.youtube.com/iframe_api"></script>
@@ -365,21 +170,19 @@
         let checkInterval;
         let cheatDetected = false;
 
+        let currentQuiz = null; // سيحفظ بيانات الامتحان الحالي
+
         document.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('auth_token');
             const userInfoStr = localStorage.getItem('user_info');
 
-            if (!token || !userInfoStr) {
-                window.location.href = '/';
-                return;
-            }
+            if (!token || !userInfoStr) { window.location.href = '/'; return; }
 
             const userInfo = JSON.parse(userInfoStr);
             document.getElementById('userName').innerText = userInfo.name;
             if(userInfo.avatar_url) {
                 const img = document.getElementById('userAvatar');
-                img.src = userInfo.avatar_url;
-                img.style.display = 'block';
+                img.src = userInfo.avatar_url; img.style.display = 'block';
             }
 
             const urlParams = new URLSearchParams(window.location.search);
@@ -400,36 +203,22 @@
                 } else {
                     document.getElementById('playlist-container').innerHTML = '<p style="text-align:center; padding: 20px;">لا توجد دروس متاحة حالياً.</p>';
                 }
-            } catch (error) {
-                console.error("Error fetching lessons:", error);
-            }
+            } catch (error) { console.error(error); }
         }
 
         function renderPlaylist() {
             const container = document.getElementById('playlist-container');
             container.innerHTML = '';
-
             lessonsData.forEach((lesson, index) => {
                 const div = document.createElement('div');
                 div.className = `lesson-item ${index === currentLessonIndex ? 'active' : ''}`;
-                
-                div.innerHTML = `
-                    <div class="lesson-num">${index + 1}</div>
-                    <div style="flex:1">
-                        <h4 style="font-size: 15px; margin-bottom: 5px;">${lesson.title}</h4>
-                        <span style="font-size: 12px; opacity: 0.8;"><i class="fas fa-play-circle"></i> فيديو</span>
-                    </div>
-                `;
-
-                div.onclick = () => {
-                    loadVideo(index);
-                };
-
+                div.innerHTML = `<div class="lesson-num">${index + 1}</div><div style="flex:1"><h4 style="font-size: 15px; margin-bottom: 5px;">${lesson.title}</h4></div>`;
+                div.onclick = () => { loadVideo(index); };
                 container.appendChild(div);
             });
         }
 
-        function loadVideo(index) {
+        async function loadVideo(index) {
             currentLessonIndex = index;
             const lesson = lessonsData[index];
             document.getElementById('lesson-title').innerText = lesson.title;
@@ -438,23 +227,18 @@
             const videoId = extractVideoID(lesson.video_url);
 
             lastTime = 0;
-            cheatDetected = false;
             document.getElementById('cheat-alert').style.display = 'none';
             document.getElementById('progress-bar').style.width = '0%';
 
-            if (player) {
-                player.loadVideoById(videoId);
-            } else {
+            // جلب الامتحان الخاص بالدرس ده في الخلفية
+            fetchQuizForLesson(lesson.id);
+
+            if (player) { player.loadVideoById(videoId); } 
+            else {
                 player = new YT.Player('player', {
                     videoId: videoId,
-                    playerVars: {
-                        'autoplay': 0, 'controls': 0, 'disablekb': 1,
-                        'fs': 0, 'modestbranding': 1, 'rel': 0, 'showinfo': 0, 'iv_load_policy': 3
-                    },
-                    events: {
-                        'onReady': onPlayerReady,
-                        'onStateChange': onPlayerStateChange
-                    }
+                    playerVars: { 'autoplay': 0, 'controls': 0, 'disablekb': 1, 'fs': 0, 'modestbranding': 1, 'rel': 0, 'showinfo': 0, 'iv_load_policy': 3 },
+                    events: { 'onReady': onPlayerReady, 'onStateChange': onPlayerStateChange }
                 });
             }
         }
@@ -468,9 +252,7 @@
             if (event.data === YT.PlayerState.PLAYING) {
                 isPlaying = true;
                 document.getElementById('play-pause-btn').innerHTML = '<i class="fas fa-pause"></i>';
-                
                 player.setPlaybackRate(1); 
-
                 clearInterval(checkInterval);
                 checkInterval = setInterval(monitorPlayback, 1000);
             } else {
@@ -479,25 +261,21 @@
                 clearInterval(checkInterval);
 
                 if (event.data === YT.PlayerState.ENDED) {
-                    markLessonCompleted();
+                    handleLessonCompletion();
                 }
             }
         }
 
         function monitorPlayback() {
             if (!player || !isPlaying) return;
-
             const currentTime = player.getCurrentTime();
             duration = player.getDuration() || duration;
 
-            if (player.getPlaybackRate() > 1) {
-                player.setPlaybackRate(1);
-            }
+            if (player.getPlaybackRate() > 1) player.setPlaybackRate(1);
 
             if (currentTime > lastTime + 2) {
                 player.seekTo(lastTime);
                 document.getElementById('cheat-alert').style.display = 'flex';
-                cheatDetected = true;
                 setTimeout(() => { document.getElementById('cheat-alert').style.display = 'none'; }, 4000);
             } else {
                 lastTime = currentTime;
@@ -508,37 +286,110 @@
             updateTimeDisplay(currentTime, duration);
         }
 
+        // ======================================
+        // نظام الامتحانات
+        // ======================================
+        
+        async function fetchQuizForLesson(lessonId) {
+            currentQuiz = null;
+            try {
+                const response = await fetch(`${workerBaseUrl}/api/lessons/${lessonId}/quiz`);
+                if(response.ok) {
+                    const data = await response.json();
+                    if(data) currentQuiz = data; // حفظ الامتحان لو موجود
+                }
+            } catch(e) {}
+        }
+
+        function handleLessonCompletion() {
+            if (currentQuiz) {
+                // لو فيه امتحان، نعرضه للطالب
+                showQuizModal();
+            } else {
+                // لو مفيش امتحان، نحفظ التقدم ونقفل الدرس
+                markLessonCompleted();
+            }
+        }
+
+        function showQuizModal() {
+            // تجهيز واجهة الامتحان
+            document.getElementById('quiz-image').src = currentQuiz.image_url;
+            document.getElementById('btn-A').innerText = "أ) " + currentQuiz.option_a;
+            document.getElementById('btn-B').innerText = "ب) " + currentQuiz.option_b;
+            document.getElementById('btn-C').innerText = "ج) " + currentQuiz.option_c;
+            document.getElementById('btn-D').innerText = "د) " + currentQuiz.option_d;
+            
+            // تصفير الألوان والنتائج القديمة
+            ['A','B','C','D'].forEach(opt => {
+                const btn = document.getElementById(`btn-${opt}`);
+                btn.className = 'quiz-btn';
+                btn.disabled = false;
+            });
+            document.getElementById('quiz-result').style.display = 'none';
+            document.getElementById('btn-continue').style.display = 'none';
+
+            // إظهار النافذة
+            document.getElementById('quiz-overlay').style.display = 'flex';
+        }
+
+        function submitAnswer(selectedOption) {
+            const correctOption = currentQuiz.correct_option;
+            const resultDiv = document.getElementById('quiz-result');
+            
+            // قفل الزراير عشان ميجاوبش تاني
+            ['A','B','C','D'].forEach(opt => {
+                document.getElementById(`btn-${opt}`).disabled = true;
+            });
+
+            if (selectedOption === correctOption) {
+                document.getElementById(`btn-${selectedOption}`).classList.add('correct');
+                resultDiv.innerText = "إجابة صحيحة! ممتاز جداً \uD83C\uDF89";
+                resultDiv.style.color = "var(--success)";
+                resultDiv.style.display = "block";
+                document.getElementById('btn-continue').style.display = "block"; // إظهار زرار المتابعة
+            } else {
+                document.getElementById(`btn-${selectedOption}`).classList.add('wrong');
+                document.getElementById(`btn-${correctOption}`).classList.add('correct'); // نورله الصح
+                resultDiv.innerText = "إجابة خاطئة. راجع الفيديو مرة أخرى.";
+                resultDiv.style.color = "var(--danger)";
+                resultDiv.style.display = "block";
+                
+                // هنخليه يعيد المحاضرة أو يكمل (تقدر تخليها إجباري يعيد لو حابب)
+                document.getElementById('btn-continue').style.display = "block"; 
+            }
+        }
+
+        function closeQuizAndSave() {
+            document.getElementById('quiz-overlay').style.display = 'none';
+            markLessonCompleted();
+        }
+
         async function markLessonCompleted() {
             const lessonId = lessonsData[currentLessonIndex].id;
             const token = localStorage.getItem('auth_token');
-
             try {
                 await fetch(`${workerBaseUrl}/api/progress`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify({ lessonId: lessonId })
                 });
-            } catch (error) {
-                console.error("Progress save error:", error);
-            }
+                // لو فيه درس بعده، شغله تلقائي
+                if(currentLessonIndex + 1 < lessonsData.length) {
+                    loadVideo(currentLessonIndex + 1);
+                } else {
+                    alert("مبروك! لقد أنهيت هذه الدورة بنجاح.");
+                }
+            } catch (error) { console.error(error); }
         }
 
         document.getElementById('play-pause-btn').addEventListener('click', () => {
             if (!player) return;
-            if (isPlaying) {
-                player.pauseVideo();
-            } else {
-                player.playVideo();
-            }
+            if (isPlaying) player.pauseVideo(); else player.playVideo();
         });
 
         document.getElementById('player-overlay').addEventListener('click', () => {
             if (!player) return;
-            if (isPlaying) player.pauseVideo();
-            else player.playVideo();
+            if (isPlaying) player.pauseVideo(); else player.playVideo();
         });
 
         function extractVideoID(url) {
@@ -556,8 +407,7 @@
         }
 
         function formatTime(seconds) {
-            const m = Math.floor(seconds / 60);
-            const s = Math.floor(seconds % 60);
+            const m = Math.floor(seconds / 60); const s = Math.floor(seconds % 60);
             return `${m < 10 ? '0'+m : m}:${s < 10 ? '0'+s : s}`;
         }
     </script>
