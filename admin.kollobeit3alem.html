@@ -108,6 +108,8 @@
 
         .btn-submit { background: var(--primary); color: white; border: none; padding: 15px 30px; border-radius: 12px; cursor: pointer; font-weight: bold; font-size: 16px; display: inline-flex; align-items: center; gap: 10px; transition: 0.3s; box-shadow: 0 5px 15px var(--primary-light); }
         .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 8px 20px var(--primary-light); }
+        .btn-secondary { background: var(--border); color: var(--text-main); }
+        .btn-secondary:hover { background: #cbd5e1; }
 
         /* --- تصميم القوائم (Grids) --- */
         .items-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
@@ -127,6 +129,12 @@
         .lessons-list-container { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 20px;}
         .lesson-row { display: flex; justify-content: space-between; align-items: center; background: var(--bg-page); padding: 15px; border-radius: 10px; margin-bottom: 10px; border: 1px solid var(--border);}
         .lesson-row.locked { border-color: var(--danger); background: #fef2f2;}
+        
+        /* قسم الأسئلة المضافة */
+        .questions-list { margin-top: 20px; }
+        .question-item { background: var(--bg-page); border: 1px solid var(--border); border-radius: 10px; padding: 15px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .question-preview img { height: 50px; border-radius: 5px; border: 1px solid #ccc; margin-left: 10px;}
+        .question-preview { display: flex; align-items: center; }
 
         /* --- Modal (نافذة التعديل المنبثقة) --- */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(5px);}
@@ -224,10 +232,11 @@
         </section>
 
         <section id="quizzes-tab" class="tab-content">
-            <h1 class="header-title"><i class="fas fa-spell-check"></i> الامتحانات المصورة</h1>
+            <h1 class="header-title"><i class="fas fa-spell-check"></i> بناء الامتحانات</h1>
             
             <div class="card">
-                <h3><i class="fas fa-file-signature"></i> إضافة سؤال لمحاضرة</h3>
+                <h3><i class="fas fa-list-ol"></i> إضافة سؤال لامتحان المحاضرة</h3>
+                <p style="color: var(--text-muted); margin-bottom: 20px;">يمكنك إضافة أسئلة متعددة (مثلاً 20 سؤالاً) لنفس المحاضرة ليتم عرضها للطالب كاختبار شامل.</p>
                 <form id="quiz-form" class="form-grid">
                     <div class="form-group">
                         <label>اختر الدورة</label>
@@ -235,21 +244,31 @@
                     </div>
                     <div class="form-group">
                         <label>المحاضرة المرتبطة بالامتحان</label>
-                        <select id="q-lesson-id" required><option value="">اختر المحاضرة...</option></select>
+                        <select id="q-lesson-id" onchange="loadQuestionsForLesson(this.value)" required><option value="">اختر المحاضرة...</option></select>
                     </div>
-                    <div class="form-group full-width"><label>رابط صورة السؤال</label><input type="url" id="q-img" required></div>
+                    <div class="form-group full-width"><label>رابط صورة السؤال</label><input type="url" id="q-img" required placeholder="مثال: https://imgur.com/question1.png"></div>
                     <div class="form-group"><label>خيار (أ)</label><input type="text" id="q-opt-a" required></div>
                     <div class="form-group"><label>خيار (ب)</label><input type="text" id="q-opt-b" required></div>
                     <div class="form-group"><label>خيار (ج)</label><input type="text" id="q-opt-c" required></div>
                     <div class="form-group"><label>خيار (د)</label><input type="text" id="q-opt-d" required></div>
-                    <div class="form-group full-width">
+                    
+                    <div class="form-group">
                         <label>الإجابة الصحيحة</label>
                         <select id="q-correct" required>
                             <option value="A">أ</option><option value="B">ب</option><option value="C">ج</option><option value="D">د</option>
                         </select>
                     </div>
-                    <div class="form-group full-width"><button type="submit" class="btn-submit"><i class="fas fa-check-circle"></i> حفظ الامتحان</button></div>
+                    
+                    <div class="form-group full-width" style="display: flex; gap: 15px;">
+                        <button type="submit" class="btn-submit"><i class="fas fa-plus"></i> إضافة السؤال للامتحان</button>
+                        <button type="button" class="btn-submit btn-secondary" onclick="document.getElementById('quiz-form').reset();"><i class="fas fa-eraser"></i> تفريغ الحقول</button>
+                    </div>
                 </form>
+
+                <div class="questions-list" id="questions-list-area" style="display: none;">
+                    <h4 style="margin-bottom: 15px; color: var(--primary); border-top: 1px solid var(--border); padding-top: 15px;">الأسئلة الحالية في هذا الامتحان (<span id="q-count">0</span>)</h4>
+                    <div id="questions-list-container"></div>
+                </div>
             </div>
         </section>
 
@@ -456,10 +475,11 @@
             document.getElementById('edit-modal').classList.add('active');
         }
 
-        // --- Quizzes Management ---
+        // --- Quizzes Management (Multi-Question) ---
         async function populateQuizLessons(courseId) {
             const selectQ = document.getElementById('q-lesson-id');
             selectQ.innerHTML = '<option value="">جاري التحميل...</option>';
+            document.getElementById('questions-list-area').style.display = 'none';
             if(!courseId) return;
             try {
                 const lessons = await apiCall(`/api/courses/${courseId}/lessons`);
@@ -468,16 +488,74 @@
             } catch(e) { selectQ.innerHTML = '<option value="">خطأ</option>'; }
         }
 
+        async function loadQuestionsForLesson(lessonId) {
+            const area = document.getElementById('questions-list-area');
+            const container = document.getElementById('questions-list-container');
+            const countSpan = document.getElementById('q-count');
+            
+            if(!lessonId) { area.style.display = 'none'; return; }
+
+            try {
+                // نستخدم المسار القديم الذي تم تعديله في الـ Worker ليجلب جميع الأسئلة
+                const questions = await apiCall(`/api/lessons/${lessonId}/quiz`);
+                area.style.display = 'block';
+                container.innerHTML = '';
+                countSpan.innerText = questions.length;
+
+                if(questions.length === 0) {
+                    container.innerHTML = '<p style="color: var(--text-muted);">لم يتم إضافة أي أسئلة حتى الآن.</p>';
+                    return;
+                }
+
+                questions.forEach((q, index) => {
+                    container.innerHTML += `
+                        <div class="question-item">
+                            <div class="question-preview">
+                                <strong>س ${index + 1}:</strong> 
+                                <img src="${q.image_url}" alt="سؤال" onerror="this.src='https://via.placeholder.com/50?text=خطأ'">
+                                <span style="margin-right: 15px; color: var(--success); font-weight: bold;">(الإجابة: ${q.correct_option})</span>
+                            </div>
+                            <button class="btn-action btn-delete" style="flex: none; width: auto;" onclick="deleteQuestion(${q.id}, ${lessonId})"><i class="fas fa-trash"></i></button>
+                        </div>
+                    `;
+                });
+            } catch (e) { console.error("خطأ في جلب الأسئلة"); }
+        }
+
         document.getElementById('quiz-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            const lessonId = document.getElementById('q-lesson-id').value;
             const data = {
-                lesson_id: document.getElementById('q-lesson-id').value, image_url: document.getElementById('q-img').value,
-                option_a: document.getElementById('q-opt-a').value, option_b: document.getElementById('q-opt-b').value,
-                option_c: document.getElementById('q-opt-c').value, option_d: document.getElementById('q-opt-d').value,
+                lesson_id: lessonId, 
+                image_url: document.getElementById('q-img').value,
+                option_a: document.getElementById('q-opt-a').value, 
+                option_b: document.getElementById('q-opt-b').value,
+                option_c: document.getElementById('q-opt-c').value, 
+                option_d: document.getElementById('q-opt-d').value,
                 correct_option: document.getElementById('q-correct').value
             };
-            try { await apiCall('/api/admin/quizzes', 'POST', data); alert('تم إضافة الامتحان!'); e.target.reset(); } catch(e) { alert('فشل الحفظ'); }
+            try { 
+                await apiCall('/api/admin/quizzes', 'POST', data); 
+                alert('تم إضافة السؤال للامتحان بنجاح!'); 
+                // تفريغ حقول السؤال فقط للحفاظ على تحديد الدورة والمحاضرة
+                document.getElementById('q-img').value = '';
+                document.getElementById('q-opt-a').value = '';
+                document.getElementById('q-opt-b').value = '';
+                document.getElementById('q-opt-c').value = '';
+                document.getElementById('q-opt-d').value = '';
+                loadQuestionsForLesson(lessonId); // تحديث القائمة
+            } catch(e) { alert('فشل الحفظ'); }
         });
+
+        async function deleteQuestion(questionId, lessonId) {
+            if(!confirm('هل تريد حذف هذا السؤال من الامتحان؟')) return;
+            try {
+                // ملاحظة: ستحتاج لإضافة مسار DELETE للـ quizzes في Worker الخاص بك مستقبلاً،
+                // مؤقتاً الكود هنا جاهز لتشغيله بمجرد إضافة المسار
+                await apiCall(`/api/admin/quizzes/${questionId}`, 'DELETE');
+                loadQuestionsForLesson(lessonId);
+            } catch (e) { alert('لم يتم إضافة مسار الحذف في السيرفر بعد.'); }
+        }
 
         // --- Users / Roles Management ---
         document.getElementById('role-form').addEventListener('submit', async (e) => {
