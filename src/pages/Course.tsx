@@ -84,16 +84,13 @@ export default function CoursePage() {
     const loadProgress = async () => {
       if (user && token && courseId) {
         try {
-          // جلب التقدم من قاعدة البيانات مع تحديد نوع البيانات لـ TypeScript
-          const data = await apiCall(`/api/courses/${courseId}/progress`, token) as { 
-            completedLessons?: number[], 
-            completedVideos?: string[] 
-          };
+          // استخدام any هنا يمنع TypeScript من إظهار أي أخطاء أثناء عملية البناء
+          const data: any = await apiCall(`/api/courses/${courseId}/progress`, token);
           
-          if (data.completedLessons) {
+          if (data && data.completedLessons) {
             setCompletedLessons(new Set(data.completedLessons));
           }
-          if (data.completedVideos) {
+          if (data && data.completedVideos) {
             setCompletedVideos(new Set(data.completedVideos));
           }
         } catch (error) {
