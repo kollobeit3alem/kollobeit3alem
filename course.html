@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>مشاهدة الدورة - كله بيتعلم</title>
+    <title>محتوى الكورس - كله بيتعلم</title>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
     <style>
         @font-face {
             font-family: 'AbdoLogo';
@@ -15,221 +16,230 @@
         }
 
         :root {
-            --primary-color: #015669; 
-            --primary-light: rgba(1, 86, 105, 0.1);
-            --bg-page: #f8fafc;
-            --bg-sidebar: #ffffff;
-            --text-main: #1e293b;
-            --text-sec: #64748b;
+            --primary: #015669; 
+            --primary-light: #e0f2fe;
+            --bg-body: #f1f5f9;
+            --white: #ffffff;
+            --text-dark: #0f172a;
+            --text-muted: #64748b;
             --border: #e2e8f0;
-            --radius: 20px;
-            --danger: #ef4444;
             --success: #10b981;
+            --success-light: #d1fae5;
+            --danger: #ef4444;
             --warning: #f59e0b;
+            --accent: #0ea5e9;
+            --radius: 16px;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'AbdoLogo', sans-serif !important; }
 
-        body { background-color: var(--bg-page); color: var(--text-main); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        body { background-color: var(--bg-body); color: var(--text-dark); display: flex; flex-direction: column; min-height: 100vh; }
 
-        header { background-color: #ffffff; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 15px rgba(0,0,0,0.05); z-index: 10; border-bottom: 3px solid var(--primary-color); }
-        .logo-area { display: flex; align-items: center; gap: 15px; }
-        .logo-area img { height: 45px; border-radius: 10px; }
-        .logo-area h1 { font-size: 22px; color: var(--primary-color); }
-        .user-info { display: flex; align-items: center; gap: 10px; font-weight: bold; color: var(--text-main); }
-        .user-info img { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--primary-color); }
+        /* --- الهيدر العُلوي --- */
+        header { background-color: var(--white); padding: 15px 5%; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 20px rgba(0,0,0,0.04); position: sticky; top: 0; z-index: 100; border-bottom: 3px solid var(--primary); }
+        .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+        .brand img { height: 40px; border-radius: 8px; }
+        .brand h1 { font-size: 20px; color: var(--primary); font-weight: bold; }
+        .user-profile { display: flex; align-items: center; gap: 10px; font-weight: bold; color: var(--text-dark); background: var(--bg-body); padding: 5px 15px 5px 5px; border-radius: 30px; border: 1px solid var(--border); }
+        .user-profile img { width: 35px; height: 35px; border-radius: 50%; border: 2px solid var(--primary); object-fit: cover; }
 
-        .main-container { display: flex; flex: 1; overflow: hidden; }
+        /* --- واجهة الكورس (Hero) --- */
+        .course-hero { background: var(--white); margin: 20px 5%; border-radius: var(--radius); overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.03); display: flex; flex-direction: column; position: relative; border: 1px solid var(--border);}
+        .hero-img { width: 100%; height: 250px; object-fit: cover; background: #e2e8f0; }
+        .hero-info { padding: 25px; text-align: center; }
+        .hero-info h2 { font-size: 26px; color: var(--primary); margin-bottom: 10px; }
+        .hero-info p { color: var(--text-muted); font-size: 16px; margin-bottom: 20px; }
+        .btn-enrolled { background: var(--accent); color: white; border: none; padding: 12px 30px; border-radius: 10px; font-size: 16px; font-weight: bold; display: inline-block; cursor: default; }
 
-        .video-section { flex: 1; padding: 25px; display: flex; flex-direction: column; overflow-y: auto; }
-        
-        /* === تعديل جذري لضمان أبعاد الفيديو 16:9 على كل الشاشات === */
-        .video-wrapper { 
-            background: #000; 
-            border-radius: var(--radius); 
-            overflow: hidden; 
-            position: relative; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15); 
-            width: 100%;
-            padding-bottom: 56.25%; /* نسبة 16:9 السحرية لليوتيوب */
-        }
-        .video-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-        #player { width: 100%; height: 100%; pointer-events: none; }
-        .player-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: transparent; z-index: 5; cursor: pointer; }
+        /* --- عنوان محتوى الكورس --- */
+        .section-header { text-align: center; margin: 30px 0 20px 0; }
+        .section-header h3 { font-size: 28px; color: var(--primary); position: relative; display: inline-block; }
+        .section-header h3::after { content: ''; position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); width: 50%; height: 4px; background: var(--border); border-radius: 2px; }
 
-        .custom-controls { background: var(--bg-sidebar); padding: 20px; border-radius: var(--radius); margin-top: 20px; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.05); border: 1px solid var(--border); }
-        .progress-container { width: 100%; height: 8px; background: var(--border); border-radius: 4px; position: relative; overflow: hidden; }
-        .progress-bar { height: 100%; background: var(--primary-color); width: 0%; transition: width 0.1s linear; }
-        .controls-buttons { display: flex; justify-content: space-between; align-items: center; }
-        .play-btn { background: var(--primary-color); color: white; border: none; width: 50px; height: 50px; border-radius: 50%; font-size: 20px; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: transform 0.2s; }
-        .play-btn:hover { transform: scale(1.05); }
-        .time-display { font-size: 16px; font-weight: bold; color: var(--primary-color); }
+        /* --- نظام الأكورديون (المحاضرات) --- */
+        .accordion-container { max-width: 800px; margin: 0 auto 50px auto; padding: 0 5%; display: flex; flex-direction: column; gap: 15px; }
+        
+        .lesson-card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: 0 5px 15px rgba(0,0,0,0.02); overflow: hidden; transition: 0.3s; }
+        .lesson-card.completed { border-color: var(--success); background: #f8fafc; }
+        .lesson-card.completed .lesson-header { background: var(--success-light); }
+        
+        .lesson-header { padding: 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: #fdfdfd; transition: 0.3s; user-select: none; }
+        .lesson-header:hover { background: var(--primary-light); }
+        .lesson-title-area { display: flex; align-items: center; gap: 15px; }
+        .lesson-icon { width: 45px; height: 45px; background: var(--primary-light); color: var(--primary); border-radius: 12px; display: flex; justify-content: center; align-items: center; font-size: 20px; transition: 0.3s;}
+        .lesson-card.completed .lesson-icon { background: var(--success); color: white; }
+        .lesson-title { font-size: 20px; font-weight: bold; color: var(--text-dark); }
+        .chevron { color: var(--text-muted); font-size: 18px; transition: transform 0.3s; }
+        .lesson-card.active .chevron { transform: rotate(180deg); color: var(--primary); }
+        
+        .lesson-body { max-height: 0; overflow: hidden; transition: max-height 0.4s ease-out; background: var(--white); }
+        .lesson-body-content { padding: 15px 20px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border); }
+        
+        .sub-item { background: #f8fafc; border: 1px solid var(--border); padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.3s; font-weight: bold; color: var(--text-dark); }
+        .sub-item:hover { border-color: var(--primary); background: var(--white); box-shadow: 0 5px 15px rgba(1, 86, 105, 0.05); }
+        .sub-item i { font-size: 22px; color: var(--danger); width: 30px; text-align: center; }
+        .sub-item.quiz-item i { color: var(--warning); }
+        .sub-item.completed { border-color: var(--success); background: var(--success-light); color: #065f46; }
+        .sub-item.completed i { color: var(--success); }
+        .sub-item.locked { opacity: 0.6; cursor: not-allowed; }
+        .sub-item.locked:hover { border-color: var(--border); background: #f8fafc; box-shadow: none; }
 
-        .lesson-info { margin-top: 20px; background: var(--bg-sidebar); padding: 25px; border-radius: var(--radius); border: 1px solid var(--border); position: relative;}
-        .lesson-info h2 { font-size: 24px; color: var(--primary-color); margin-bottom: 10px; }
+        /* --- مودال تشغيل الفيديو --- */
+        .video-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; display: none; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(10px); }
+        .video-modal-close { position: absolute; top: 20px; right: 30px; background: rgba(255,255,255,0.2); color: white; border: none; width: 45px; height: 45px; border-radius: 50%; font-size: 24px; cursor: pointer; transition: 0.3s; z-index: 1001; }
+        .video-modal-close:hover { background: var(--danger); }
         
-        .status-alert { margin-top: 15px; padding: 15px; border-radius: 10px; display: none; font-weight: bold; align-items: center; gap: 10px; }
-        .status-alert.warning { background: #fef2f2; color: var(--danger); border: 1px solid #f87171; }
+        .video-container-wrapper { width: 95%; max-width: 1000px; background: black; border-radius: var(--radius); overflow: hidden; position: relative; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
         
-        /* زر دخول الامتحان */
-        .btn-enter-exam {
-            background: linear-gradient(135deg, var(--primary-color), #013d4a);
-            color: white; border: none; padding: 12px 25px; border-radius: 12px;
-            font-size: 16px; font-weight: bold; cursor: pointer;
-            display: none; align-items: center; gap: 10px; margin-top: 15px;
-            box-shadow: 0 5px 15px rgba(1, 86, 105, 0.3); transition: 0.3s;
-        }
-        .btn-enter-exam:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(1, 86, 105, 0.4); }
-        .btn-enter-exam.disabled { background: var(--text-sec); cursor: not-allowed; opacity: 0.7; transform: none; box-shadow: none;}
+        /* ضبط أبعاد اليوتيوب 16:9 */
+        .yt-wrapper { position: relative; width: 100%; padding-bottom: 56.25%; height: 0; overflow: hidden; }
+        .yt-wrapper iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .yt-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; cursor: pointer; }
 
-        .sidebar { width: 380px; background: var(--bg-sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; box-shadow: -5px 0 20px rgba(0,0,0,0.02); z-index: 5; }
-        .sidebar-header { padding: 25px; border-bottom: 1px solid var(--border); background: var(--primary-light); }
-        .sidebar-header h3 { color: var(--primary-color); font-size: 20px; }
-        .playlist { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
-        .lesson-item { padding: 15px; background: var(--bg-page); border: 1px solid var(--border); border-radius: 12px; cursor: pointer; display: flex; align-items: center; gap: 15px; transition: all 0.3s; }
-        .lesson-item:hover { border-color: var(--primary-color); transform: translateX(-5px); }
-        .lesson-item.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
-        .lesson-item.active .lesson-num { background: white; color: var(--primary-color); }
-        .lesson-num { width: 35px; height: 35px; background: var(--primary-light); color: var(--primary-color); border-radius: 50%; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 14px; }
+        /* أزرار التحكم بالفيديو السفلية */
+        .video-controls { background: #1e293b; padding: 15px 25px; display: flex; flex-direction: column; gap: 15px; }
+        
+        /* شريط التقدم القابل للضغط (Seeking) */
+        .progress-area { width: 100%; height: 12px; background: rgba(255,255,255,0.2); border-radius: 6px; cursor: pointer; position: relative; overflow: hidden; }
+        .progress-area:hover { height: 14px; }
+        .progress-bar-fill { height: 100%; background: var(--success); width: 0%; pointer-events: none; transition: width 0.1s linear; }
+        
+        .controls-row { display: flex; justify-content: space-between; align-items: center; }
+        .btn-play-pause { background: transparent; color: white; border: none; font-size: 28px; cursor: pointer; transition: 0.2s; }
+        .btn-play-pause:hover { color: var(--success); transform: scale(1.1); }
+        .time-display { color: white; font-weight: bold; font-size: 16px; font-family: monospace !important; }
 
-        /* === تصميم نافذة الامتحان المتطور (Multi-Question Quiz) === */
-        .exam-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 1000; display: none; justify-content: center; align-items: center; }
-        .exam-card { background: white; width: 95%; max-width: 800px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); display: flex; flex-direction: column; max-height: 90vh; overflow: hidden;}
+        /* --- مودال الامتحان المتعدد --- */
+        .exam-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 2000; display: none; flex-direction: column; overflow: hidden; }
+        .exam-header { background: var(--white); padding: 20px 5%; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,0.02); }
+        .exam-header h2 { color: var(--primary); font-size: 22px; }
+        .btn-close-exam { background: #fef2f2; color: var(--danger); border: none; padding: 10px 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
         
-        .exam-header { background: var(--primary-light); padding: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--primary-color); }
-        .exam-header h3 { color: var(--primary-color); font-size: 22px; }
-        .exam-timer { background: white; padding: 8px 15px; border-radius: 10px; font-weight: bold; color: var(--danger); font-size: 18px; border: 2px solid var(--danger); display: flex; align-items: center; gap: 8px; }
+        .exam-content { flex: 1; overflow-y: auto; padding: 30px 5%; display: flex; flex-direction: column; align-items: center; }
+        .exam-timer-bar { background: var(--danger); color: white; padding: 8px 25px; border-radius: 30px; font-weight: bold; font-size: 18px; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; box-shadow: 0 5px 15px rgba(239,68,68,0.3);}
         
-        .exam-progress { padding: 15px 20px; font-size: 16px; font-weight: bold; color: var(--text-sec); border-bottom: 1px solid var(--border); text-align: center;}
+        .q-image { max-width: 100%; max-height: 300px; border-radius: 12px; border: 2px solid var(--border); margin-bottom: 30px; }
+        .q-options { display: grid; grid-template-columns: 1fr; gap: 15px; width: 100%; max-width: 600px; }
+        .opt-btn { background: var(--white); border: 2px solid var(--border); padding: 18px; border-radius: 16px; font-size: 18px; font-weight: bold; cursor: pointer; text-align: right; display: flex; align-items: center; gap: 15px; transition: 0.3s; color: var(--text-dark); box-shadow: 0 4px 10px rgba(0,0,0,0.02);}
+        .opt-btn .letter { background: var(--bg-body); width: 40px; height: 40px; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: var(--primary); font-size: 20px; flex-shrink: 0;}
+        .opt-btn:hover { border-color: var(--primary); }
+        .opt-btn.selected { border-color: var(--primary); background: var(--primary-light); box-shadow: 0 8px 20px rgba(1, 86, 105, 0.15); transform: translateY(-2px); }
+        .opt-btn.selected .letter { background: var(--primary); color: white; }
+
+        .exam-nav { width: 100%; max-width: 600px; margin-top: 40px; display: flex; justify-content: space-between; }
+        .nav-btn { background: var(--border); color: var(--text-dark); border: none; padding: 15px 30px; border-radius: 12px; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.3s; display: flex; align-items: center; gap: 10px;}
+        .nav-btn:not(:disabled):hover { background: var(--primary-light); color: var(--primary); }
+        .nav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         
-        .exam-body { padding: 30px 20px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; align-items: center;}
-        .q-image { width: 100%; max-width: 500px; max-height: 300px; object-fit: contain; border-radius: 10px; margin-bottom: 25px; border: 1px solid var(--border); box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
-        
-        .q-options { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; max-width: 600px;}
-        .opt-btn { background: var(--bg-page); border: 2px solid var(--border); padding: 15px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; color: var(--text-main); text-align: right; display: flex; align-items: center; gap: 10px;}
-        .opt-btn:hover { background: var(--primary-light); border-color: var(--primary-color); }
-        .opt-btn.selected { background: var(--primary-color); color: white; border-color: var(--primary-color); transform: scale(1.02); box-shadow: 0 5px 15px rgba(1,86,105,0.3);}
-        
-        .exam-footer { padding: 20px; background: var(--bg-page); border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-        .nav-btn { background: white; border: 1px solid var(--border); padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 8px; transition: 0.3s;}
-        .nav-btn:hover { background: var(--border); }
-        .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        
-        .submit-exam-btn { background: var(--success); color: white; border: none; padding: 10px 25px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 16px; display: none; align-items: center; gap: 8px; }
-        .submit-exam-btn:hover { background: #0ea5e9; }
+        .btn-submit-exam { background: var(--success); color: white; border: none; padding: 15px 40px; border-radius: 12px; font-weight: bold; font-size: 18px; cursor: pointer; display: none; align-items: center; gap: 10px; box-shadow: 0 5px 20px rgba(16, 185, 129, 0.3);}
+        .btn-submit-exam:hover { background: #059669; transform: translateY(-3px); }
 
         /* شاشة النتيجة */
-        .result-screen { display: none; flex-direction: column; align-items: center; justify-content: center; padding: 50px 20px; text-align: center; }
-        .result-circle { width: 120px; height: 120px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 40px; color: white; margin-bottom: 20px; font-weight: bold; }
-        .result-circle.pass { background: var(--success); box-shadow: 0 0 30px rgba(16, 185, 129, 0.4); }
-        .result-circle.fail { background: var(--danger); box-shadow: 0 0 30px rgba(239, 68, 68, 0.4); }
-        .result-msg { font-size: 22px; font-weight: bold; margin-bottom: 10px; }
-        .result-score { font-size: 18px; color: var(--text-sec); margin-bottom: 30px; }
-        .btn-continue { background: var(--primary-color); color: white; border: none; padding: 12px 30px; border-radius: 12px; cursor: pointer; font-size: 18px; font-weight: bold; }
+        .result-ui { display: none; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; }
+        .result-circle { width: 150px; height: 150px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 50px; font-weight: bold; color: white; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .result-circle.pass { background: var(--success); }
+        .result-circle.fail { background: var(--danger); }
+        .result-title { font-size: 32px; font-weight: bold; margin-bottom: 10px; }
+        .result-desc { font-size: 20px; color: var(--text-muted); margin-bottom: 40px; }
+        .btn-finish-exam { background: var(--primary); color: white; padding: 15px 40px; border: none; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; }
 
-        @media (max-width: 900px) {
-            .main-container { flex-direction: column; }
-            .sidebar { width: 100%; height: 300px; border-right: none; border-top: 1px solid var(--border); }
+        @media (max-width: 768px) {
+            .hero-info h2 { font-size: 22px; }
+            .lesson-title { font-size: 18px; }
             .q-options { grid-template-columns: 1fr; }
-            .exam-header h3 { font-size: 18px; }
         }
     </style>
 </head>
 <body>
 
     <header>
-        <div class="logo-area">
+        <a href="/courses.html" class="brand">
             <img src="كله بيتعلم (1).png" alt="شعار المنصة">
             <h1>كله بيتعلم</h1>
-        </div>
-        <div class="user-info" id="userInfo">
-            <span id="userName">جاري التحميل...</span>
-            <img src="" id="userAvatar" style="display:none;">
+        </a>
+        <div class="user-profile" id="userInfo">
+            <span id="userName">...</span>
+            <img src="" id="userAvatar" style="display:none;" alt="الصورة الشخصية">
         </div>
     </header>
 
-    <div class="main-container">
-        <div class="video-section">
-            
-            <div class="video-wrapper" oncontextmenu="return false;">
-                <div class="video-container" id="video-container">
-                    <div id="player"></div>
-                </div>
-                <div class="player-overlay" id="player-overlay"></div>
-            </div>
+    <div class="course-hero" id="course-hero">
+        <img src="https://via.placeholder.com/1200x400/015669/ffffff?text=جاري+التحميل..." class="hero-img" id="course-img" alt="غلاف الكورس">
+        <div class="hero-info">
+            <h2 id="course-title">جاري تحميل بيانات الكورس...</h2>
+            <p id="course-desc">...</p>
+            <div class="btn-enrolled"><i class="fas fa-check-circle"></i> أنت مشترك في هذا الكورس</div>
+        </div>
+    </div>
 
-            <div class="custom-controls">
-                <div class="progress-container">
-                    <div class="progress-bar" id="progress-bar"></div>
+    <div class="section-header">
+        <h3>محتوى الكورس</h3>
+    </div>
+
+    <div class="accordion-container" id="accordion-container">
+        <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+            <i class="fas fa-spinner fa-spin" style="font-size: 40px; margin-bottom: 15px;"></i>
+            <p>جاري تحميل المحاضرات...</p>
+        </div>
+    </div>
+
+    <div class="video-modal" id="video-modal">
+        <button class="video-modal-close" onclick="closeVideo()"><i class="fas fa-times"></i></button>
+        <div class="video-container-wrapper">
+            <div class="yt-wrapper">
+                <div id="player"></div>
+                <div class="yt-overlay" id="yt-overlay" onclick="togglePlayPause()"></div>
+            </div>
+            
+            <div class="video-controls">
+                <div class="progress-area" id="progress-area" onclick="seekVideo(event)">
+                    <div class="progress-bar-fill" id="progress-bar"></div>
                 </div>
-                <div class="controls-buttons">
-                    <button class="play-btn" id="play-pause-btn"><i class="fas fa-play"></i></button>
+                
+                <div class="controls-row">
+                    <button class="btn-play-pause" id="btn-play-pause" onclick="togglePlayPause()"><i class="fas fa-play"></i></button>
                     <div class="time-display">
                         <span id="current-time">00:00</span> / <span id="duration-time">00:00</span>
                     </div>
                 </div>
             </div>
-
-            <div class="lesson-info">
-                <h2 id="lesson-title">اختر درساً للبدء</h2>
-                
-                <div class="status-alert warning" id="cheat-alert">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <span>تنبيه: غير مسموح بتخطي أجزاء من الفيديو.</span>
-                </div>
-
-                <button class="btn-enter-exam disabled" id="start-exam-btn" onclick="startExam()">
-                    <i class="fas fa-clipboard-list"></i> دخول امتحان المحاضرة
-                </button>
-                <p id="exam-hint" style="color: var(--danger); font-size: 13px; margin-top: 8px; display: none; font-weight: bold;">
-                    *يجب إكمال مشاهدة الفيديو بالكامل لتفعيل زر الامتحان*
-                </p>
-
-            </div>
-        </div>
-
-        <div class="sidebar">
-            <div class="sidebar-header">
-                <h3>محتوى الكورس</h3>
-            </div>
-            <div class="playlist" id="playlist-container"></div>
         </div>
     </div>
 
-    <div class="exam-overlay" id="exam-overlay">
-        <div class="exam-card">
+    <div class="exam-modal" id="exam-modal">
+        <div class="exam-header">
+            <h2>اختبار: <span id="exam-lesson-title"></span></h2>
+            <button class="btn-close-exam" onclick="closeExamUI()"><i class="fas fa-times"></i> إغلاق وتأجيل</button>
+        </div>
+
+        <div class="exam-content" id="exam-quiz-ui">
+            <div class="exam-timer-bar" id="exam-timer">
+                <i class="fas fa-stopwatch"></i> <span id="time-text">00:00</span>
+            </div>
             
-            <div id="exam-quiz-ui">
-                <div class="exam-header">
-                    <h3>اختبار تأكيد الفهم</h3>
-                    <div class="exam-timer" id="exam-timer"><i class="fas fa-clock"></i> <span>00:00</span></div>
-                </div>
-                <div class="exam-progress">السؤال <span id="current-q-num">1</span> من <span id="total-q-num">10</span></div>
-                
-                <div class="exam-body">
-                    <img id="q-image" class="q-image" src="" alt="صورة السؤال" onerror="this.style.display='none'">
-                    <div class="q-options">
-                        <button class="opt-btn" id="opt-A" onclick="selectOption('A')"></button>
-                        <button class="opt-btn" id="opt-B" onclick="selectOption('B')"></button>
-                        <button class="opt-btn" id="opt-C" onclick="selectOption('C')"></button>
-                        <button class="opt-btn" id="opt-D" onclick="selectOption('D')"></button>
-                    </div>
-                </div>
+            <h3 style="color: var(--text-muted); margin-bottom: 25px;">السؤال <span id="current-q-index">1</span> من <span id="total-q-count">10</span></h3>
 
-                <div class="exam-footer">
-                    <button class="nav-btn" id="btn-prev" onclick="prevQuestion()"><i class="fas fa-arrow-right"></i> السابق</button>
-                    <button class="submit-exam-btn" id="btn-submit-exam" onclick="submitExam()">إنهاء وتصحيح <i class="fas fa-check-circle"></i></button>
-                    <button class="nav-btn" id="btn-next" onclick="nextQuestion()">التالي <i class="fas fa-arrow-left"></i></button>
-                </div>
+            <img id="q-img" src="" alt="سؤال الامتحان" class="q-image" onerror="this.style.display='none'">
+            
+            <div class="q-options">
+                <button class="opt-btn" id="btn-A" onclick="chooseAnswer('A')"><span class="letter">أ</span> <span id="txt-A"></span></button>
+                <button class="opt-btn" id="btn-B" onclick="chooseAnswer('B')"><span class="letter">ب</span> <span id="txt-B"></span></button>
+                <button class="opt-btn" id="btn-C" onclick="chooseAnswer('C')"><span class="letter">ج</span> <span id="txt-C"></span></button>
+                <button class="opt-btn" id="btn-D" onclick="chooseAnswer('D')"><span class="letter">د</span> <span id="txt-D"></span></button>
             </div>
 
-            <div class="result-screen" id="exam-result-screen">
-                <div class="result-circle" id="result-circle"></div>
-                <div class="result-msg" id="result-msg"></div>
-                <div class="result-score" id="result-score"></div>
-                <button class="btn-continue" onclick="closeExamAndSave()">متابعة الكورس</button>
+            <div class="exam-nav">
+                <button class="nav-btn" id="btn-prev" onclick="goPrev()"><i class="fas fa-arrow-right"></i> السابق</button>
+                <button class="btn-submit-exam" id="btn-finish" onclick="finishQuiz()">إنهاء وتصحيح <i class="fas fa-check-circle"></i></button>
+                <button class="nav-btn" id="btn-next" onclick="goNext()">التالي <i class="fas fa-arrow-left"></i></button>
             </div>
+        </div>
 
+        <div class="result-ui" id="result-ui">
+            <div class="result-circle" id="result-score-circle">0%</div>
+            <div class="result-title" id="result-title">النتيجة</div>
+            <div class="result-desc" id="result-desc">أجبت على 0 من 0</div>
+            <button class="btn-finish-exam" onclick="closeExamUI()"><i class="fas fa-undo"></i> العودة للمحاضرات</button>
         </div>
     </div>
 
@@ -237,22 +247,25 @@
     <script>
         const workerBaseUrl = 'https://kollobeit3alem.pages.dev';
         
-        let player;
         let lessonsData = [];
-        let currentLessonIndex = 0;
-        let isPlaying = false;
+        let completedLessons = new Set(); // لتخزين المحاضرات المنتهية لعدم تكرار الاحتفال
         
-        let lastTime = 0;
-        let duration = 0;
-        let checkInterval;
+        // متغيرات الفيديو
+        let player = null;
+        let isVideoPlaying = false;
+        let activeLessonId = null;
+        let videoDuration = 0;
+        let videoInterval;
 
-        // متغيرات نظام الامتحان
+        // متغيرات الامتحان
         let quizQuestions = [];
         let userAnswers = {};
         let currentQIndex = 0;
-        let examTimerInterval;
-        let timeLeft = 0; // بالثواني
+        let timeRemaining = 0;
+        let timerInterval;
+        let activeExamLessonId = null;
 
+        // --- عند تحميل الصفحة ---
         document.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('auth_token');
             const userInfoStr = localStorage.getItem('user_info');
@@ -260,17 +273,40 @@
             if (!token || !userInfoStr) { window.location.href = '/'; return; }
 
             const userInfo = JSON.parse(userInfoStr);
-            document.getElementById('userName').innerText = userInfo.name;
+            document.getElementById('userName').innerText = userInfo.name.split(' ')[0];
             if(userInfo.avatar_url) {
-                const img = document.getElementById('userAvatar');
-                img.src = userInfo.avatar_url; img.style.display = 'block';
+                document.getElementById('userAvatar').src = userInfo.avatar_url;
+                document.getElementById('userAvatar').style.display = 'block';
+            }
+
+            // استرجاع التقدم المخزن محلياً (لأننا لا نملك API لجلب التقدم حالياً)
+            const savedProgress = localStorage.getItem(`progress_${userInfo.id}`);
+            if(savedProgress) {
+                completedLessons = new Set(JSON.parse(savedProgress));
             }
 
             const urlParams = new URLSearchParams(window.location.search);
-            const courseId = urlParams.get('id') || 1; 
+            const courseId = urlParams.get('id');
+            if(!courseId) { alert("رابط غير صحيح"); window.location.href = '/courses.html'; return; }
 
+            await fetchCourseDetails(courseId);
             await fetchLessons(courseId);
         });
+
+        // --- 1. جلب بيانات الكورس والمحاضرات ---
+        async function fetchCourseDetails(courseId) {
+            try {
+                // هنجيب الكورسات كلها وناخد منها الكورس بتاعنا للتبسيط
+                const res = await fetch(`${workerBaseUrl}/api/courses`);
+                const courses = await res.json();
+                const course = courses.find(c => c.id == courseId);
+                if(course) {
+                    document.getElementById('course-title').innerText = course.title;
+                    document.getElementById('course-desc').innerText = course.description || 'أفضل دورة لتعلم المهارات بأسلوب عصري';
+                    if(course.image_url) document.getElementById('course-img').src = course.image_url;
+                }
+            } catch(e) { console.error(e); }
+        }
 
         async function fetchLessons(courseId) {
             try {
@@ -278,322 +314,384 @@
                 const data = await response.json();
                 
                 if (data && data.length > 0) {
+                    // سحب الامتحانات لكل محاضرة لنعرف هل يوجد امتحان أم لا
+                    await Promise.all(data.map(async (lesson) => {
+                        lesson.hasQuiz = false;
+                        lesson.quizData = [];
+                        try {
+                            const qRes = await fetch(`${workerBaseUrl}/api/lessons/${lesson.id}/quiz`);
+                            if(qRes.ok) {
+                                const qData = await qRes.json();
+                                if(qData && qData.length > 0) {
+                                    lesson.hasQuiz = true;
+                                    lesson.quizData = qData;
+                                }
+                            }
+                        } catch(e){}
+                    }));
                     lessonsData = data;
-                    renderPlaylist();
-                    loadVideo(0);
+                    renderAccordion();
                 } else {
-                    document.getElementById('playlist-container').innerHTML = '<p style="text-align:center; padding: 20px;">لا توجد دروس متاحة حالياً.</p>';
+                    document.getElementById('accordion-container').innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fas fa-box-open" style="font-size:40px; color:#cbd5e1; margin-bottom:15px;"></i><p>المحتوى قيد التجهيز، سيتم إضافة المحاضرات قريباً.</p></div>';
                 }
             } catch (error) { console.error(error); }
         }
 
-        function renderPlaylist() {
-            const container = document.getElementById('playlist-container');
+        // --- 2. رسم الأكورديون (واجهة المحاضرات) ---
+        function renderAccordion() {
+            const container = document.getElementById('accordion-container');
             container.innerHTML = '';
+
             lessonsData.forEach((lesson, index) => {
-                const div = document.createElement('div');
-                div.className = `lesson-item ${index === currentLessonIndex ? 'active' : ''}`;
-                div.innerHTML = `<div class="lesson-num">${index + 1}</div><div style="flex:1"><h4 style="font-size: 15px; margin-bottom: 5px;">${lesson.title}</h4></div>`;
-                div.onclick = () => { loadVideo(index); };
-                container.appendChild(div);
+                const isCompleted = completedLessons.has(lesson.id);
+                
+                // حالة الفيديو
+                const videoStatusIcon = isCompleted ? '<i class="fas fa-check-circle" style="color:var(--success)"></i>' : '<i class="fas fa-play-circle" style="color:var(--danger)"></i>';
+                const videoStatusClass = isCompleted ? 'completed' : '';
+
+                // حالة الامتحان (إن وُجد)
+                let quizHTML = '';
+                if(lesson.hasQuiz) {
+                    const quizStatusIcon = isCompleted ? '<i class="fas fa-check-circle" style="color:var(--success)"></i>' : '<i class="fas fa-clipboard-list" style="color:var(--warning)"></i>';
+                    quizHTML = `
+                        <div class="sub-item quiz-item ${videoStatusClass}" onclick="openExam(${index})">
+                            <div style="display:flex; align-items:center; gap:15px;">
+                                ${quizStatusIcon} <span>امتحان المحاضرة</span>
+                            </div>
+                            <span style="font-size:14px; color:var(--text-muted);">${isCompleted ? 'مكتمل' : 'متاح'}</span>
+                        </div>
+                    `;
+                }
+
+                const card = document.createElement('div');
+                card.className = `lesson-card ${isCompleted ? 'completed' : ''}`;
+                card.id = `lesson-card-${lesson.id}`;
+                
+                card.innerHTML = `
+                    <div class="lesson-header" onclick="toggleAccordion(this)">
+                        <div class="lesson-title-area">
+                            <div class="lesson-icon">${isCompleted ? '<i class="fas fa-check"></i>' : (index+1)}</div>
+                            <div class="lesson-title">${lesson.title}</div>
+                        </div>
+                        <i class="fas fa-chevron-down chevron"></i>
+                    </div>
+                    <div class="lesson-body">
+                        <div class="lesson-body-content">
+                            <div class="sub-item ${videoStatusClass}" onclick="openVideo(${index})">
+                                <div style="display:flex; align-items:center; gap:15px;">
+                                    ${videoStatusIcon} <span>جزء الشرح والتدريبات</span>
+                                </div>
+                                <span style="font-size:14px; color:var(--text-muted);">${isCompleted ? 'تمت المشاهدة' : 'مشاهدة الفيديو'}</span>
+                            </div>
+                            ${quizHTML}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
             });
         }
 
-        async function loadVideo(index) {
-            currentLessonIndex = index;
-            const lesson = lessonsData[index];
-            document.getElementById('lesson-title').innerText = lesson.title;
-            renderPlaylist(); 
+        function toggleAccordion(headerElement) {
+            const card = headerElement.parentElement;
+            const body = card.querySelector('.lesson-body');
+            const isActive = card.classList.contains('active');
+            
+            // إغلاق كل المفتوح
+            document.querySelectorAll('.lesson-card').forEach(c => {
+                c.classList.remove('active');
+                c.querySelector('.lesson-body').style.maxHeight = null;
+            });
 
+            // لو مكنش مفتوح، افتحه
+            if (!isActive) {
+                card.classList.add('active');
+                body.style.maxHeight = body.scrollHeight + "px";
+            }
+        }
+
+        // --- 3. مشغل الفيديو (يوتيوب مع Seeking) ---
+        function extractVideoID(url) {
+            if (!url) return "";
+            if (url.includes('v=')) return url.split('v=')[1].split('&')[0];
+            if (url.includes('youtu.be/')) return url.split('youtu.be/')[1].split('?')[0];
+            return url;
+        }
+
+        function openVideo(index) {
+            const lesson = lessonsData[index];
+            activeLessonId = lesson.id;
             const videoId = extractVideoID(lesson.video_url);
 
-            lastTime = 0;
-            document.getElementById('cheat-alert').style.display = 'none';
+            document.getElementById('video-modal').style.display = 'flex';
             document.getElementById('progress-bar').style.width = '0%';
             
-            // إخفاء/تعطيل زر الامتحان حتى يتم جلب البيانات
-            const examBtn = document.getElementById('start-exam-btn');
-            const examHint = document.getElementById('exam-hint');
-            examBtn.style.display = 'none';
-            examBtn.classList.add('disabled');
-            examHint.style.display = 'none';
-
-            // جلب أسئلة الامتحان الخاص بالدرس
-            fetchQuizForLesson(lesson.id);
-
-            if (player) { player.loadVideoById(videoId); } 
-            else {
+            if (player) {
+                player.loadVideoById(videoId);
+            } else {
                 player = new YT.Player('player', {
                     videoId: videoId,
-                    playerVars: { 'autoplay': 0, 'controls': 0, 'disablekb': 1, 'fs': 0, 'modestbranding': 1, 'rel': 0, 'showinfo': 0, 'iv_load_policy': 3 },
+                    playerVars: { 'autoplay': 1, 'controls': 0, 'disablekb': 1, 'fs': 0, 'modestbranding': 1, 'rel': 0, 'showinfo': 0 },
                     events: { 'onReady': onPlayerReady, 'onStateChange': onPlayerStateChange }
                 });
             }
         }
 
+        function closeVideo() {
+            document.getElementById('video-modal').style.display = 'none';
+            if (player && typeof player.pauseVideo === 'function') {
+                player.pauseVideo();
+            }
+            clearInterval(videoInterval);
+        }
+
         function onPlayerReady(event) {
-            duration = player.getDuration();
-            updateTimeDisplay(0, duration);
+            event.target.playVideo();
         }
 
         function onPlayerStateChange(event) {
+            const btn = document.getElementById('btn-play-pause');
             if (event.data === YT.PlayerState.PLAYING) {
-                isPlaying = true;
-                document.getElementById('play-pause-btn').innerHTML = '<i class="fas fa-pause"></i>';
-                player.setPlaybackRate(1); 
-                clearInterval(checkInterval);
-                checkInterval = setInterval(monitorPlayback, 1000);
+                isVideoPlaying = true;
+                btn.innerHTML = '<i class="fas fa-pause"></i>';
+                videoDuration = player.getDuration();
+                document.getElementById('duration-time').innerText = formatTime(videoDuration);
+                clearInterval(videoInterval);
+                videoInterval = setInterval(updateProgressBar, 500);
             } else {
-                isPlaying = false;
-                document.getElementById('play-pause-btn').innerHTML = '<i class="fas fa-play"></i>';
-                clearInterval(checkInterval);
+                isVideoPlaying = false;
+                btn.innerHTML = '<i class="fas fa-play"></i>';
+                clearInterval(videoInterval);
 
                 if (event.data === YT.PlayerState.ENDED) {
-                    handleVideoFinished();
+                    handleVideoEnd();
                 }
             }
         }
 
-        function monitorPlayback() {
-            if (!player || !isPlaying) return;
+        function togglePlayPause() {
+            if (!player) return;
+            if (isVideoPlaying) player.pauseVideo();
+            else player.playVideo();
+        }
+
+        function updateProgressBar() {
+            if (!player || !isVideoPlaying) return;
             const currentTime = player.getCurrentTime();
-            duration = player.getDuration() || duration;
-
-            if (player.getPlaybackRate() > 1) player.setPlaybackRate(1);
-
-            if (currentTime > lastTime + 2) {
-                player.seekTo(lastTime);
-                document.getElementById('cheat-alert').style.display = 'flex';
-                setTimeout(() => { document.getElementById('cheat-alert').style.display = 'none'; }, 4000);
-            } else {
-                lastTime = currentTime;
-            }
-
-            const percent = (currentTime / duration) * 100;
+            document.getElementById('current-time').innerText = formatTime(currentTime);
+            const percent = (currentTime / videoDuration) * 100;
             document.getElementById('progress-bar').style.width = `${percent}%`;
-            updateTimeDisplay(currentTime, duration);
         }
 
-        // ======================================
-        // نظام الامتحانات المتطور (Multi-Question)
-        // ======================================
-        
-        async function fetchQuizForLesson(lessonId) {
-            quizQuestions = [];
-            try {
-                const response = await fetch(`${workerBaseUrl}/api/lessons/${lessonId}/quiz`);
-                if(response.ok) {
-                    const data = await response.json();
-                    if(data && Array.isArray(data) && data.length > 0) {
-                        quizQuestions = data;
-                        document.getElementById('start-exam-btn').style.display = 'inline-flex';
-                        document.getElementById('exam-hint').style.display = 'block';
-                    }
-                }
-            } catch(e) {}
+        // دالة التقديم والتأخير عند الضغط على شريط التقدم
+        function seekVideo(event) {
+            if (!player || !videoDuration) return;
+            const progressArea = document.getElementById('progress-area');
+            const rect = progressArea.getBoundingClientRect();
+            const clickX = event.clientX - rect.left;
+            const percent = clickX / rect.width;
+            const seekTime = percent * videoDuration;
+            
+            player.seekTo(seekTime, true);
+            document.getElementById('progress-bar').style.width = `${percent * 100}%`;
         }
 
-        function handleVideoFinished() {
-            if (quizQuestions.length > 0) {
-                const examBtn = document.getElementById('start-exam-btn');
-                examBtn.classList.remove('disabled');
-                document.getElementById('exam-hint').style.display = 'none';
-                alert("انتهى الفيديو! يرجى النقر على 'دخول امتحان المحاضرة' لاجتياز الاختبار.");
-            } else {
-                markLessonCompleted();
-            }
+        function formatTime(seconds) {
+            if(!seconds) return "00:00";
+            const m = Math.floor(seconds / 60); const s = Math.floor(seconds % 60);
+            return `${m < 10 ? '0'+m : m}:${s < 10 ? '0'+s : s}`;
         }
 
-        function startExam() {
-            if(document.getElementById('start-exam-btn').classList.contains('disabled')) {
-                alert("يجب عليك إكمال مشاهدة الفيديو أولاً قبل دخول الامتحان!");
+        function handleVideoEnd() {
+            const lesson = lessonsData.find(l => l.id === activeLessonId);
+            
+            if (completedLessons.has(activeLessonId)) {
+                // تمت مشاهدته من قبل
+                closeVideo();
                 return;
             }
 
+            if (lesson.hasQuiz) {
+                alert("ممتاز! لقد أكملت الشرح، يرجى فتح 'الامتحان' من القائمة لإتمام المحاضرة بالكامل.");
+                closeVideo();
+            } else {
+                // مفيش امتحان، يبقا المحاضرة خلصت كده
+                closeVideo();
+                markLessonCompleted(activeLessonId);
+            }
+        }
+
+        // --- 4. نظام الامتحان المتعدد ---
+        function openExam(index) {
+            const lesson = lessonsData[index];
+            activeExamLessonId = lesson.id;
+
+            // لو المحاضرة خالصة، ميفتحش الامتحان تاني (اختياري) أو يفتحه كتدريب
+            if (completedLessons.has(activeExamLessonId)) {
+                alert("لقد اجتزت هذا الاختبار مسبقاً بنجاح!");
+                return;
+            }
+
+            quizQuestions = lesson.quizData;
+            document.getElementById('exam-lesson-title').innerText = lesson.title;
+            
             userAnswers = {};
             currentQIndex = 0;
+            timeRemaining = quizQuestions.length * 60; // دقيقة لكل سؤال
             
-            // تخصيص وقت الامتحان: دقيقة لكل سؤال
-            timeLeft = quizQuestions.length * 120; 
-            
-            document.getElementById('total-q-num').innerText = quizQuestions.length;
-            document.getElementById('exam-result-screen').style.display = 'none';
-            document.getElementById('exam-quiz-ui').style.display = 'block';
+            document.getElementById('total-q-count').innerText = quizQuestions.length;
+            document.getElementById('result-ui').style.display = 'none';
+            document.getElementById('exam-quiz-ui').style.display = 'flex';
             
             renderQuestion(currentQIndex);
             
-            document.getElementById('exam-overlay').style.display = 'flex';
+            document.getElementById('exam-modal').style.display = 'flex';
             
-            clearInterval(examTimerInterval);
-            updateTimerDisplay();
-            examTimerInterval = setInterval(() => {
-                timeLeft--;
-                updateTimerDisplay();
-                if(timeLeft <= 0) {
-                    clearInterval(examTimerInterval);
+            clearInterval(timerInterval);
+            updateTimerUI();
+            timerInterval = setInterval(() => {
+                timeRemaining--;
+                updateTimerUI();
+                if(timeRemaining <= 0) {
+                    clearInterval(timerInterval);
                     alert("انتهى الوقت المخصص للامتحان!");
                     submitExam();
                 }
             }, 1000);
         }
 
-        function updateTimerDisplay() {
-            const m = Math.floor(timeLeft / 60);
-            const s = timeLeft % 60;
-            document.querySelector('#exam-timer span').innerText = `${m < 10 ? '0'+m : m}:${s < 10 ? '0'+s : s}`;
+        function updateTimerUI() {
+            const m = Math.floor(timeRemaining / 60);
+            const s = timeRemaining % 60;
+            document.getElementById('time-text').innerText = `${m < 10 ? '0'+m : m}:${s < 10 ? '0'+s : s}`;
             
-            if(timeLeft < 30) {
-                document.getElementById('exam-timer').style.backgroundColor = '#fef2f2';
-                document.getElementById('exam-timer').style.color = '#ef4444';
+            const timerBar = document.getElementById('exam-timer');
+            if(timeRemaining < 30) {
+                timerBar.style.backgroundColor = '#fef2f2';
+                timerBar.style.color = 'var(--danger)';
+            } else {
+                timerBar.style.backgroundColor = 'var(--danger)';
+                timerBar.style.color = 'white';
             }
         }
 
         function renderQuestion(index) {
             const q = quizQuestions[index];
-            document.getElementById('current-q-num').innerText = index + 1;
+            document.getElementById('current-q-index').innerText = index + 1;
             
-            const imgElement = document.getElementById('q-image');
-            if (q.image_url) {
-                imgElement.src = q.image_url;
-                imgElement.style.display = 'block';
-            } else {
-                imgElement.style.display = 'none';
-            }
+            const imgElement = document.getElementById('q-img');
+            if (q.image_url) { imgElement.src = q.image_url; imgElement.style.display = 'block'; } 
+            else { imgElement.style.display = 'none'; }
             
-            document.getElementById('opt-A').innerHTML = `<strong>(أ)</strong> ${q.option_a}`;
-            document.getElementById('opt-B').innerHTML = `<strong>(ب)</strong> ${q.option_b}`;
-            document.getElementById('opt-C').innerHTML = `<strong>(ج)</strong> ${q.option_c}`;
-            document.getElementById('opt-D').innerHTML = `<strong>(د)</strong> ${q.option_d}`;
+            document.getElementById('txt-A').innerText = q.option_a;
+            document.getElementById('txt-B').innerText = q.option_b;
+            document.getElementById('txt-C').innerText = q.option_c;
+            document.getElementById('txt-D').innerText = q.option_d;
 
             ['A','B','C','D'].forEach(opt => {
-                const btn = document.getElementById(`opt-${opt}`);
-                if(userAnswers[index] === opt) {
-                    btn.classList.add('selected');
-                } else {
-                    btn.classList.remove('selected');
-                }
+                const btn = document.getElementById(`btn-${opt}`);
+                if(userAnswers[index] === opt) { btn.classList.add('selected'); } 
+                else { btn.classList.remove('selected'); }
             });
 
             document.getElementById('btn-prev').disabled = (index === 0);
             
             if(index === quizQuestions.length - 1) {
                 document.getElementById('btn-next').style.display = 'none';
-                document.getElementById('btn-submit-exam').style.display = 'inline-flex';
+                document.getElementById('btn-finish').style.display = 'flex';
             } else {
-                document.getElementById('btn-next').style.display = 'inline-flex';
-                document.getElementById('btn-submit-exam').style.display = 'none';
+                document.getElementById('btn-next').style.display = 'flex';
+                document.getElementById('btn-finish').style.display = 'none';
             }
         }
 
-        function selectOption(opt) {
+        function chooseAnswer(opt) {
             userAnswers[currentQIndex] = opt;
             renderQuestion(currentQIndex); 
         }
 
-        function nextQuestion() {
-            if(currentQIndex < quizQuestions.length - 1) {
-                currentQIndex++;
-                renderQuestion(currentQIndex);
-            }
-        }
-
-        function prevQuestion() {
-            if(currentQIndex > 0) {
-                currentQIndex--;
-                renderQuestion(currentQIndex);
-            }
-        }
+        function goNext() { if(currentQIndex < quizQuestions.length - 1) { currentQIndex++; renderQuestion(currentQIndex); } }
+        function goPrev() { if(currentQIndex > 0) { currentQIndex--; renderQuestion(currentQIndex); } }
 
         function submitExam() {
-            clearInterval(examTimerInterval);
+            clearInterval(timerInterval);
             
             let score = 0;
             for(let i=0; i < quizQuestions.length; i++) {
-                if(userAnswers[i] === quizQuestions[i].correct_option) {
-                    score++;
-                }
+                if(userAnswers[i] === quizQuestions[i].correct_option) score++;
             }
 
             const percentage = Math.round((score / quizQuestions.length) * 100);
             const isPassed = percentage >= 50;
 
             document.getElementById('exam-quiz-ui').style.display = 'none';
-            const resultScreen = document.getElementById('exam-result-screen');
-            const circle = document.getElementById('result-circle');
-            const msg = document.getElementById('result-msg');
-            const scoreText = document.getElementById('result-score');
+            const resultUI = document.getElementById('result-ui');
+            const circle = document.getElementById('result-score-circle');
+            const title = document.getElementById('result-title');
+            const desc = document.getElementById('result-desc');
 
             circle.innerText = `${percentage}%`;
-            scoreText.innerText = `أجبت بشكل صحيح على ${score} من أصل ${quizQuestions.length} أسئلة`;
+            desc.innerText = `أجبت بشكل صحيح على ${score} من أصل ${quizQuestions.length} أسئلة`;
 
             if(isPassed) {
                 circle.className = 'result-circle pass';
-                msg.innerText = "ممتاز! لقد اجتزت الاختبار بنجاح \uD83C\uDF89";
-                msg.style.color = "var(--success)";
+                title.innerText = "ممتاز! لقد اجتزت الاختبار بنجاح \uD83C\uDF89";
+                title.style.color = "var(--success)";
             } else {
                 circle.className = 'result-circle fail';
-                msg.innerText = "للأسف، لم تجتز الاختبار. يجب إعادة المحاولة.";
-                msg.style.color = "var(--danger)";
+                title.innerText = "للأسف، لم تجتز الاختبار. يجب إعادة المحاولة.";
+                title.style.color = "var(--danger)";
             }
 
-            resultScreen.style.display = 'flex';
+            resultUI.style.display = 'flex';
             
             if(isPassed) {
-                markLessonCompleted();
+                markLessonCompleted(activeExamLessonId);
             }
         }
 
-        function closeExamAndSave() {
-            document.getElementById('exam-overlay').style.display = 'none';
+        function closeExamUI() {
+            document.getElementById('exam-modal').style.display = 'none';
+            clearInterval(timerInterval);
         }
 
-        // ======================================
-        // الاتصال بالسيرفر لحفظ التقدم
-        // ======================================
-        async function markLessonCompleted() {
-            const lessonId = lessonsData[currentLessonIndex].id;
+        // --- 5. الحفظ والاحتفال (Confetti) ---
+        async function markLessonCompleted(lessonId) {
+            if (completedLessons.has(lessonId)) return; // هي مرة واحدة بس
+
             const token = localStorage.getItem('auth_token');
+            const userInfo = JSON.parse(localStorage.getItem('user_info'));
+
+            // 1. إطلاق الاحتفال
+            triggerConfetti();
+
+            // 2. تحديث الواجهة (اللون الأخضر)
+            completedLessons.add(lessonId);
+            renderAccordion();
+
+            // 3. الحفظ في LocalStorage كـ Cache سريع
+            localStorage.setItem(`progress_${userInfo.id}`, JSON.stringify(Array.from(completedLessons)));
+
+            // 4. الإرسال لقاعدة البيانات (D1)
             try {
                 await fetch(`${workerBaseUrl}/api/progress`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify({ lessonId: lessonId })
                 });
-                
-                if(currentLessonIndex + 1 < lessonsData.length) {
-                    loadVideo(currentLessonIndex + 1);
-                } else {
-                    if(!document.getElementById('exam-overlay').style.display || document.getElementById('exam-overlay').style.display === 'none') {
-                        alert("مبروك! لقد أنهيت جميع محاضرات هذا الكورس بنجاح.");
-                    }
-                }
-            } catch (error) { console.error(error); }
+            } catch (error) { console.error("لم يتم حفظ التقدم في السيرفر", error); }
         }
 
-        // تحكمات الفيديو
-        document.getElementById('play-pause-btn').addEventListener('click', () => {
-            if (!player) return;
-            if (isPlaying) player.pauseVideo(); else player.playVideo();
-        });
-        document.getElementById('player-overlay').addEventListener('click', () => {
-            if (!player) return;
-            if (isPlaying) player.pauseVideo(); else player.playVideo();
-        });
-        function extractVideoID(url) {
-            if (!url) return "";
-            try {
-                if (url.includes('v=')) return url.split('v=')[1].split('&')[0];
-                if (url.includes('youtu.be/')) return url.split('youtu.be/')[1].split('?')[0];
-            } catch(e) {}
-            return url;
-        }
-        function updateTimeDisplay(current, dur) {
-            document.getElementById('current-time').innerText = formatTime(current);
-            document.getElementById('duration-time').innerText = formatTime(dur);
-        }
-        function formatTime(seconds) {
-            const m = Math.floor(seconds / 60); const s = Math.floor(seconds % 60);
-            return `${m < 10 ? '0'+m : m}:${s < 10 ? '0'+s : s}`;
+        function triggerConfetti() {
+            if(typeof confetti === 'function') {
+                const duration = 3000;
+                const end = Date.now() + duration;
+
+                (function frame() {
+                    confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#10b981', '#015669', '#f59e0b'] });
+                    confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#10b981', '#015669', '#f59e0b'] });
+                    if (Date.now() < end) { requestAnimationFrame(frame); }
+                }());
+            }
         }
     </script>
 </body>
