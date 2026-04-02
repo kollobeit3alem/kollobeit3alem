@@ -604,7 +604,7 @@
             document.getElementById('activation-code').value = '';
             
             // تجهيز رابط الواتساب
-            const whatsappNumber = "201000000000"; // استبدل هذا برقمك الحقيقي
+            const whatsappNumber = "201153786085"; // استبدل هذا برقمك الحقيقي
             const message = `مرحباً، أريد شراء كورس (${title}) لتفعيل حسابي.`;
             const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
             document.getElementById('whatsapp-btn').href = whatsappUrl;
@@ -618,13 +618,14 @@
         }
 
         function activateCourseCode(event) {
-            event.preventDefault(); // منع إعادة تحميل الصفحة
-            const code = document.getElementById('activation-code').value.trim();
-            if(!code) return;
-            
-            // إرسال الكود للسيرفر للتفعيل
-            enrollCourse(currentActivatingCourseId, code);
-        }
+    event.preventDefault(); // منع إعادة تحميل الصفحة
+    // التعديل هنا: تحويل الحروف لكابيتال تلقائياً
+    const code = document.getElementById('activation-code').value.trim().toUpperCase();
+    if(!code) return;
+    
+    // إرسال الكود للسيرفر للتفعيل
+    enrollCourse(currentActivatingCourseId, code);
+}
 
         // 3. دالة تسجيل الخروج
         function logout() {
