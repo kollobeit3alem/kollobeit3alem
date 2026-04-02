@@ -80,9 +80,10 @@
         .user-actions {
             display: flex;
             align-items: center;
-            gap: 20px;
+            gap: 15px;
         }
 
+        /* التعديل هنا: جعل البروفايل قابل للنقر كزر */
         .user-profile {
             display: flex;
             align-items: center;
@@ -93,6 +94,13 @@
             padding: 5px 15px 5px 5px;
             border-radius: 30px;
             border: 1px solid var(--border);
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .user-profile:hover {
+            border-color: var(--primary);
+            box-shadow: 0 4px 10px var(--primary-light);
         }
 
         .user-profile img {
@@ -101,6 +109,24 @@
             border-radius: 50%;
             border: 2px solid var(--primary);
             object-fit: cover;
+        }
+
+        .btn-profile {
+            background: var(--primary-light);
+            color: var(--primary);
+            text-decoration: none;
+            padding: 10px 15px;
+            border-radius: 12px;
+            font-weight: bold;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-profile:hover {
+            background: var(--primary);
+            color: white;
         }
 
         .btn-logout {
@@ -368,22 +394,30 @@
             color: var(--text-muted);
             margin-top: auto;
         }
+
+        /* تحسينات الموبايل */
+        @media (max-width: 768px) {
+            .btn-profile span { display: none; }
+        }
     </style>
 </head>
 <body>
 
     <header>
-        <a href="#" class="brand">
+        <a href="/courses.html" class="brand">
             <img src="كله بيتعلم (1).png" alt="شعار المنصة">
             <h1>كله بيتعلم</h1>
         </a>
         <div class="user-actions">
-            <div class="user-profile">
+            <a href="/profile.html" class="user-profile" title="الذهاب للبروفايل">
                 <span id="header-user-name">جاري التحميل...</span>
                 <img src="" id="header-user-img" alt="صورة المستخدم" style="display: none;">
-            </div>
-            <button class="btn-logout" onclick="logout()">
-                <i class="fas fa-sign-out-alt"></i> خروج
+            </a>
+            <a href="/profile.html" class="btn-profile">
+                <i class="fas fa-user-circle"></i> <span>حسابي</span>
+            </a>
+            <button class="btn-logout" onclick="logout()" title="تسجيل خروج">
+                <i class="fas fa-sign-out-alt"></i>
             </button>
         </div>
     </header>
@@ -511,7 +545,7 @@
 
                 // رسم الكروت لكل كورس مع التفرقة بين المجاني والمدفوع وحالة الاشتراك
                 courses.forEach(course => {
-                    const card = document.createElement('div'); // تم التغيير لـ div للتحكم في الكليك برمجياً
+                    const card = document.createElement('div'); 
                     card.className = 'course-card';
                     
                     // صورة افتراضية لو مفيش
@@ -604,7 +638,7 @@
             document.getElementById('activation-code').value = '';
             
             // تجهيز رابط الواتساب
-            const whatsappNumber = "201153786085"; // استبدل هذا برقمك الحقيقي
+            const whatsappNumber = "201000000000"; // استبدل هذا برقمك الحقيقي
             const message = `مرحباً، أريد شراء كورس (${title}) لتفعيل حسابي.`;
             const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
             document.getElementById('whatsapp-btn').href = whatsappUrl;
@@ -618,14 +652,13 @@
         }
 
         function activateCourseCode(event) {
-    event.preventDefault(); // منع إعادة تحميل الصفحة
-    // التعديل هنا: تحويل الحروف لكابيتال تلقائياً
-    const code = document.getElementById('activation-code').value.trim().toUpperCase();
-    if(!code) return;
-    
-    // إرسال الكود للسيرفر للتفعيل
-    enrollCourse(currentActivatingCourseId, code);
-}
+            event.preventDefault(); // منع إعادة تحميل الصفحة
+            const code = document.getElementById('activation-code').value.trim().toUpperCase();
+            if(!code) return;
+            
+            // إرسال الكود للسيرفر للتفعيل
+            enrollCourse(currentActivatingCourseId, code);
+        }
 
         // 3. دالة تسجيل الخروج
         function logout() {
