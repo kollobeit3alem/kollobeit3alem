@@ -25,6 +25,9 @@
             --text-muted: #64748b;
             --border: #e2e8f0;
             --radius: 20px;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
             --transition: all 0.3s ease;
         }
 
@@ -219,18 +222,22 @@
             transform: scale(1.05);
         }
 
+        /* شارات الدورة (مجاني/مدفوع) */
         .course-badge {
             position: absolute;
             top: 15px;
             right: 15px;
-            background: var(--primary);
             color: white;
-            padding: 5px 12px;
+            padding: 6px 15px;
             border-radius: 8px;
-            font-size: 12px;
+            font-size: 13px;
             font-weight: bold;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            z-index: 10;
         }
+        .badge-free { background: var(--success); }
+        .badge-paid { background: var(--warning); }
+        .badge-enrolled { background: var(--primary); left: 15px; right: auto; }
 
         .course-content {
             padding: 25px;
@@ -261,15 +268,13 @@
 
         .course-footer {
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-end;
             align-items: center;
             padding-top: 15px;
             border-top: 1px solid var(--border);
         }
 
         .btn-start {
-            background: var(--primary-light);
-            color: var(--primary);
             padding: 10px 20px;
             border-radius: 10px;
             font-weight: bold;
@@ -278,12 +283,19 @@
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            border: none;
+            cursor: pointer;
         }
 
-        .course-card:hover .btn-start {
-            background: var(--primary);
-            color: white;
-        }
+        .btn-enter { background: var(--primary-light); color: var(--primary); }
+        .course-card:hover .btn-enter { background: var(--primary); color: white; }
+        
+        .btn-free-enroll { background: #d1fae5; color: var(--success); }
+        .course-card:hover .btn-free-enroll { background: var(--success); color: white; }
+
+        .btn-paid-enroll { background: #fef3c7; color: var(--warning); }
+        .course-card:hover .btn-paid-enroll { background: var(--warning); color: white; }
+
 
         /* لودنج أنيميشن (شاشة تحميل) */
         .loading-container {
@@ -304,6 +316,48 @@
         }
 
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* --- نافذة الدفع والتفعيل (Modal) --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none; justify-content: center; align-items: center;
+            z-index: 1000; backdrop-filter: blur(5px);
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-content {
+            background: var(--white); padding: 30px; border-radius: var(--radius);
+            width: 90%; max-width: 500px; box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+            position: relative;
+        }
+        .modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px;
+        }
+        .modal-header h3 { color: var(--primary); }
+        .close-modal { background: none; border: none; font-size: 24px; color: var(--danger); cursor: pointer; }
+        
+        .btn-whatsapp {
+            display: flex; justify-content: center; align-items: center; gap: 10px;
+            background: #25D366; color: white; text-decoration: none;
+            padding: 15px; border-radius: 12px; font-weight: bold; font-size: 16px;
+            transition: 0.3s; width: 100%; margin-bottom: 20px;
+        }
+        .btn-whatsapp:hover { background: #1ebe57; transform: translateY(-2px); }
+
+        .activation-form { display: flex; flex-direction: column; gap: 15px; }
+        .activation-form input {
+            width: 100%; padding: 15px; border: 1.5px solid var(--border);
+            border-radius: 12px; font-size: 16px; font-family: monospace !important;
+            text-align: center; text-transform: uppercase; background: var(--bg-page);
+        }
+        .activation-form input:focus { border-color: var(--primary); outline: none; background: var(--white); }
+        .btn-activate {
+            background: var(--primary); color: white; border: none;
+            padding: 15px; border-radius: 12px; font-weight: bold; cursor: pointer;
+            font-size: 16px; transition: 0.3s;
+        }
+        .btn-activate:hover { box-shadow: 0 5px 15px var(--primary-light); transform: translateY(-2px); }
 
         /* الفوتر */
         footer {
@@ -352,15 +406,41 @@
         </div>
     </main>
 
+    <div class="modal-overlay" id="payment-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-course-title">شراء الكورس</h3>
+                <button class="close-modal" onclick="closePaymentModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 20px; line-height: 1.6;">
+                    هذا الكورس مدفوع وقيمته <strong id="modal-course-price" style="color: var(--warning); font-size: 18px;">0</strong> <strong>جنيه مصري</strong>. 
+                    يرجى التواصل معنا عبر واتساب لإتمام عملية الدفع واستلام كود التفعيل الخاص بك.
+                </p>
+                <a href="#" id="whatsapp-btn" class="btn-whatsapp" target="_blank"><i class="fab fa-whatsapp"></i> ادفع الآن واستلم الكود</a>
+                
+                <hr style="margin: 25px 0; border: 0; border-top: 1px solid var(--border);">
+                
+                <h4 style="margin-bottom: 10px; color: var(--primary);">لدي كود تفعيل بالفعل:</h4>
+                <form class="activation-form" onsubmit="activateCourseCode(event)">
+                    <input type="text" id="activation-code" placeholder="أدخل الكود هنا (مثال: AB12CD34)" required>
+                    <button type="submit" class="btn-activate"><i class="fas fa-check-circle"></i> تفعيل الدورة وبدء التعلم</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <footer>
         جميع الحقوق محفوظة لمنصة كله بيتعلم &copy; 2026
     </footer>
 
     <script>
         const workerBaseUrl = 'https://kollobeit3alem.pages.dev';
+        let enrolledCourseIds = []; // لتخزين الكورسات اللي الطالب مشترك فيها
+        let currentActivatingCourseId = null; // الكورس اللي الطالب بيحاول يفعل كوده دلوقتي
 
         // 1. التحقق من تسجيل الدخول فور فتح الصفحة
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('auth_token');
             const userInfoStr = localStorage.getItem('user_info');
 
@@ -372,7 +452,7 @@
 
             // عرض بيانات الطالب في الهيدر والترحيب
             const userInfo = JSON.parse(userInfoStr);
-            document.getElementById('header-user-name').innerText = userInfo.name.split(' ')[0]; // عرض الاسم الأول فقط لجمال الشكل
+            document.getElementById('header-user-name').innerText = userInfo.name.split(' ')[0]; // عرض الاسم الأول فقط
             document.getElementById('hero-welcome').innerText = `أهلاً بك يا ${userInfo.name}! مستعد تتعلم حاجة جديدة؟`;
             
             if (userInfo.avatar_url) {
@@ -381,9 +461,27 @@
                 img.style.display = 'block';
             }
 
-            // جلب الكورسات
+            // جلب اشتراكات الطالب الحالية أولاً
+            await fetchMyEnrollments();
+            
+            // ثم جلب ورسم الكورسات
             fetchCourses();
         });
+
+        // جلب اشتراكات الطالب لمعرفة الكورسات المفتوحة له
+        async function fetchMyEnrollments() {
+            try {
+                const token = localStorage.getItem('auth_token');
+                const response = await fetch(`${workerBaseUrl}/api/my-enrollments`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    enrolledCourseIds = await response.json();
+                }
+            } catch (e) {
+                console.error('Failed to load enrollments');
+            }
+        }
 
         // 2. دالة جلب الكورسات من الـ Worker
         async function fetchCourses() {
@@ -411,27 +509,49 @@
                     return;
                 }
 
-                // رسم الكروت لكل كورس
+                // رسم الكروت لكل كورس مع التفرقة بين المجاني والمدفوع وحالة الاشتراك
                 courses.forEach(course => {
-                    const card = document.createElement('a');
-                    card.href = `/course.html?id=${course.id}`;
+                    const card = document.createElement('div'); // تم التغيير لـ div للتحكم في الكليك برمجياً
                     card.className = 'course-card';
                     
-                    // لو المدرس محطش صورة، نحط صورة افتراضية شيك
+                    // صورة افتراضية لو مفيش
                     const imageUrl = course.image_url || 'https://via.placeholder.com/600x400/015669/FFFFFF?text=كورس+جديد';
+
+                    // إعدادات الشارة والأزرار
+                    const isEnrolled = enrolledCourseIds.includes(course.id);
+                    const isFree = course.is_free === 1;
+                    
+                    let badgeHtml = '';
+                    let actionHtml = '';
+                    let cardAction = '';
+
+                    if (isEnrolled) {
+                        badgeHtml = '<span class="course-badge badge-enrolled"><i class="fas fa-check-circle"></i> مشترك</span>';
+                        actionHtml = '<button class="btn-start btn-enter">دخول الكورس <i class="fas fa-arrow-left"></i></button>';
+                        cardAction = `window.location.href='/course.html?id=${course.id}'`;
+                    } else if (isFree) {
+                        badgeHtml = '<span class="course-badge badge-free">مجاني</span>';
+                        actionHtml = '<button class="btn-start btn-free-enroll">اشترك مجاناً <i class="fas fa-bolt"></i></button>';
+                        cardAction = `enrollCourse(${course.id})`;
+                    } else {
+                        badgeHtml = `<span class="course-badge badge-paid">${course.price || 0} ج.م</span>`;
+                        actionHtml = '<button class="btn-start btn-paid-enroll">شراء الكورس <i class="fas fa-shopping-cart"></i></button>';
+                        cardAction = `openPaymentModal(${course.id}, '${course.title.replace(/'/g, "\\'")}', ${course.price})`;
+                    }
+
+                    // وضع onclick على الكارت بالكامل لسهولة الاستخدام
+                    card.setAttribute('onclick', cardAction);
 
                     card.innerHTML = `
                         <div class="course-img-wrapper">
-                            <span class="course-badge">جديد</span>
+                            ${badgeHtml}
                             <img src="${imageUrl}" alt="${course.title}">
                         </div>
                         <div class="course-content">
                             <h3 class="course-title">${course.title}</h3>
                             <p class="course-desc">${course.description || 'دورة تدريبية متميزة لتطوير مهاراتك العملية.'}</p>
                             <div class="course-footer">
-                                <span class="btn-start">
-                                    ابدأ الآن <i class="fas fa-arrow-left"></i>
-                                </span>
+                                ${actionHtml}
                             </div>
                         </div>
                     `;
@@ -448,6 +568,62 @@
                     </div>
                 `;
             }
+        }
+
+        // دالة الاشتراك في كورس مجاني أو إرسال كود تفعيل
+        async function enrollCourse(courseId, code = null) {
+            const token = localStorage.getItem('auth_token');
+            try {
+                const response = await fetch(`${workerBaseUrl}/api/enroll`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ course_id: courseId, code: code })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    // نجاح التسجيل، التوجيه لصفحة الكورس
+                    window.location.href = `/course.html?id=${courseId}`;
+                } else {
+                    alert(data.error || 'حدث خطأ أثناء الاشتراك.');
+                }
+            } catch (e) {
+                alert('خطأ في الاتصال بالخادم.');
+            }
+        }
+
+        // --- وظائف نافذة الدفع والتفعيل ---
+        function openPaymentModal(courseId, title, price) {
+            currentActivatingCourseId = courseId;
+            document.getElementById('modal-course-title').innerText = title;
+            document.getElementById('modal-course-price').innerText = price || 0;
+            document.getElementById('activation-code').value = '';
+            
+            // تجهيز رابط الواتساب
+            const whatsappNumber = "201000000000"; // استبدل هذا برقمك الحقيقي
+            const message = `مرحباً، أريد شراء كورس (${title}) لتفعيل حسابي.`;
+            const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
+            document.getElementById('whatsapp-btn').href = whatsappUrl;
+
+            document.getElementById('payment-modal').classList.add('active');
+        }
+
+        function closePaymentModal() {
+            document.getElementById('payment-modal').classList.remove('active');
+            currentActivatingCourseId = null;
+        }
+
+        function activateCourseCode(event) {
+            event.preventDefault(); // منع إعادة تحميل الصفحة
+            const code = document.getElementById('activation-code').value.trim();
+            if(!code) return;
+            
+            // إرسال الكود للسيرفر للتفعيل
+            enrollCourse(currentActivatingCourseId, code);
         }
 
         // 3. دالة تسجيل الخروج
