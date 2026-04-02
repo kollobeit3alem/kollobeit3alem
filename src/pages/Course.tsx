@@ -60,8 +60,6 @@ export default function CoursePage() {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [videoDuration, setVideoDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [maxWatchedTime, setMaxWatchedTime] = useState(0);
-  const [showCheatAlert, setShowCheatAlert] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   
@@ -81,28 +79,44 @@ export default function CoursePage() {
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const courseId = searchParams.get('id');
 
-  // Load saved progress
+  // Load saved progress from Database (Fallback to localStorage)
   useEffect(() => {
-    if (user) {
-      const savedProgress = localStorage.getItem(`progress_${user.id}`);
-      if (savedProgress) {
-        setCompletedLessons(new Set(JSON.parse(savedProgress)));
+    const loadProgress = async () => {
+      if (user && token && courseId) {
+        try {
+          // جلب التقدم من قاعدة البيانات
+          const data = await apiCall(`/api/courses/${courseId}/progress`, token);
+          if (data.completedLessons) {
+            setCompletedLessons(new Set(data.completedLessons));
+          }
+          if (data.completedVideos) {
+            setCompletedVideos(new Set(data.completedVideos));
+          }
+        } catch (error) {
+          console.error('Failed to load progress from DB, using fallback:', error);
+          // في حال فشل الاتصال بقاعدة البيانات، نستخدم التخزين المحلي كاحتياطي
+          const savedProgress = localStorage.getItem(`progress_${user.id}`);
+          if (savedProgress) setCompletedLessons(new Set(JSON.parse(savedProgress)));
+          
+          const savedVideoProgress = localStorage.getItem(`video_progress_${user.id}`);
+          if (savedVideoProgress) setCompletedVideos(new Set(JSON.parse(savedVideoProgress)));
+        }
       }
-      
-      const savedVideoProgress = localStorage.getItem(`video_progress_${user.id}`);
-      if (savedVideoProgress) {
-        setCompletedVideos(new Set(JSON.parse(savedVideoProgress)));
-      }
-    }
-  }, [user]);
+    };
+    loadProgress();
+  }, [user, token, courseId]);
 
-  // Save progress
-  const saveProgress = useCallback(() => {
+  // Save progress locally as a backup
+  const saveProgressLocally = useCallback(() => {
     if (user) {
       localStorage.setItem(`progress_${user.id}`, JSON.stringify(Array.from(completedLessons)));
       localStorage.setItem(`video_progress_${user.id}`, JSON.stringify(Array.from(completedVideos)));
     }
   }, [completedLessons, completedVideos, user]);
+
+  useEffect(() => {
+    saveProgressLocally();
+  }, [completedLessons, completedVideos, saveProgressLocally]);
 
   // Fetch course details
   const fetchCourseDetails = useCallback(async () => {
@@ -207,8 +221,6 @@ export default function CoursePage() {
     setActiveLessonId(lesson.id);
     setActiveVideoIndex(vIdx);
     setActiveVideoTotal(vTotal);
-    setMaxWatchedTime(0);
-    setShowCheatAlert(false);
     setPlaybackRate(1);
     setShowVideoModal(true);
     
@@ -269,18 +281,7 @@ export default function CoursePage() {
       if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
       videoIntervalRef.current = setInterval(() => {
         if (playerRef.current) {
-          const current = playerRef.current.getCurrentTime();
-          setCurrentTime(current);
-          
-          if (current > maxWatchedTime && current - maxWatchedTime < 3) {
-            setMaxWatchedTime(current);
-          }
-          
-          if (current > maxWatchedTime + 2) {
-            playerRef.current.seekTo(maxWatchedTime, true);
-            setShowCheatAlert(true);
-            setTimeout(() => setShowCheatAlert(false), 4000);
-          }
+          setCurrentTime(playerRef.current.getCurrentTime());
         }
       }, 500);
     } else {
@@ -311,12 +312,6 @@ export default function CoursePage() {
     const percent = (e.clientX - rect.left) / rect.width;
     let seekTime = percent * videoDuration;
     
-    if (seekTime > maxWatchedTime) {
-      seekTime = maxWatchedTime;
-      setShowCheatAlert(true);
-      setTimeout(() => setShowCheatAlert(false), 3000);
-    }
-    
     playerRef.current.seekTo(seekTime, true);
     setCurrentTime(seekTime);
   };
@@ -325,12 +320,6 @@ export default function CoursePage() {
     if (!playerRef.current || !videoDuration) return;
     const current = playerRef.current.getCurrentTime();
     let newTime = current + seconds;
-    
-    if (seconds > 0 && newTime > maxWatchedTime) {
-      newTime = maxWatchedTime;
-      setShowCheatAlert(true);
-      setTimeout(() => setShowCheatAlert(false), 3000);
-    }
     
     if (newTime < 0) newTime = 0;
     if (newTime > videoDuration) newTime = videoDuration;
@@ -368,16 +357,31 @@ export default function CoursePage() {
     return `${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`;
   };
 
-  const handleVideoEnd = () => {
+  const handleVideoEnd = async () => {
     const lesson = lessons.find(l => l.id === activeLessonId);
     if (!lesson) return;
     
-    // تعليم هذا الجزء كمنتهي
+    const videoKey = `${activeLessonId}_${activeVideoIndex}`;
+
+    // تعليم هذا الجزء كمنتهي في الواجهة
     setCompletedVideos(prev => {
       const newSet = new Set(prev);
-      newSet.add(`${activeLessonId}_${activeVideoIndex}`);
+      newSet.add(videoKey);
       return newSet;
     });
+
+    // حفظ تقدم الفيديو في قاعدة البيانات
+    if (token) {
+      try {
+        await apiCall('/api/progress/video', token, 'POST', { 
+          courseId: course?.id,
+          lessonId: activeLessonId, 
+          videoKey: videoKey 
+        });
+      } catch (error) {
+        console.error('Failed to save video progress to DB:', error);
+      }
+    }
 
     if (activeVideoIndex < activeVideoTotal - 1) {
       toast.info('انتهى الجزء الحالي! يرجى تشغيل الجزء التالي من الشرح.');
@@ -488,7 +492,7 @@ export default function CoursePage() {
     }
   };
 
-  // Mark lesson as completed
+  // Mark lesson as completed (Saves to DB)
   const markLessonCompleted = async (lessonId: number) => {
     if (completedLessons.has(lessonId)) return;
     
@@ -531,10 +535,6 @@ export default function CoursePage() {
       console.error('Failed to save progress:', error);
     }
   };
-
-  useEffect(() => {
-    saveProgress();
-  }, [completedLessons, completedVideos, saveProgress]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -692,14 +692,7 @@ export default function CoursePage() {
           )}
           
           <div ref={videoContainerRef} className={`w-[95%] max-w-[1000px] bg-[#0f172a] rounded-2xl overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-slate-700 flex flex-col ${isFullscreen ? '!w-full !max-w-none !h-full !rounded-none !border-none' : ''}`}>
-            {/* Cheat Alert */}
-            <div 
-              className={`absolute top-5 left-1/2 -translate-x-1/2 bg-red-500/90 text-white py-2.5 px-5 rounded-xl font-bold flex items-center gap-2.5 z-10 text-sm ${showCheatAlert ? 'flex' : 'hidden'}`}
-            >
-              <i className="fas fa-triangle-exclamation"></i>
-              <span>عذراً، يجب مشاهدة الفيديو بالترتيب ولا يمكن التخطي للأمام!</span>
-            </div>
-
+            
             <div className="yt-wrapper flex-1 relative">
               <div id="player" className="absolute top-0 left-0 w-full h-full"></div>
               <div className="yt-overlay absolute top-0 left-0 w-full h-full z-10 cursor-pointer" onClick={togglePlayPause}></div>
