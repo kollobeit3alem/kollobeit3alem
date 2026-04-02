@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>امتحان المحاضرة | كله بيتعلم</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <style>
+        @font-face {
+            font-family: 'AbdoLogo';
+            src: url('alfont_com_Abdo.Fonts_Abdo.Logo_.ttf') format('truetype');
+        }
+
+        :root {
+            --primary: #015669; 
+            --primary-light: rgba(1, 86, 105, 0.1);
+            --bg-page: #f4f7f9;
+            --white: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --danger: #ef4444;
+            --radius: 20px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'AbdoLogo', sans-serif !important; }
+        body { background-color: var(--bg-page); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; }
+
+        header {
+            background-color: var(--white); padding: 15px 5%; display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03); border-bottom: 3px solid var(--primary);
+        }
+        .brand { display: flex; align-items: center; gap: 15px; text-decoration: none; }
+        .brand img { height: 45px; border-radius: 10px; }
+        .brand h1 { font-size: 22px; color: var(--primary); }
+        .btn-back { background: var(--primary-light); color: var(--primary); padding: 10px 20px; border-radius: 12px; text-decoration: none; font-weight: bold; display: flex; align-items: center; gap: 8px; transition: 0.3s; }
+        .btn-back:hover { background: var(--primary); color: white; }
+
+        .quiz-container { max-width: 800px; margin: 40px auto; padding: 0 20px; flex: 1; width: 100%; }
+        
+        .quiz-card { background: var(--white); padding: 30px; border-radius: var(--radius); box-shadow: 0 10px 30px rgba(0,0,0,0.05); text-align: center; }
+        .quiz-header { margin-bottom: 25px; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
+        .quiz-header h2 { color: var(--primary); font-size: 24px; }
+
+        .question-image { max-width: 100%; height: auto; border-radius: 15px; margin-bottom: 30px; border: 2px solid var(--border); box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px; }
+        .opt-btn { background: var(--bg-page); border: 2px solid var(--border); padding: 15px; border-radius: 12px; font-size: 18px; color: var(--text-main); cursor: pointer; transition: 0.3s; font-weight: bold; display: flex; align-items: center; gap: 15px; }
+        .opt-btn .letter { background: var(--white); width: 35px; height: 35px; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); color: var(--primary); }
+        
+        .opt-btn:hover { border-color: var(--primary); background: var(--primary-light); }
+        .opt-btn.selected { border-color: var(--primary); background: var(--primary); color: white; }
+        .opt-btn.selected .letter { color: var(--text-main); }
+        
+        .opt-btn.correct { background: var(--success); border-color: var(--success); color: white; }
+        .opt-btn.wrong { background: var(--danger); border-color: var(--danger); color: white; }
+
+        .submit-btn { background: var(--primary); color: white; border: none; padding: 15px 40px; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.3s; box-shadow: 0 5px 15px var(--primary-light); width: 100%; max-width: 300px; }
+        .submit-btn:hover { transform: translateY(-3px); box-shadow: 0 8px 20px var(--primary-light); }
+        .submit-btn:disabled { background: #cbd5e1; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .result-msg { margin-top: 20px; font-size: 20px; font-weight: bold; display: none; padding: 15px; border-radius: 12px; }
+        .result-msg.success { background: #d1fae5; color: #065f46; display: block; }
+        .result-msg.danger { background: #fee2e2; color: #991b1b; display: block; }
+
+        @media (max-width: 600px) { .options-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+    <header>
+        <a href="/courses.html" class="brand">
+            <img src="كله بيتعلم (1).png" alt="شعار">
+            <h1>كله بيتعلم</h1>
+        </a>
+        <a href="/courses.html" class="btn-back"><i class="fas fa-arrow-left"></i> العودة للكورسات</a>
+    </header>
+
+    <div class="quiz-container">
+        <div class="quiz-card" id="quiz-content">
+            <h3 style="color: var(--text-muted); margin-bottom: 20px;"><i class="fas fa-spinner fa-spin"></i> جاري تحميل الامتحان...</h3>
+        </div>
+    </div>
+
+    <script>
+        const workerBaseUrl = 'https://kollobeit3alem.pages.dev';
+        let currentQuiz = null;
+        let selectedOption = null;
+        let isAnswered = false;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!localStorage.getItem('auth_token')) return window.location.href = '/';
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const lessonId = urlParams.get('lesson_id');
+            
+            if (!lessonId) {
+                document.getElementById('quiz-content').innerHTML = '<h3 style="color:var(--danger);">خطأ: لم يتم تحديد المحاضرة!</h3>';
+                return;
+            }
+
+            fetchQuiz(lessonId);
+        });
+
+        async function fetchQuiz(lessonId) {
+            try {
+                const response = await fetch(`${workerBaseUrl}/api/lessons/${lessonId}/quiz`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token')}` }
+                });
+                const quizzes = await response.json();
+
+                if (quizzes.length > 0) {
+                    currentQuiz = quizzes[0]; // بناخد أول سؤال (ممكن تطورها بعدين لأسئلة متعددة)
+                    renderQuiz();
+                } else {
+                    document.getElementById('quiz-content').innerHTML = `
+                        <i class="fas fa-check-circle" style="font-size: 50px; color: var(--success); margin-bottom: 20px;"></i>
+                        <h3>لا يوجد امتحان إجباري لهذه المحاضرة.</h3>
+                        <br><a href="/courses.html" class="submit-btn" style="text-decoration:none; display:inline-block;">العودة للدروس</a>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('quiz-content').innerHTML = '<h3 style="color:var(--danger);">حدث خطأ في جلب الامتحان.</h3>';
+            }
+        }
+
+        function renderQuiz() {
+            document.getElementById('quiz-content').innerHTML = `
+                <div class="quiz-header">
+                    <h2>اختبر معلوماتك في المحاضرة</h2>
+                </div>
+                <img src="${currentQuiz.image_url}" alt="سؤال الامتحان" class="question-image">
+                
+                <div class="options-grid">
+                    <button class="opt-btn" id="btn-A" onclick="selectOption('A')"><span class="letter">أ</span> ${currentQuiz.option_a || 'الخيار الأول'}</button>
+                    <button class="opt-btn" id="btn-B" onclick="selectOption('B')"><span class="letter">ب</span> ${currentQuiz.option_b || 'الخيار الثاني'}</button>
+                    <button class="opt-btn" id="btn-C" onclick="selectOption('C')"><span class="letter">ج</span> ${currentQuiz.option_c || 'الخيار الثالث'}</button>
+                    <button class="opt-btn" id="btn-D" onclick="selectOption('D')"><span class="letter">د</span> ${currentQuiz.option_d || 'الخيار الرابع'}</button>
+                </div>
+
+                <button class="submit-btn" id="submit-btn" onclick="checkAnswer()">تأكيد الإجابة</button>
+                <div id="result-msg" class="result-msg"></div>
+            `;
+        }
+
+        function selectOption(opt) {
+            if (isAnswered) return; // لو جاوب خلاص ميقدرش يغير
+            
+            selectedOption = opt;
+            document.querySelectorAll('.opt-btn').forEach(btn => btn.classList.remove('selected'));
+            document.getElementById(`btn-${opt}`).classList.add('selected');
+        }
+
+        function checkAnswer() {
+            if (!selectedOption) return alert("الرجاء اختيار إجابة أولاً!");
+            if (isAnswered) return;
+
+            isAnswered = true;
+            document.getElementById('submit-btn').disabled = true;
+
+            const correctOpt = currentQuiz.correct_option;
+            const msgBox = document.getElementById('result-msg');
+
+            // إظهار الإجابة الصحيحة باللون الأخضر
+            document.getElementById(`btn-${correctOpt}`).classList.add('correct');
+
+            if (selectedOption === correctOpt) {
+                // إجابة صحيحة
+                msgBox.className = 'result-msg success';
+                msgBox.innerHTML = '<i class="fas fa-star"></i> إجابة صحيحة! بطل، استمر.';
+            } else {
+                // إجابة خاطئة
+                document.getElementById(`btn-${selectedOption}`).classList.add('wrong');
+                msgBox.className = 'result-msg danger';
+                msgBox.innerHTML = '<i class="fas fa-times-circle"></i> إجابة خاطئة! ركز في المحاضرة الجاية.';
+            }
+        }
+    </script>
+</body>
+</html>
