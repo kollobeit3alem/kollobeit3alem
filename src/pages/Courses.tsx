@@ -84,7 +84,7 @@ export default function Courses() {
   };
 
   const handleLogout = () => {
-    if (confirm('هل تريد تسجيل الخروج حقاً؟')) {
+    if (confirm('هل تريد تسجيل الخروج حقاً ؟')) {
       logout();
       navigate('/');
     }
