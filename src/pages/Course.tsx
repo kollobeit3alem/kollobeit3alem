@@ -45,6 +45,7 @@ export default function CoursePage() {
   const [course, setCourse] = useState<Course | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [completedLessons, setCompletedLessons] = useState<Set<number>>(new Set());
+  const [completedVideos, setCompletedVideos] = useState<Set<string>>(new Set()); // إضافة حالة لتتبع الفيديوهات المكتملة
   const [expandedLesson, setExpandedLesson] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -81,6 +82,11 @@ export default function CoursePage() {
       if (savedProgress) {
         setCompletedLessons(new Set(JSON.parse(savedProgress)));
       }
+      
+      const savedVideoProgress = localStorage.getItem(`video_progress_${user.id}`);
+      if (savedVideoProgress) {
+        setCompletedVideos(new Set(JSON.parse(savedVideoProgress)));
+      }
     }
   }, [user]);
 
@@ -88,8 +94,9 @@ export default function CoursePage() {
   const saveProgress = useCallback(() => {
     if (user) {
       localStorage.setItem(`progress_${user.id}`, JSON.stringify(Array.from(completedLessons)));
+      localStorage.setItem(`video_progress_${user.id}`, JSON.stringify(Array.from(completedVideos)));
     }
-  }, [completedLessons, user]);
+  }, [completedLessons, completedVideos, user]);
 
   // Fetch course details
   const fetchCourseDetails = useCallback(async () => {
@@ -322,6 +329,13 @@ export default function CoursePage() {
     const lesson = lessons.find(l => l.id === activeLessonId);
     if (!lesson) return;
     
+    // تعليم هذا الجزء كمنتهي
+    setCompletedVideos(prev => {
+      const newSet = new Set(prev);
+      newSet.add(`${activeLessonId}_${activeVideoIndex}`);
+      return newSet;
+    });
+
     if (activeVideoIndex < activeVideoTotal - 1) {
       toast.info('انتهى الجزء الحالي! يرجى تشغيل الجزء التالي من الشرح.');
       closeVideo();
@@ -474,7 +488,7 @@ export default function CoursePage() {
 
   useEffect(() => {
     saveProgress();
-  }, [completedLessons, saveProgress]);
+  }, [completedLessons, completedVideos, saveProgress]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -572,21 +586,30 @@ export default function CoursePage() {
                   className={`overflow-hidden transition-all duration-400 ${isExpanded ? 'max-h-[1000px]' : 'max-h-0'}`}
                 >
                   <div className="p-5 flex flex-col gap-4 bg-[#fdfdfd] border-t border-border">
-                    {videoUrls.map((vUrl, vIdx) => (
-                      <div 
-                        key={vIdx}
-                        onClick={() => locked ? toast.warning(message) : openVideo(lesson, vUrl, vIdx, videoUrls.length)}
-                        className={`bg-warning/10 border border-warning/30 p-4 px-6 rounded-xl flex justify-between items-center cursor-pointer transition-all hover:-translate-x-1 hover:shadow-[0_5px_15px_rgba(245,158,11,0.15)] font-bold text-red-500 text-lg ${isCompleted ? 'bg-success/10 border-success/30 text-success' : ''}`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <i className={`${isCompleted ? 'fas fa-circle-check' : 'fas fa-video'} text-2xl`}></i>
-                          <span>جزء الشرح والتدريبات{videoUrls.length > 1 ? ` (الجزء ${vIdx + 1})` : ''}</span>
+                    {videoUrls.map((vUrl, vIdx) => {
+                      // التحقق مما إذا كان هذا الجزء بالذات من الفيديو قد اكتمل أو المحاضرة بالكامل مكتملة
+                      const isVideoCompleted = completedVideos.has(`${lesson.id}_${vIdx}`) || isCompleted;
+                      
+                      return (
+                        <div 
+                          key={vIdx}
+                          onClick={() => locked ? toast.warning(message) : openVideo(lesson, vUrl, vIdx, videoUrls.length)}
+                          className={`p-4 px-6 rounded-xl flex justify-between items-center cursor-pointer transition-all hover:-translate-x-1 font-bold text-lg ${
+                            isVideoCompleted 
+                              ? 'bg-success/10 border border-success/30 text-success' 
+                              : 'bg-warning/10 border border-warning/30 hover:shadow-[0_5px_15px_rgba(245,158,11,0.15)] text-red-500'
+                          }`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <i className={`${isVideoCompleted ? 'fas fa-circle-check' : 'fas fa-video'} text-2xl`}></i>
+                            <span>جزء الشرح والتدريبات{videoUrls.length > 1 ? ` (الجزء ${vIdx + 1})` : ''}</span>
+                          </div>
+                          <span className="text-sm text-text-main bg-white py-1.5 px-3 rounded-lg border border-border flex items-center gap-1.5">
+                            {isVideoCompleted ? 'تمت المشاهدة' : 'مشاهدة الفيديو'} <i className="fas fa-play text-xs"></i>
+                          </span>
                         </div>
-                        <span className="text-sm text-text-main bg-white py-1.5 px-3 rounded-lg border border-border flex items-center gap-1.5">
-                          {isCompleted ? 'تمت المشاهدة' : 'مشاهدة الفيديو'} <i className="fas fa-play text-xs"></i>
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                     
                     {lesson.hasQuiz && (
                       <div 
