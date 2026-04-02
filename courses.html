@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>مشاهدة الدورة - كله بيتعلم لتعلم المهارات</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <style>
+        @font-face {
+            font-family: 'AbdoLogo';
+            src: url('alfont_com_Abdo.Fonts_Abdo.Logo_.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        :root {
+            --primary-color: #015669; 
+            --primary-light: rgba(1, 86, 105, 0.1);
+            --bg-page: #f8fafc;
+            --bg-sidebar: #ffffff;
+            --text-main: #1e293b;
+            --text-sec: #64748b;
+            --border: #e2e8f0;
+            --radius: 20px;
+            --danger: #ef4444;
+            --success: #10b981;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'AbdoLogo', sans-serif !important;
+        }
+
+        body {
+            background-color: var(--bg-page);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            background-color: #ffffff;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.05);
+            z-index: 10;
+            border-bottom: 3px solid var(--primary-color);
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-area img {
+            height: 45px;
+            border-radius: 10px;
+        }
+
+        .logo-area h1 {
+            font-size: 22px;
+            color: var(--primary-color);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: bold;
+            color: var(--text-main);
+        }
+
+        .user-info img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid var(--primary-color);
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .video-section {
+            flex: 1;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .video-wrapper {
+            background: #000;
+            border-radius: var(--radius);
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            aspect-ratio: 16 / 9;
+            width: 100%;
+        }
+
+        .video-container {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+        }
+
+        #player {
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .player-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: transparent;
+            z-index: 5;
+            cursor: pointer;
+        }
+
+        .custom-controls {
+            background: var(--bg-sidebar);
+            padding: 20px;
+            border-radius: var(--radius);
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+            border: 1px solid var(--border);
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--primary-color);
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        .controls-buttons {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .play-btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            width: 50px; height: 50px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: transform 0.2s;
+        }
+
+        .play-btn:hover { transform: scale(1.05); }
+
+        .time-display {
+            font-size: 16px;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .lesson-info {
+            margin-top: 20px;
+            background: var(--bg-sidebar);
+            padding: 25px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+        }
+
+        .lesson-info h2 {
+            font-size: 24px;
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+
+        .status-alert {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+            font-weight: bold;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-alert.warning {
+            display: flex;
+            background: #fef2f2;
+            color: var(--danger);
+            border: 1px solid #f87171;
+        }
+
+        .sidebar {
+            width: 380px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            box-shadow: -5px 0 20px rgba(0,0,0,0.02);
+            z-index: 5;
+        }
+
+        .sidebar-header {
+            padding: 25px;
+            border-bottom: 1px solid var(--border);
+            background: var(--primary-light);
+        }
+
+        .sidebar-header h3 {
+            color: var(--primary-color);
+            font-size: 20px;
+        }
+
+        .playlist {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .lesson-item {
+            padding: 15px;
+            background: var(--bg-page);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: all 0.3s;
+        }
+
+        .lesson-item:hover {
+            border-color: var(--primary-color);
+            transform: translateX(-5px);
+        }
+
+        .lesson-item.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .lesson-item.active .lesson-num {
+            background: white;
+            color: var(--primary-color);
+        }
+
+        .lesson-item.locked {
+            opacity: 0.6;
+            cursor: not-allowed;
+            background: #f1f5f9;
+        }
+
+        .lesson-num {
+            width: 35px; height: 35px;
+            background: var(--primary-light);
+            color: var(--primary-color);
+            border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        @media (max-width: 900px) {
+            .main-container { flex-direction: column; }
+            .sidebar { width: 100%; height: 300px; border-right: none; border-top: 1px solid var(--border); }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-area">
+            <img src="كله بيتعلم (1).png" alt="شعار المنصة">
+            <h1>كله بيتعلم</h1>
+        </div>
+        <div class="user-info" id="userInfo">
+            <span id="userName">جاري التحميل...</span>
+            <img src="" id="userAvatar" style="display:none;">
+        </div>
+    </header>
+
+    <div class="main-container">
+        
+        <div class="video-section">
+            <div class="video-wrapper" oncontextmenu="return false;">
+                <div class="video-container" id="video-container">
+                    <div id="player"></div>
+                </div>
+                <div class="player-overlay" id="player-overlay"></div>
+            </div>
+
+            <div class="custom-controls">
+                <div class="progress-container">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+                <div class="controls-buttons">
+                    <button class="play-btn" id="play-pause-btn"><i class="fas fa-play"></i></button>
+                    <div class="time-display">
+                        <span id="current-time">00:00</span> / <span id="duration-time">00:00</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lesson-info">
+                <h2 id="lesson-title">اختر درساً للبدء</h2>
+                <div class="status-alert warning" id="cheat-alert">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>تنبيه: غير مسموح بتخطي أجزاء من الفيديو أو تسريعه. يرجى المشاهدة بالسرعة الطبيعية.</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h3>محتوى الكورس</h3>
+            </div>
+            <div class="playlist" id="playlist-container">
+                </div>
+        </div>
+
+    </div>
+
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>
+        const workerBaseUrl = 'https://kollobeit3alem.pages.dev';
+        
+        let player;
+        let lessonsData = [];
+        let currentLessonIndex = 0;
+        let isPlaying = false;
+        
+        let lastTime = 0;
+        let duration = 0;
+        let checkInterval;
+        let cheatDetected = false;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const token = localStorage.getItem('auth_token');
+            const userInfoStr = localStorage.getItem('user_info');
+
+            if (!token || !userInfoStr) {
+                window.location.href = '/';
+                return;
+            }
+
+            const userInfo = JSON.parse(userInfoStr);
+            document.getElementById('userName').innerText = userInfo.name;
+            if(userInfo.avatar_url) {
+                const img = document.getElementById('userAvatar');
+                img.src = userInfo.avatar_url;
+                img.style.display = 'block';
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const courseId = urlParams.get('id') || 1; 
+
+            await fetchLessons(courseId);
+        });
+
+        async function fetchLessons(courseId) {
+            try {
+                const response = await fetch(`${workerBaseUrl}/api/courses/${courseId}/lessons`);
+                const data = await response.json();
+                
+                if (data && data.length > 0) {
+                    lessonsData = data;
+                    renderPlaylist();
+                    loadVideo(0);
+                } else {
+                    document.getElementById('playlist-container').innerHTML = '<p style="text-align:center; padding: 20px;">لا توجد دروس متاحة حالياً.</p>';
+                }
+            } catch (error) {
+                console.error("Error fetching lessons:", error);
+            }
+        }
+
+        function renderPlaylist() {
+            const container = document.getElementById('playlist-container');
+            container.innerHTML = '';
+
+            lessonsData.forEach((lesson, index) => {
+                const div = document.createElement('div');
+                div.className = `lesson-item ${index === currentLessonIndex ? 'active' : ''}`;
+                
+                div.innerHTML = `
+                    <div class="lesson-num">${index + 1}</div>
+                    <div style="flex:1">
+                        <h4 style="font-size: 15px; margin-bottom: 5px;">${lesson.title}</h4>
+                        <span style="font-size: 12px; opacity: 0.8;"><i class="fas fa-play-circle"></i> فيديو</span>
+                    </div>
+                `;
+
+                div.onclick = () => {
+                    loadVideo(index);
+                };
+
+                container.appendChild(div);
+            });
+        }
+
+        function loadVideo(index) {
+            currentLessonIndex = index;
+            const lesson = lessonsData[index];
+            document.getElementById('lesson-title').innerText = lesson.title;
+            renderPlaylist(); 
+
+            const videoId = extractVideoID(lesson.video_url);
+
+            lastTime = 0;
+            cheatDetected = false;
+            document.getElementById('cheat-alert').style.display = 'none';
+            document.getElementById('progress-bar').style.width = '0%';
+
+            if (player) {
+                player.loadVideoById(videoId);
+            } else {
+                player = new YT.Player('player', {
+                    videoId: videoId,
+                    playerVars: {
+                        'autoplay': 0, 'controls': 0, 'disablekb': 1,
+                        'fs': 0, 'modestbranding': 1, 'rel': 0, 'showinfo': 0, 'iv_load_policy': 3
+                    },
+                    events: {
+                        'onReady': onPlayerReady,
+                        'onStateChange': onPlayerStateChange
+                    }
+                });
+            }
+        }
+
+        function onPlayerReady(event) {
+            duration = player.getDuration();
+            updateTimeDisplay(0, duration);
+        }
+
+        function onPlayerStateChange(event) {
+            if (event.data === YT.PlayerState.PLAYING) {
+                isPlaying = true;
+                document.getElementById('play-pause-btn').innerHTML = '<i class="fas fa-pause"></i>';
+                
+                player.setPlaybackRate(1); 
+
+                clearInterval(checkInterval);
+                checkInterval = setInterval(monitorPlayback, 1000);
+            } else {
+                isPlaying = false;
+                document.getElementById('play-pause-btn').innerHTML = '<i class="fas fa-play"></i>';
+                clearInterval(checkInterval);
+
+                if (event.data === YT.PlayerState.ENDED) {
+                    markLessonCompleted();
+                }
+            }
+        }
+
+        function monitorPlayback() {
+            if (!player || !isPlaying) return;
+
+            const currentTime = player.getCurrentTime();
+            duration = player.getDuration() || duration;
+
+            if (player.getPlaybackRate() > 1) {
+                player.setPlaybackRate(1);
+            }
+
+            if (currentTime > lastTime + 2) {
+                player.seekTo(lastTime);
+                document.getElementById('cheat-alert').style.display = 'flex';
+                cheatDetected = true;
+                setTimeout(() => { document.getElementById('cheat-alert').style.display = 'none'; }, 4000);
+            } else {
+                lastTime = currentTime;
+            }
+
+            const percent = (currentTime / duration) * 100;
+            document.getElementById('progress-bar').style.width = `${percent}%`;
+            updateTimeDisplay(currentTime, duration);
+        }
+
+        async function markLessonCompleted() {
+            const lessonId = lessonsData[currentLessonIndex].id;
+            const token = localStorage.getItem('auth_token');
+
+            try {
+                await fetch(`${workerBaseUrl}/api/progress`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ lessonId: lessonId })
+                });
+            } catch (error) {
+                console.error("Progress save error:", error);
+            }
+        }
+
+        document.getElementById('play-pause-btn').addEventListener('click', () => {
+            if (!player) return;
+            if (isPlaying) {
+                player.pauseVideo();
+            } else {
+                player.playVideo();
+            }
+        });
+
+        document.getElementById('player-overlay').addEventListener('click', () => {
+            if (!player) return;
+            if (isPlaying) player.pauseVideo();
+            else player.playVideo();
+        });
+
+        function extractVideoID(url) {
+            if (!url) return "";
+            try {
+                if (url.includes('v=')) return url.split('v=')[1].split('&')[0];
+                if (url.includes('youtu.be/')) return url.split('youtu.be/')[1].split('?')[0];
+            } catch(e) {}
+            return url;
+        }
+
+        function updateTimeDisplay(current, dur) {
+            document.getElementById('current-time').innerText = formatTime(current);
+            document.getElementById('duration-time').innerText = formatTime(dur);
+        }
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m < 10 ? '0'+m : m}:${s < 10 ? '0'+s : s}`;
+        }
+    </script>
+</body>
+</html>
