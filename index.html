@@ -16,6 +16,17 @@
             font-style: normal;
         }
 
+        /* متغيرات الألوان (تقدر تغير اللون الأساسي هنا عشان يتطابق مع الشعار 100%) */
+        :root {
+            --primary-color: #2563eb; /* غير هذا اللون ليتطابق مع لون الشعار الأساسي */
+            --primary-light: rgba(37, 99, 235, 0.1);
+            --bg-gradient: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%); 
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --card-bg: #ffffff;
+            --card-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1);
+        }
+
         /* تطبيق الهوية البصرية والخط على كامل الصفحة */
         * {
             margin: 0;
@@ -24,29 +35,23 @@
             font-family: 'AbdoLogo', sans-serif !important;
         }
 
-        :root {
-            --bg-color: #f0f4f8; 
-            --text-color: #333;
-            --card-bg: #ffffff;
-            --card-shadow: 0 15px 35px rgba(0,0,0,0.1);
-        }
-
         body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            height: 100vh;
+            background: var(--bg-gradient);
+            color: var(--text-main);
+            min-height: 100vh;
             display: flex;
-            justify-content: center;
+            flex-direction: column; /* لضمان نزول الفوتر للأسفل */
+            justify-content: space-between;
             align-items: center;
-            overflow: hidden;
         }
 
-        .login-container {
+        /* حاوية تسجيل الدخول في المنتصف */
+        .login-wrapper {
+            flex: 1;
             display: flex;
             justify-content: center;
             align-items: center;
             width: 100%;
-            height: 100%;
             padding: 20px;
         }
 
@@ -55,14 +60,32 @@
             border-radius: 24px;
             box-shadow: var(--card-shadow);
             width: 100%;
-            max-width: 480px;
+            max-width: 450px;
             padding: 50px 40px;
             text-align: center;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 25px;
+            gap: 20px;
             border: 1px solid rgba(0,0,0,0.05);
+            border-top: 5px solid var(--primary-color); /* خط علوي يعطي هوية بصرية قوية */
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* تأثير إضاءة خفيف خلف اللوجو */
+        .login-card::before {
+            content: '';
+            position: absolute;
+            top: -50px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 150px;
+            height: 150px;
+            background: var(--primary-light);
+            filter: blur(40px);
+            z-index: 0;
+            border-radius: 50%;
         }
 
         .platform-identity {
@@ -70,43 +93,91 @@
             flex-direction: column;
             align-items: center;
             gap: 15px;
-            margin-bottom: 10px;
+            z-index: 1; /* ليكون فوق الإضاءة */
         }
 
         .logo-img {
-            max-width: 180px;
+            max-width: 160px;
             height: auto;
+            transition: transform 0.3s ease;
+        }
+
+        .logo-img:hover {
+            transform: scale(1.05);
         }
 
         .platform-name {
-            font-size: 28px;
+            font-size: 26px;
             font-weight: 700;
-            color: var(--text-color);
+            color: var(--text-main);
+            margin-bottom: -5px;
         }
 
         .tagline {
-            font-size: 16px;
-            color: #666;
+            font-size: 15px;
+            color: var(--text-muted);
             margin-bottom: 10px;
+            z-index: 1;
         }
 
         .login-separator {
             width: 100%;
             height: 1px;
-            background-color: #eee;
-            margin: 10px 0;
+            background-color: #e2e8f0;
+            margin: 15px 0;
+            position: relative;
+        }
+
+        /* كلمة "أو" في منتصف الفاصل */
+        .login-separator::after {
+            content: 'ابدأ الآن';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: var(--card-bg);
+            padding: 0 15px;
+            color: var(--text-muted);
+            font-size: 13px;
         }
 
         #g_id_signin_wrapper {
             width: 100%;
             display: flex;
             justify-content: center;
+            z-index: 1;
+            margin-top: 10px;
+        }
+
+        /* تصميم الفوتر */
+        footer {
+            width: 100%;
+            padding: 20px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 14px;
+            background-color: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(0,0,0,0.05);
+        }
+
+        footer .footer-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 700;
+            margin: 0 5px;
+            transition: color 0.3s;
+        }
+
+        footer .footer-link:hover {
+            text-decoration: underline;
+            color: var(--text-main);
         }
     </style>
 </head>
 <body>
 
-    <div class="login-container">
+    <div class="login-wrapper">
         <div class="login-card">
             
             <div class="platform-identity">
@@ -140,6 +211,12 @@
         </div>
     </div>
 
+    <footer>
+        جميع الحقوق محفوظة لمنصة كله بيتعلم &copy; 2026 
+        | 
+        <a href="https://adham-protofoilo.vercel.app" class="footer-link" target="_blank">اضغط هنا للمزيد</a>
+    </footer>
+
     <script>
         async function handleGoogleLogin(response) {
             // استبدل الرابط أدناه برابط الـ Worker الخاص بك عند النشر
@@ -157,11 +234,8 @@
                 const data = await apiResponse.json();
 
                 if (data.success) {
-                    // تخزين التوكن وبيانات المستخدم في المتصفح
                     localStorage.setItem('auth_token', data.token);
                     localStorage.setItem('user_info', JSON.stringify(data.user));
-
-                    // الانتقال المباشر لصفحة المحتوى التعليمي
                     window.location.href = '/courses.html';
                 } else {
                     alert('عذراً، فشل تسجيل الدخول. تأكد من إعدادات الـ Worker وقاعدة البيانات.');
