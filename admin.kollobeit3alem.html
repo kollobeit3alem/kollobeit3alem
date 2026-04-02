@@ -189,7 +189,7 @@
             <button class="nav-btn" onclick="switchTab('lessons', this)"><i class="fas fa-video"></i> إدارة المحاضرات</button>
             <button class="nav-btn" onclick="switchTab('quizzes', this)"><i class="fas fa-spell-check"></i> الامتحانات</button>
             <button class="nav-btn" onclick="switchTab('users', this)"><i class="fas fa-users-cog"></i> الطلاب والتقارير</button>
-            <button class="nav-btn" onclick="switchTab('codes', this)"><i class="fas fa-key"></i> أكواد التفعيل</button>
+            <button class="nav-btn" id="nav-codes-btn" onclick="switchTab('codes', this)"><i class="fas fa-key"></i> أكواد التفعيل</button>
             <button class="nav-btn logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</button>
         </nav>
     </aside>
@@ -415,8 +415,14 @@
             if (userInfo.role !== 'admin' && userInfo.role !== 'instructor') {
                 alert("غير مصرح لك بالدخول!"); window.location.href = '/courses.html'; return;
             }
+
+            // تطبيق قيود المعلم على الواجهة
+            if (userInfo.role === 'instructor') {
+                document.getElementById('nav-codes-btn').style.display = 'none'; // إخفاء تبويب الأكواد
+            }
+
             loadCourses();
-            loadUsers(); // جلب المستخدمين عند تحميل الصفحة
+            loadUsers(); 
         });
 
         // --- UI Interactions ---
@@ -451,7 +457,6 @@
                 currentCourses = courses;
                 const list = document.getElementById('courses-list');
                 
-                // Selectors for dropdowns
                 const selectL = document.getElementById('l-course-id');
                 const selectQ = document.getElementById('q-course-id');
                 const selectCode = document.getElementById('code-course-id');
@@ -548,8 +553,25 @@
                     return;
                 }
 
+                // قراءة رتبة المستخدم الحالي لمعرفة إذا كان معلماً أم مديراً
+                const userInfo = JSON.parse(localStorage.getItem('user_info'));
+                const isInstructor = userInfo.role === 'instructor';
+
                 users.forEach(u => {
                     let roleAr = u.role === 'admin' ? '<span class="badge paid">مدير</span>' : (u.role === 'instructor' ? '<span class="badge free">مدرس</span>' : 'طالب');
+                    
+                    let actionsHtml = '';
+                    if (isInstructor) {
+                        // المعلم يرى زر التقرير فقط
+                        actionsHtml = `<button class="btn-action btn-report" onclick="viewUserReport(${u.id}, '${u.name.replace(/'/g, "\\'")}')" title="عرض تقرير الطالب"><i class="fas fa-chart-pie"></i> التقرير</button>`;
+                    } else {
+                        // المدير يرى كل الأزرار
+                        actionsHtml = `
+                            <button class="btn-action btn-edit" onclick='openEditUser(${JSON.stringify(u)})' title="تعديل الرتبة والاسم"><i class="fas fa-edit"></i></button>
+                            <button class="btn-action btn-delete" onclick="deleteUser(${u.id})" title="حذف نهائي"><i class="fas fa-trash"></i></button>
+                            <button class="btn-action btn-report" onclick="viewUserReport(${u.id}, '${u.name.replace(/'/g, "\\'")}')" title="عرض تقرير الطالب"><i class="fas fa-chart-pie"></i> التقرير</button>
+                        `;
+                    }
                     
                     tbody.innerHTML += `
                         <tr>
@@ -558,9 +580,7 @@
                             <td>${roleAr}</td>
                             <td>
                                 <div style="display:flex; gap:5px;">
-                                    <button class="btn-action btn-edit" onclick='openEditUser(${JSON.stringify(u)})' title="تعديل الرتبة والاسم"><i class="fas fa-edit"></i></button>
-                                    <button class="btn-action btn-delete" onclick="deleteUser(${u.id})" title="حذف نهائي"><i class="fas fa-trash"></i></button>
-                                    <button class="btn-action btn-report" onclick="viewUserReport(${u.id}, '${u.name.replace(/'/g, "\\'")}')" title="عرض تقرير الطالب"><i class="fas fa-chart-pie"></i> التقرير</button>
+                                    ${actionsHtml}
                                 </div>
                             </td>
                         </tr>
