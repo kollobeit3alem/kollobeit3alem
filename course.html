@@ -106,7 +106,7 @@
         .q-image { width: 100%; max-width: 500px; max-height: 300px; object-fit: contain; border-radius: 10px; margin-bottom: 25px; border: 1px solid var(--border); box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
         
         .q-options { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; max-width: 600px;}
-        .opt-btn { background: var(--bg-page); border: 2px solid var(--border); padding: 15px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; color: var(--text-main); text-align: right; }
+        .opt-btn { background: var(--bg-page); border: 2px solid var(--border); padding: 15px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; color: var(--text-main); text-align: right; display: flex; align-items: center; gap: 10px;}
         .opt-btn:hover { background: var(--primary-light); border-color: var(--primary-color); }
         .opt-btn.selected { background: var(--primary-color); color: white; border-color: var(--primary-color); transform: scale(1.02); box-shadow: 0 5px 15px rgba(1,86,105,0.3);}
         
@@ -207,7 +207,7 @@
                 <div class="exam-progress">السؤال <span id="current-q-num">1</span> من <span id="total-q-num">10</span></div>
                 
                 <div class="exam-body">
-                    <img id="q-image" class="q-image" src="" alt="صورة السؤال">
+                    <img id="q-image" class="q-image" src="" alt="صورة السؤال" onerror="this.style.display='none'">
                     <div class="q-options">
                         <button class="opt-btn" id="opt-A" onclick="selectOption('A')"></button>
                         <button class="opt-btn" id="opt-B" onclick="selectOption('B')"></button>
@@ -386,7 +386,6 @@
                     const data = await response.json();
                     if(data && Array.isArray(data) && data.length > 0) {
                         quizQuestions = data;
-                        // إظهار زر الامتحان لكن بشكل معطل مع تحذير
                         document.getElementById('start-exam-btn').style.display = 'inline-flex';
                         document.getElementById('exam-hint').style.display = 'block';
                     }
@@ -396,37 +395,25 @@
 
         function handleVideoFinished() {
             if (quizQuestions.length > 0) {
-                // تفعيل زر الامتحان بمجرد انتهاء الفيديو
                 const examBtn = document.getElementById('start-exam-btn');
                 examBtn.classList.remove('disabled');
                 document.getElementById('exam-hint').style.display = 'none';
-                
-                // تنبيه المستخدم
                 alert("انتهى الفيديو! يرجى النقر على 'دخول امتحان المحاضرة' لاجتياز الاختبار.");
             } else {
-                // لو مفيش امتحان، احفظ التقدم وافتح الدرس الجديد
                 markLessonCompleted();
             }
         }
 
         function startExam() {
-    if(document.getElementById('start-exam-btn').classList.contains('disabled')) {
-        alert("يجب عليك إكمال مشاهدة الفيديو أولاً قبل دخول الامتحان!");
-        return;
-    }
+            if(document.getElementById('start-exam-btn').classList.contains('disabled')) {
+                alert("يجب عليك إكمال مشاهدة الفيديو أولاً قبل دخول الامتحان!");
+                return;
+            }
 
-    // جلب معرف المحاضرة الحالية
-    const lessonId = lessonsData[currentLessonIndex].id;
-
-    // التوجه لصفحة الامتحان مع إرسال رقم المحاضرة في الرابط
-    window.location.href = `/quiz.html?lesson_id=${lessonId}`;
-}
-
-            // إعادة ضبط الإعدادات
             userAnswers = {};
             currentQIndex = 0;
             
-            // تحديد وقت الامتحان: دقيقة لكل سؤال
+            // تخصيص وقت الامتحان: دقيقة لكل سؤال
             timeLeft = quizQuestions.length * 60; 
             
             document.getElementById('total-q-num').innerText = quizQuestions.length;
@@ -437,7 +424,6 @@
             
             document.getElementById('exam-overlay').style.display = 'flex';
             
-            // بدء العداد
             clearInterval(examTimerInterval);
             updateTimerDisplay();
             examTimerInterval = setInterval(() => {
@@ -458,6 +444,7 @@
             
             if(timeLeft < 30) {
                 document.getElementById('exam-timer').style.backgroundColor = '#fef2f2';
+                document.getElementById('exam-timer').style.color = '#ef4444';
             }
         }
 
@@ -465,13 +452,19 @@
             const q = quizQuestions[index];
             document.getElementById('current-q-num').innerText = index + 1;
             
-            document.getElementById('q-image').src = q.image_url;
-            document.getElementById('opt-A').innerText = "أ) " + q.option_a;
-            document.getElementById('opt-B').innerText = "ب) " + q.option_b;
-            document.getElementById('opt-C').innerText = "ج) " + q.option_c;
-            document.getElementById('opt-D').innerText = "د) " + q.option_d;
+            const imgElement = document.getElementById('q-image');
+            if (q.image_url) {
+                imgElement.src = q.image_url;
+                imgElement.style.display = 'block';
+            } else {
+                imgElement.style.display = 'none';
+            }
+            
+            document.getElementById('opt-A').innerHTML = `<strong>(أ)</strong> ${q.option_a}`;
+            document.getElementById('opt-B').innerHTML = `<strong>(ب)</strong> ${q.option_b}`;
+            document.getElementById('opt-C').innerHTML = `<strong>(ج)</strong> ${q.option_c}`;
+            document.getElementById('opt-D').innerHTML = `<strong>(د)</strong> ${q.option_d}`;
 
-            // تحديد الاختيار لو الطالب كان مختاره قبل كده
             ['A','B','C','D'].forEach(opt => {
                 const btn = document.getElementById(`opt-${opt}`);
                 if(userAnswers[index] === opt) {
@@ -481,7 +474,6 @@
                 }
             });
 
-            // التحكم في أزرار التنقل
             document.getElementById('btn-prev').disabled = (index === 0);
             
             if(index === quizQuestions.length - 1) {
@@ -495,7 +487,7 @@
 
         function selectOption(opt) {
             userAnswers[currentQIndex] = opt;
-            renderQuestion(currentQIndex); // لتحديث واجهة الاختيار (تلوين الزر)
+            renderQuestion(currentQIndex); 
         }
 
         function nextQuestion() {
@@ -515,7 +507,6 @@
         function submitExam() {
             clearInterval(examTimerInterval);
             
-            // التصحيح التلقائي
             let score = 0;
             for(let i=0; i < quizQuestions.length; i++) {
                 if(userAnswers[i] === quizQuestions[i].correct_option) {
@@ -523,17 +514,16 @@
                 }
             }
 
-            const percentage = (score / quizQuestions.length) * 100;
+            const percentage = Math.round((score / quizQuestions.length) * 100);
             const isPassed = percentage >= 50;
 
-            // تحديث شاشة النتيجة
             document.getElementById('exam-quiz-ui').style.display = 'none';
             const resultScreen = document.getElementById('exam-result-screen');
             const circle = document.getElementById('result-circle');
             const msg = document.getElementById('result-msg');
             const scoreText = document.getElementById('result-score');
 
-            circle.innerText = `${Math.round(percentage)}%`;
+            circle.innerText = `${percentage}%`;
             scoreText.innerText = `أجبت بشكل صحيح على ${score} من أصل ${quizQuestions.length} أسئلة`;
 
             if(isPassed) {
@@ -548,7 +538,6 @@
 
             resultScreen.style.display = 'flex';
             
-            // إذا نجح، يحفظ التقدم في السيرفر
             if(isPassed) {
                 markLessonCompleted();
             }
@@ -571,11 +560,9 @@
                     body: JSON.stringify({ lessonId: lessonId })
                 });
                 
-                // الانتقال التلقائي للدرس التالي لو متاح
                 if(currentLessonIndex + 1 < lessonsData.length) {
                     loadVideo(currentLessonIndex + 1);
                 } else {
-                    // لو ده آخر درس في الكورس
                     if(!document.getElementById('exam-overlay').style.display || document.getElementById('exam-overlay').style.display === 'none') {
                         alert("مبروك! لقد أنهيت جميع محاضرات هذا الكورس بنجاح.");
                     }
