@@ -26,8 +26,11 @@
             --border: #e2e8f0;
             --radius: 20px;
             --danger: #ef4444;
+            --danger-light: #fef2f2;
             --success: #10b981;
+            --success-light: #ecfdf5;
             --warning: #f59e0b;
+            --warning-light: #fffbeb;
         }
 
         * { 
@@ -95,7 +98,7 @@
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
         /* --- تصميم البطاقات والنماذج --- */
-        .card { background: var(--white); padding: 30px; border-radius: var(--radius); box-shadow: 0 10px 30px rgba(0,0,0,0.03); margin-bottom: 30px; border: 1px solid rgba(0,0,0,0.02); }
+        .card { background: var(--white); padding: 30px; border-radius: var(--radius); box-shadow: 0 10px 30px rgba(0,0,0,0.03); margin-bottom: 30px; border: 1px solid rgba(0,0,0,0.02); overflow-x: auto; }
         .card h3 { color: var(--primary); margin-bottom: 25px; font-size: 20px; border-right: 4px solid var(--primary); padding-right: 10px; }
         
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -108,14 +111,25 @@
 
         .btn-submit { background: var(--primary); color: white; border: none; padding: 15px 30px; border-radius: 12px; cursor: pointer; font-weight: bold; font-size: 16px; display: inline-flex; align-items: center; gap: 10px; transition: 0.3s; box-shadow: 0 5px 15px var(--primary-light); }
         .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 8px 20px var(--primary-light); }
-        .btn-secondary { background: var(--border); color: var(--text-main); }
-        .btn-secondary:hover { background: #cbd5e1; }
+        .btn-secondary { background: var(--border); color: var(--text-main); box-shadow: none;}
+        .btn-secondary:hover { background: #cbd5e1; box-shadow: none;}
+
+        /* --- الجداول والشارات --- */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 15px; border-bottom: 1px solid var(--border); text-align: right; }
+        th { background-color: var(--bg-page); color: var(--primary); font-weight: bold; }
+        tbody tr:hover { background-color: #f8fafc; }
+        .badge { padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: bold; }
+        .badge.free { background: var(--success-light); color: var(--success); }
+        .badge.paid { background: var(--warning-light); color: var(--warning); }
+        .badge.used { background: var(--danger-light); color: var(--danger); }
+        .badge.unused { background: var(--success-light); color: var(--success); }
 
         /* --- تصميم القوائم (Grids) --- */
         .items-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
         .item-card { background: var(--bg-page); padding: 20px; border-radius: 16px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 15px; transition: 0.3s; }
         .item-card:hover { transform: translateY(-5px); border-color: var(--primary); }
-        .item-card-title { font-size: 18px; font-weight: bold; color: var(--primary); }
+        .item-card-title { font-size: 18px; font-weight: bold; color: var(--primary); display: flex; justify-content: space-between; align-items: center;}
         .item-actions { display: flex; gap: 10px; margin-top: auto; flex-wrap: wrap;}
         .btn-action { flex: 1; padding: 10px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; text-align: center; font-size: 14px;}
         
@@ -125,6 +139,8 @@
         .btn-edit:hover { background: #0284c7; color: white; }
         .btn-warning { background: #fef3c7; color: #d97706; }
         .btn-warning:hover { background: #d97706; color: white; }
+        .btn-report { background: #e2e8f0; color: #0f172a; }
+        .btn-report:hover { background: #cbd5e1; }
 
         .lessons-list-container { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 20px;}
         .lesson-row { display: flex; justify-content: space-between; align-items: center; background: var(--bg-page); padding: 15px; border-radius: 10px; margin-bottom: 10px; border: 1px solid var(--border);}
@@ -172,7 +188,8 @@
             <button class="nav-btn active" onclick="switchTab('courses', this)"><i class="fas fa-layer-group"></i> إدارة الدورات</button>
             <button class="nav-btn" onclick="switchTab('lessons', this)"><i class="fas fa-video"></i> إدارة المحاضرات</button>
             <button class="nav-btn" onclick="switchTab('quizzes', this)"><i class="fas fa-spell-check"></i> الامتحانات</button>
-            <button class="nav-btn" onclick="switchTab('users', this)"><i class="fas fa-users-cog"></i> المدرسين والطلاب</button>
+            <button class="nav-btn" onclick="switchTab('users', this)"><i class="fas fa-users-cog"></i> الطلاب والتقارير</button>
+            <button class="nav-btn" onclick="switchTab('codes', this)"><i class="fas fa-key"></i> أكواد التفعيل</button>
             <button class="nav-btn logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</button>
         </nav>
     </aside>
@@ -196,6 +213,19 @@
                     <div class="form-group full-width"><label>وصف الدورة</label><textarea id="c-desc"></textarea></div>
                     <div class="form-group"><label>رابط صورة الغلاف</label><input type="url" id="c-img" required></div>
                     <div class="form-group"><label>رابط تواصل المدرس (اختياري)</label><input type="url" id="c-contact"></div>
+                    
+                    <div class="form-group">
+                        <label>نوع الدورة</label>
+                        <select id="c-is-free" onchange="document.getElementById('c-price-group').style.display = this.value == '0' ? 'block' : 'none'">
+                            <option value="1">مجانية</option>
+                            <option value="0">مدفوعة</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="c-price-group" style="display: none;">
+                        <label>سعر الدورة (بالجنيه)</label>
+                        <input type="number" id="c-price" value="0" min="0">
+                    </div>
+
                     <div class="form-group full-width"><button type="submit" class="btn-submit"><i class="fas fa-save"></i> حفظ ونشر الدورة</button></div>
                 </form>
             </div>
@@ -236,7 +266,7 @@
             
             <div class="card">
                 <h3><i class="fas fa-list-ol"></i> إضافة سؤال لامتحان المحاضرة</h3>
-                <p style="color: var(--text-muted); margin-bottom: 20px;">يمكنك إضافة أسئلة متعددة (مثلاً 20 سؤالاً) لنفس المحاضرة ليتم عرضها للطالب كاختبار شامل.</p>
+                <p style="color: var(--text-muted); margin-bottom: 20px;">يمكنك إضافة أسئلة متعددة لنفس المحاضرة ليتم عرضها للطالب كاختبار شامل.</p>
                 <form id="quiz-form" class="form-grid">
                     <div class="form-group">
                         <label>اختر الدورة</label>
@@ -273,27 +303,69 @@
         </section>
 
         <section id="users-tab" class="tab-content">
-            <h1 class="header-title"><i class="fas fa-users-cog"></i> إدارة الصلاحيات والرتب</h1>
+            <h1 class="header-title"><i class="fas fa-users-cog"></i> الطلاب والتقارير</h1>
             <div class="card">
-                <h3>ترقية أو تعديل رتبة مستخدم</h3>
-                <p style="color: var(--text-muted); margin-bottom: 20px;">أدخل الإيميل الخاص بالمستخدم، وحدد الرتبة الجديدة (أدمن، مدرس، طالب).</p>
-                <form id="role-form" class="form-grid">
-                    <div class="form-group">
-                        <label>البريد الإلكتروني (Email)</label>
-                        <input type="email" id="role-email" placeholder="example@gmail.com" required>
-                    </div>
-                    <div class="form-group">
-                        <label>الرتبة الجديدة</label>
-                        <select id="role-select" required>
-                            <option value="instructor">مدرس (Instructor)</option>
-                            <option value="admin">مدير (Admin)</option>
-                            <option value="student">طالب عادي (Student)</option>
+                <h3><i class="fas fa-users"></i> قائمة المستخدمين</h3>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>الاسم</th>
+                                <th>البريد الإلكتروني</th>
+                                <th>الرتبة</th>
+                                <th>إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-list-admin">
+                            <tr><td colspan="4" style="text-align: center;">جاري تحميل المستخدمين...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="codes-tab" class="tab-content">
+            <h1 class="header-title"><i class="fas fa-key"></i> إدارة أكواد التفعيل</h1>
+            
+            <div class="card">
+                <h3><i class="fas fa-plus-circle"></i> توليد أكواد تفعيل جديدة</h3>
+                <form id="code-form" class="form-grid">
+                    <div class="form-group full-width">
+                        <label>اختر الدورة (للكورسات المدفوعة)</label>
+                        <select id="code-course-id" required>
+                            <option value="">اختر الدورة...</option>
                         </select>
                     </div>
                     <div class="form-group full-width">
-                        <button type="submit" class="btn-submit"><i class="fas fa-user-shield"></i> تحديث الرتبة</button>
+                        <label>عدد الأكواد المطلوبة</label>
+                        <input type="number" id="code-count" value="1" min="1" max="100" required>
+                    </div>
+                    <div class="form-group full-width">
+                        <button type="submit" class="btn-submit"><i class="fas fa-cogs"></i> توليد الأكواد</button>
                     </div>
                 </form>
+            </div>
+
+            <div class="card">
+                <h3><i class="fas fa-list"></i> الأكواد الحالية</h3>
+                <div class="form-group">
+                    <label>اختر دورة لعرض أكواد التفعيل الخاصة بها</label>
+                    <select id="view-code-course-id" onchange="loadCodesForCourse(this.value)">
+                        <option value="">اختر الدورة...</option>
+                    </select>
+                </div>
+                <div id="codes-list-area" style="display:none; margin-top:20px; overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>كود التفعيل</th>
+                                <th>الحالة</th>
+                                <th>تاريخ الاستخدام</th>
+                            </tr>
+                        </thead>
+                        <tbody id="codes-list-admin"></tbody>
+                    </table>
+                </div>
             </div>
         </section>
 
@@ -314,10 +386,21 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="report-modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3 id="report-modal-title" style="color: var(--primary);">تقرير الطالب</h3>
+                <button class="close-modal" onclick="closeReportModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="report-modal-body" style="line-height: 1.8;">
+                </div>
+        </div>
+    </div>
+
     <script>
         const workerBaseUrl = 'https://kollobeit3alem.pages.dev';
         let currentCourses = [];
-        let editingType = ''; // 'course' or 'lesson'
+        let editingType = ''; // 'course', 'lesson', or 'user'
         let editingId = null;
 
         // --- Authentication ---
@@ -333,6 +416,7 @@
                 alert("غير مصرح لك بالدخول!"); window.location.href = '/courses.html'; return;
             }
             loadCourses();
+            loadUsers(); // جلب المستخدمين عند تحميل الصفحة
         });
 
         // --- UI Interactions ---
@@ -349,6 +433,7 @@
         function logout() { localStorage.clear(); window.location.href = '/'; }
 
         function closeModal() { document.getElementById('edit-modal').classList.remove('active'); }
+        function closeReportModal() { document.getElementById('report-modal').classList.remove('active'); }
         
         // --- API Helpers ---
         async function apiCall(endpoint, method = 'GET', body = null) {
@@ -365,36 +450,57 @@
                 const courses = await apiCall('/api/courses');
                 currentCourses = courses;
                 const list = document.getElementById('courses-list');
+                
+                // Selectors for dropdowns
                 const selectL = document.getElementById('l-course-id');
                 const selectQ = document.getElementById('q-course-id');
+                const selectCode = document.getElementById('code-course-id');
+                const selectViewCode = document.getElementById('view-code-course-id');
                 
                 list.innerHTML = '';
-                selectL.innerHTML = '<option value="">اختر الدورة...</option>';
+                const defaultOpt = '<option value="">اختر الدورة...</option>';
+                selectL.innerHTML = defaultOpt;
                 selectQ.innerHTML = '<option value="">اختر دورة أولاً...</option>';
+                selectCode.innerHTML = defaultOpt;
+                selectViewCode.innerHTML = defaultOpt;
 
                 courses.forEach(c => {
+                    const priceBadge = c.is_free === 1 ? '<span class="badge free">مجاني</span>' : `<span class="badge paid">مدفوع - ${c.price || 0} ج.م</span>`;
+                    
                     list.innerHTML += `
                         <div class="item-card">
-                            <div class="item-card-title">${c.title}</div>
+                            <div class="item-card-title">${c.title} ${priceBadge}</div>
                             <div style="font-size:13px; color:var(--text-muted)"><i class="fas fa-clock"></i> تم الإنشاء: ${new Date(c.created_at).toLocaleDateString('ar-EG')}</div>
                             <div class="item-actions">
                                 <button class="btn-action btn-edit" onclick='openEditCourse(${JSON.stringify(c)})'><i class="fas fa-edit"></i> تعديل</button>
                                 <button class="btn-action btn-delete" onclick="deleteCourse(${c.id})"><i class="fas fa-trash"></i> حذف</button>
                             </div>
                         </div>`;
+                    
                     const opt = `<option value="${c.id}">${c.title}</option>`;
                     selectL.innerHTML += opt;
                     selectQ.innerHTML += opt;
+                    selectCode.innerHTML += opt;
+                    selectViewCode.innerHTML += opt;
                 });
             } catch (e) { alert("خطأ في جلب الدورات"); }
         }
 
         document.getElementById('course-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const data = { title: document.getElementById('c-title').value, description: document.getElementById('c-desc').value, image_url: document.getElementById('c-img').value, instructor_contact: document.getElementById('c-contact').value };
+            const data = { 
+                title: document.getElementById('c-title').value, 
+                description: document.getElementById('c-desc').value, 
+                image_url: document.getElementById('c-img').value, 
+                instructor_contact: document.getElementById('c-contact').value,
+                is_free: parseInt(document.getElementById('c-is-free').value),
+                price: parseFloat(document.getElementById('c-price').value || 0)
+            };
             try {
                 await apiCall('/api/admin/courses', 'POST', data);
-                alert('تمت الإضافة بنجاح!'); e.target.reset(); loadCourses();
+                alert('تمت الإضافة بنجاح!'); e.target.reset(); 
+                document.getElementById('c-price-group').style.display = 'none';
+                loadCourses();
             } catch (error) { alert('فشل الإضافة'); }
         });
 
@@ -406,13 +512,161 @@
         function openEditCourse(course) {
             editingType = 'course'; editingId = course.id;
             document.getElementById('modal-title').innerText = "تعديل الدورة";
+            
+            const isFreeSel = course.is_free == 1 ? 'selected' : '';
+            const isPaidSel = course.is_free == 0 ? 'selected' : '';
+            const priceDisp = course.is_free == 0 ? 'block' : 'none';
+
             document.getElementById('modal-body').innerHTML = `
                 <label>العنوان</label><input type="text" id="edit-c-title" value="${course.title}" required>
                 <label>الوصف</label><textarea id="edit-c-desc">${course.description || ''}</textarea>
                 <label>رابط الغلاف</label><input type="url" id="edit-c-img" value="${course.image_url}" required>
+                
+                <label>نوع الدورة</label>
+                <select id="edit-c-free" onchange="document.getElementById('edit-price-wrapper').style.display = this.value == '0' ? 'block' : 'none'">
+                    <option value="1" ${isFreeSel}>مجانية</option>
+                    <option value="0" ${isPaidSel}>مدفوعة</option>
+                </select>
+                
+                <div id="edit-price-wrapper" style="display: ${priceDisp}; margin-top:10px;">
+                    <label>السعر (بالجنيه)</label>
+                    <input type="number" id="edit-c-price" value="${course.price || 0}">
+                </div>
             `;
             document.getElementById('edit-modal').classList.add('active');
         }
+
+        // --- Users & Reports Management ---
+        async function loadUsers() {
+            try {
+                const users = await apiCall('/api/admin/users');
+                const tbody = document.getElementById('users-list-admin');
+                tbody.innerHTML = '';
+                
+                if (users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">لا يوجد مستخدمين مسجلين.</td></tr>';
+                    return;
+                }
+
+                users.forEach(u => {
+                    let roleAr = u.role === 'admin' ? '<span class="badge paid">مدير</span>' : (u.role === 'instructor' ? '<span class="badge free">مدرس</span>' : 'طالب');
+                    
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><strong>${u.name}</strong></td>
+                            <td style="color:var(--text-muted);">${u.email}</td>
+                            <td>${roleAr}</td>
+                            <td>
+                                <div style="display:flex; gap:5px;">
+                                    <button class="btn-action btn-edit" onclick='openEditUser(${JSON.stringify(u)})' title="تعديل الرتبة والاسم"><i class="fas fa-edit"></i></button>
+                                    <button class="btn-action btn-delete" onclick="deleteUser(${u.id})" title="حذف نهائي"><i class="fas fa-trash"></i></button>
+                                    <button class="btn-action btn-report" onclick="viewUserReport(${u.id}, '${u.name.replace(/'/g, "\\'")}')" title="عرض تقرير الطالب"><i class="fas fa-chart-pie"></i> التقرير</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (e) { console.error("Error loading users"); }
+        }
+
+        async function deleteUser(id) {
+            if (!confirm('تنبيه هام! سيتم حذف هذا المستخدم وكل سجلاته وتقدمه نهائياً. هل أنت متأكد؟')) return;
+            try { await apiCall(`/api/admin/users/${id}`, 'DELETE'); loadUsers(); } catch (e) { alert('فشل حذف المستخدم'); }
+        }
+
+        function openEditUser(user) {
+            editingType = 'user'; editingId = user.id;
+            document.getElementById('modal-title').innerText = "تعديل بيانات المستخدم";
+            document.getElementById('modal-body').innerHTML = `
+                <label>الاسم</label><input type="text" id="edit-u-name" value="${user.name}" required>
+                <label>الرتبة والصلاحية</label>
+                <select id="edit-u-role" required>
+                    <option value="student" ${user.role=='student'?'selected':''}>طالب</option>
+                    <option value="instructor" ${user.role=='instructor'?'selected':''}>مدرس</option>
+                    <option value="admin" ${user.role=='admin'?'selected':''}>مدير</option>
+                </select>
+            `;
+            document.getElementById('edit-modal').classList.add('active');
+        }
+
+        async function viewUserReport(userId, userName) {
+            try {
+                const report = await apiCall(`/api/admin/reports/${userId}`);
+                document.getElementById('report-modal-title').innerText = `تقرير الطالب: ${userName}`;
+                
+                let html = `<div style="background: var(--bg-page); padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                                <h4 style="color: var(--primary); margin-bottom:10px;"><i class="fas fa-book-open"></i> الدورات المشترك بها (${report.enrollments.length})</h4>`;
+                
+                if (report.enrollments.length > 0) {
+                    html += `<ul style="list-style-position: inside; padding-right: 15px; color: var(--text-main);">`;
+                    report.enrollments.forEach(e => html += `<li><strong>${e.title}</strong> <span style="color:var(--text-muted); font-size:13px;">(انضم: ${new Date(e.enrolled_at).toLocaleDateString('ar-EG')})</span></li>`);
+                    html += `</ul>`;
+                } else {
+                    html += `<p style="color: var(--text-muted);">لم يشترك في أي دورة بعد.</p>`;
+                }
+                html += `</div>`;
+
+                html += `<div style="background: var(--success-light); border: 1px solid #a7f3d0; padding: 15px; border-radius: 10px;">
+                            <h4 style="color: var(--success); margin-bottom:10px;"><i class="fas fa-check-circle"></i> المحاضرات المكتملة (${report.progress.length})</h4>`;
+                
+                if (report.progress.length > 0) {
+                    html += `<ul style="list-style-position: inside; padding-right: 15px; color: var(--text-main);">`;
+                    report.progress.forEach(p => html += `<li>محاضرة: <strong>${p.lesson_title}</strong> <span style="color:var(--text-muted); font-size:13px;">(من دورة: ${p.course_title})</span></li>`);
+                    html += `</ul>`;
+                } else {
+                    html += `<p style="color: var(--text-muted);">لم يكمل أي محاضرة حتى الآن.</p>`;
+                }
+                html += `</div>`;
+
+                document.getElementById('report-modal-body').innerHTML = html;
+                document.getElementById('report-modal').classList.add('active');
+            } catch(e) { alert('فشل جلب تقرير الطالب'); }
+        }
+
+        // --- Activation Codes Management ---
+        document.getElementById('code-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const courseId = document.getElementById('code-course-id').value;
+            const count = document.getElementById('code-count').value;
+            try {
+                const res = await apiCall('/api/admin/codes', 'POST', { course_id: courseId, count: count });
+                alert(`تم توليد ${count} كود بنجاح!\n\nيمكنك نسخها من الجدول بالأسفل.\n\nمثال لأحد الأكواد: ${res.codes[0]}`);
+                e.target.reset();
+                if(document.getElementById('view-code-course-id').value == courseId) {
+                    loadCodesForCourse(courseId); // تحديث الجدول إذا كان يعرض نفس الكورس
+                }
+            } catch(e) { alert('فشل توليد الأكواد'); }
+        });
+
+        async function loadCodesForCourse(courseId) {
+            const area = document.getElementById('codes-list-area');
+            const tbody = document.getElementById('codes-list-admin');
+            if(!courseId) { area.style.display = 'none'; return; }
+            
+            try {
+                const codes = await apiCall(`/api/admin/codes/${courseId}`);
+                area.style.display = 'block';
+                tbody.innerHTML = '';
+                
+                if(codes.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">لا توجد أكواد لهذه الدورة حالياً.</td></tr>';
+                    return;
+                }
+                
+                codes.forEach(c => {
+                    const status = c.is_used === 1 ? `<span class="badge used">مُستخدم بواسطة (${c.used_by})</span>` : `<span class="badge unused">متاح للاستخدام</span>`;
+                    const date = c.used_at ? new Date(c.used_at).toLocaleDateString('ar-EG') : '-';
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><strong style="letter-spacing:2px; font-family: monospace !important; font-size: 16px;">${c.code}</strong></td>
+                            <td>${status}</td>
+                            <td style="color:var(--text-muted);">${date}</td>
+                        </tr>
+                    `;
+                });
+            } catch(e) { alert('فشل جلب الأكواد'); }
+        }
+
 
         // --- Lessons Management ---
         async function loadLessonsForCourse(courseId) {
@@ -496,7 +750,6 @@
             if(!lessonId) { area.style.display = 'none'; return; }
 
             try {
-                // نستخدم المسار القديم الذي تم تعديله في الـ Worker ليجلب جميع الأسئلة
                 const questions = await apiCall(`/api/lessons/${lessonId}/quiz`);
                 area.style.display = 'block';
                 container.innerHTML = '';
@@ -537,43 +790,52 @@
             try { 
                 await apiCall('/api/admin/quizzes', 'POST', data); 
                 alert('تم إضافة السؤال للامتحان بنجاح!'); 
-                // تفريغ حقول السؤال فقط للحفاظ على تحديد الدورة والمحاضرة
                 document.getElementById('q-img').value = '';
                 document.getElementById('q-opt-a').value = '';
                 document.getElementById('q-opt-b').value = '';
                 document.getElementById('q-opt-c').value = '';
                 document.getElementById('q-opt-d').value = '';
-                loadQuestionsForLesson(lessonId); // تحديث القائمة
+                loadQuestionsForLesson(lessonId); 
             } catch(e) { alert('فشل الحفظ'); }
         });
 
         async function deleteQuestion(questionId, lessonId) {
             if(!confirm('هل تريد حذف هذا السؤال من الامتحان؟')) return;
             try {
-                // ملاحظة: ستحتاج لإضافة مسار DELETE للـ quizzes في Worker الخاص بك مستقبلاً،
-                // مؤقتاً الكود هنا جاهز لتشغيله بمجرد إضافة المسار
                 await apiCall(`/api/admin/quizzes/${questionId}`, 'DELETE');
                 loadQuestionsForLesson(lessonId);
             } catch (e) { alert('لم يتم إضافة مسار الحذف في السيرفر بعد.'); }
         }
 
-        // --- Users / Roles Management ---
-        document.getElementById('role-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const data = { email: document.getElementById('role-email').value, role: document.getElementById('role-select').value };
-            try { await apiCall('/api/admin/users/role', 'PUT', data); alert('تم تحديث رتبة المستخدم بنجاح!'); e.target.reset(); } catch(e) { alert('فشل، تأكد من الإيميل والصلاحيات.'); }
-        });
-
-        // --- Modal Submit Handler (التعديلات) ---
+        // --- Modal General Submit Handler (التعديلات) ---
         document.getElementById('edit-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            
             if(editingType === 'course') {
-                const data = { title: document.getElementById('edit-c-title').value, description: document.getElementById('edit-c-desc').value, image_url: document.getElementById('edit-c-img').value };
+                const data = { 
+                    title: document.getElementById('edit-c-title').value, 
+                    description: document.getElementById('edit-c-desc').value, 
+                    image_url: document.getElementById('edit-c-img').value,
+                    is_free: parseInt(document.getElementById('edit-c-free').value),
+                    price: parseFloat(document.getElementById('edit-c-price').value || 0)
+                };
                 try { await apiCall(`/api/admin/courses/${editingId}`, 'PUT', data); alert('تم التحديث!'); closeModal(); loadCourses(); } catch(e) { alert('فشل التحديث'); }
+            
             } else if (editingType === 'lesson') {
                 const courseId = document.getElementById('l-course-id').value;
-                const data = { title: document.getElementById('edit-l-title').value, video_url: document.getElementById('edit-l-url').value, order_num: document.getElementById('edit-l-order').value };
+                const data = { 
+                    title: document.getElementById('edit-l-title').value, 
+                    video_url: document.getElementById('edit-l-url').value, 
+                    order_num: document.getElementById('edit-l-order').value 
+                };
                 try { await apiCall(`/api/admin/lessons/${editingId}`, 'PUT', data); alert('تم التحديث!'); closeModal(); if(courseId) loadLessonsForCourse(courseId); } catch(e) { alert('فشل التحديث'); }
+            
+            } else if (editingType === 'user') {
+                const data = {
+                    name: document.getElementById('edit-u-name').value,
+                    role: document.getElementById('edit-u-role').value
+                };
+                try { await apiCall(`/api/admin/users/${editingId}`, 'PUT', data); alert('تم تحديث بيانات المستخدم!'); closeModal(); loadUsers(); } catch(e) { alert('فشل التحديث'); }
             }
         });
     </script>
