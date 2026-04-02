@@ -25,6 +25,7 @@
             --radius: 20px;
             --danger: #ef4444;
             --success: #10b981;
+            --warning: #f59e0b;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'AbdoLogo', sans-serif !important; }
@@ -41,7 +42,17 @@
         .main-container { display: flex; flex: 1; overflow: hidden; }
 
         .video-section { flex: 1; padding: 25px; display: flex; flex-direction: column; overflow-y: auto; }
-        .video-wrapper { background: #000; border-radius: var(--radius); overflow: hidden; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.15); aspect-ratio: 16 / 9; width: 100%; }
+        
+        /* === تعديل جذري لضمان أبعاد الفيديو 16:9 على كل الشاشات === */
+        .video-wrapper { 
+            background: #000; 
+            border-radius: var(--radius); 
+            overflow: hidden; 
+            position: relative; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15); 
+            width: 100%;
+            padding-bottom: 56.25%; /* نسبة 16:9 السحرية لليوتيوب */
+        }
         .video-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
         #player { width: 100%; height: 100%; pointer-events: none; }
         .player-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: transparent; z-index: 5; cursor: pointer; }
@@ -54,11 +65,22 @@
         .play-btn:hover { transform: scale(1.05); }
         .time-display { font-size: 16px; font-weight: bold; color: var(--primary-color); }
 
-        .lesson-info { margin-top: 20px; background: var(--bg-sidebar); padding: 25px; border-radius: var(--radius); border: 1px solid var(--border); }
+        .lesson-info { margin-top: 20px; background: var(--bg-sidebar); padding: 25px; border-radius: var(--radius); border: 1px solid var(--border); position: relative;}
         .lesson-info h2 { font-size: 24px; color: var(--primary-color); margin-bottom: 10px; }
         
         .status-alert { margin-top: 15px; padding: 15px; border-radius: 10px; display: none; font-weight: bold; align-items: center; gap: 10px; }
         .status-alert.warning { background: #fef2f2; color: var(--danger); border: 1px solid #f87171; }
+        
+        /* زر دخول الامتحان */
+        .btn-enter-exam {
+            background: linear-gradient(135deg, var(--primary-color), #013d4a);
+            color: white; border: none; padding: 12px 25px; border-radius: 12px;
+            font-size: 16px; font-weight: bold; cursor: pointer;
+            display: none; align-items: center; gap: 10px; margin-top: 15px;
+            box-shadow: 0 5px 15px rgba(1, 86, 105, 0.3); transition: 0.3s;
+        }
+        .btn-enter-exam:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(1, 86, 105, 0.4); }
+        .btn-enter-exam.disabled { background: var(--text-sec); cursor: not-allowed; opacity: 0.7; transform: none; box-shadow: none;}
 
         .sidebar { width: 380px; background: var(--bg-sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; box-shadow: -5px 0 20px rgba(0,0,0,0.02); z-index: 5; }
         .sidebar-header { padding: 25px; border-bottom: 1px solid var(--border); background: var(--primary-light); }
@@ -70,23 +92,46 @@
         .lesson-item.active .lesson-num { background: white; color: var(--primary-color); }
         .lesson-num { width: 35px; height: 35px; background: var(--primary-light); color: var(--primary-color); border-radius: 50%; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 14px; }
 
-        /* --- تصميم نافذة الامتحان (Quiz Modal) --- */
-        .quiz-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 1000; display: none; justify-content: center; align-items: center; }
-        .quiz-card { background: white; width: 90%; max-width: 600px; border-radius: 20px; padding: 30px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
-        .quiz-card h2 { color: var(--primary-color); margin-bottom: 20px; font-size: 24px; }
-        .quiz-image { width: 100%; max-height: 250px; object-fit: contain; border-radius: 10px; margin-bottom: 20px; border: 1px solid var(--border); }
-        .quiz-options { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
-        .quiz-btn { background: var(--bg-page); border: 2px solid var(--border); padding: 15px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; color: var(--text-main); }
-        .quiz-btn:hover { background: var(--primary-light); border-color: var(--primary-color); }
-        .quiz-btn.correct { background: var(--success); color: white; border-color: var(--success); }
-        .quiz-btn.wrong { background: var(--danger); color: white; border-color: var(--danger); }
-        .quiz-result { margin-top: 15px; font-size: 18px; font-weight: bold; display: none; }
-        .btn-continue { margin-top: 20px; background: var(--primary-color); color: white; border: none; padding: 12px 25px; border-radius: 10px; cursor: pointer; font-size: 16px; font-weight: bold; display: none; margin-left: auto; margin-right: auto; }
+        /* === تصميم نافذة الامتحان المتطور (Multi-Question Quiz) === */
+        .exam-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); z-index: 1000; display: none; justify-content: center; align-items: center; }
+        .exam-card { background: white; width: 95%; max-width: 800px; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); display: flex; flex-direction: column; max-height: 90vh; overflow: hidden;}
+        
+        .exam-header { background: var(--primary-light); padding: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--primary-color); }
+        .exam-header h3 { color: var(--primary-color); font-size: 22px; }
+        .exam-timer { background: white; padding: 8px 15px; border-radius: 10px; font-weight: bold; color: var(--danger); font-size: 18px; border: 2px solid var(--danger); display: flex; align-items: center; gap: 8px; }
+        
+        .exam-progress { padding: 15px 20px; font-size: 16px; font-weight: bold; color: var(--text-sec); border-bottom: 1px solid var(--border); text-align: center;}
+        
+        .exam-body { padding: 30px 20px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; align-items: center;}
+        .q-image { width: 100%; max-width: 500px; max-height: 300px; object-fit: contain; border-radius: 10px; margin-bottom: 25px; border: 1px solid var(--border); box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        
+        .q-options { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; max-width: 600px;}
+        .opt-btn { background: var(--bg-page); border: 2px solid var(--border); padding: 15px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; color: var(--text-main); text-align: right; }
+        .opt-btn:hover { background: var(--primary-light); border-color: var(--primary-color); }
+        .opt-btn.selected { background: var(--primary-color); color: white; border-color: var(--primary-color); transform: scale(1.02); box-shadow: 0 5px 15px rgba(1,86,105,0.3);}
+        
+        .exam-footer { padding: 20px; background: var(--bg-page); border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .nav-btn { background: white; border: 1px solid var(--border); padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 8px; transition: 0.3s;}
+        .nav-btn:hover { background: var(--border); }
+        .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        
+        .submit-exam-btn { background: var(--success); color: white; border: none; padding: 10px 25px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 16px; display: none; align-items: center; gap: 8px; }
+        .submit-exam-btn:hover { background: #0ea5e9; }
+
+        /* شاشة النتيجة */
+        .result-screen { display: none; flex-direction: column; align-items: center; justify-content: center; padding: 50px 20px; text-align: center; }
+        .result-circle { width: 120px; height: 120px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 40px; color: white; margin-bottom: 20px; font-weight: bold; }
+        .result-circle.pass { background: var(--success); box-shadow: 0 0 30px rgba(16, 185, 129, 0.4); }
+        .result-circle.fail { background: var(--danger); box-shadow: 0 0 30px rgba(239, 68, 68, 0.4); }
+        .result-msg { font-size: 22px; font-weight: bold; margin-bottom: 10px; }
+        .result-score { font-size: 18px; color: var(--text-sec); margin-bottom: 30px; }
+        .btn-continue { background: var(--primary-color); color: white; border: none; padding: 12px 30px; border-radius: 12px; cursor: pointer; font-size: 18px; font-weight: bold; }
 
         @media (max-width: 900px) {
             .main-container { flex-direction: column; }
             .sidebar { width: 100%; height: 300px; border-right: none; border-top: 1px solid var(--border); }
-            .quiz-options { grid-template-columns: 1fr; }
+            .q-options { grid-template-columns: 1fr; }
+            .exam-header h3 { font-size: 18px; }
         }
     </style>
 </head>
@@ -105,6 +150,7 @@
 
     <div class="main-container">
         <div class="video-section">
+            
             <div class="video-wrapper" oncontextmenu="return false;">
                 <div class="video-container" id="video-container">
                     <div id="player"></div>
@@ -126,10 +172,19 @@
 
             <div class="lesson-info">
                 <h2 id="lesson-title">اختر درساً للبدء</h2>
-                <div class="status-alert warning" id="cheat-alert" style="display: none;">
+                
+                <div class="status-alert warning" id="cheat-alert">
                     <i class="fas fa-exclamation-triangle"></i>
-                    <span>تنبيه: غير مسموح بتخطي أجزاء من الفيديو. يرجى المشاهدة بالسرعة الطبيعية.</span>
+                    <span>تنبيه: غير مسموح بتخطي أجزاء من الفيديو.</span>
                 </div>
+
+                <button class="btn-enter-exam disabled" id="start-exam-btn" onclick="startExam()">
+                    <i class="fas fa-clipboard-list"></i> دخول امتحان المحاضرة
+                </button>
+                <p id="exam-hint" style="color: var(--danger); font-size: 13px; margin-top: 8px; display: none; font-weight: bold;">
+                    *يجب إكمال مشاهدة الفيديو بالكامل لتفعيل زر الامتحان*
+                </p>
+
             </div>
         </div>
 
@@ -141,18 +196,40 @@
         </div>
     </div>
 
-    <div class="quiz-overlay" id="quiz-overlay">
-        <div class="quiz-card">
-            <h2>اختبار تأكيد الفهم</h2>
-            <img id="quiz-image" class="quiz-image" src="" alt="صورة السؤال">
-            <div class="quiz-options">
-                <button class="quiz-btn" onclick="submitAnswer('A')" id="btn-A"></button>
-                <button class="quiz-btn" onclick="submitAnswer('B')" id="btn-B"></button>
-                <button class="quiz-btn" onclick="submitAnswer('C')" id="btn-C"></button>
-                <button class="quiz-btn" onclick="submitAnswer('D')" id="btn-D"></button>
+    <div class="exam-overlay" id="exam-overlay">
+        <div class="exam-card">
+            
+            <div id="exam-quiz-ui">
+                <div class="exam-header">
+                    <h3>اختبار تأكيد الفهم</h3>
+                    <div class="exam-timer" id="exam-timer"><i class="fas fa-clock"></i> <span>00:00</span></div>
+                </div>
+                <div class="exam-progress">السؤال <span id="current-q-num">1</span> من <span id="total-q-num">10</span></div>
+                
+                <div class="exam-body">
+                    <img id="q-image" class="q-image" src="" alt="صورة السؤال">
+                    <div class="q-options">
+                        <button class="opt-btn" id="opt-A" onclick="selectOption('A')"></button>
+                        <button class="opt-btn" id="opt-B" onclick="selectOption('B')"></button>
+                        <button class="opt-btn" id="opt-C" onclick="selectOption('C')"></button>
+                        <button class="opt-btn" id="opt-D" onclick="selectOption('D')"></button>
+                    </div>
+                </div>
+
+                <div class="exam-footer">
+                    <button class="nav-btn" id="btn-prev" onclick="prevQuestion()"><i class="fas fa-arrow-right"></i> السابق</button>
+                    <button class="submit-exam-btn" id="btn-submit-exam" onclick="submitExam()">إنهاء وتصحيح <i class="fas fa-check-circle"></i></button>
+                    <button class="nav-btn" id="btn-next" onclick="nextQuestion()">التالي <i class="fas fa-arrow-left"></i></button>
+                </div>
             </div>
-            <div id="quiz-result" class="quiz-result"></div>
-            <button class="btn-continue" id="btn-continue" onclick="closeQuizAndSave()">حفظ ومتابعة الكورس</button>
+
+            <div class="result-screen" id="exam-result-screen">
+                <div class="result-circle" id="result-circle"></div>
+                <div class="result-msg" id="result-msg"></div>
+                <div class="result-score" id="result-score"></div>
+                <button class="btn-continue" onclick="closeExamAndSave()">متابعة الكورس</button>
+            </div>
+
         </div>
     </div>
 
@@ -168,9 +245,13 @@
         let lastTime = 0;
         let duration = 0;
         let checkInterval;
-        let cheatDetected = false;
 
-        let currentQuiz = null; // سيحفظ بيانات الامتحان الحالي
+        // متغيرات نظام الامتحان
+        let quizQuestions = [];
+        let userAnswers = {};
+        let currentQIndex = 0;
+        let examTimerInterval;
+        let timeLeft = 0; // بالثواني
 
         document.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('auth_token');
@@ -229,8 +310,15 @@
             lastTime = 0;
             document.getElementById('cheat-alert').style.display = 'none';
             document.getElementById('progress-bar').style.width = '0%';
+            
+            // إخفاء/تعطيل زر الامتحان حتى يتم جلب البيانات
+            const examBtn = document.getElementById('start-exam-btn');
+            const examHint = document.getElementById('exam-hint');
+            examBtn.style.display = 'none';
+            examBtn.classList.add('disabled');
+            examHint.style.display = 'none';
 
-            // جلب الامتحان الخاص بالدرس ده في الخلفية
+            // جلب أسئلة الامتحان الخاص بالدرس
             fetchQuizForLesson(lesson.id);
 
             if (player) { player.loadVideoById(videoId); } 
@@ -261,7 +349,7 @@
                 clearInterval(checkInterval);
 
                 if (event.data === YT.PlayerState.ENDED) {
-                    handleLessonCompletion();
+                    handleVideoFinished();
                 }
             }
         }
@@ -287,83 +375,185 @@
         }
 
         // ======================================
-        // نظام الامتحانات
+        // نظام الامتحانات المتطور (Multi-Question)
         // ======================================
         
         async function fetchQuizForLesson(lessonId) {
-            currentQuiz = null;
+            quizQuestions = [];
             try {
                 const response = await fetch(`${workerBaseUrl}/api/lessons/${lessonId}/quiz`);
                 if(response.ok) {
                     const data = await response.json();
-                    if(data) currentQuiz = data; // حفظ الامتحان لو موجود
+                    if(data && Array.isArray(data) && data.length > 0) {
+                        quizQuestions = data;
+                        // إظهار زر الامتحان لكن بشكل معطل مع تحذير
+                        document.getElementById('start-exam-btn').style.display = 'inline-flex';
+                        document.getElementById('exam-hint').style.display = 'block';
+                    }
                 }
             } catch(e) {}
         }
 
-        function handleLessonCompletion() {
-            if (currentQuiz) {
-                // لو فيه امتحان، نعرضه للطالب
-                showQuizModal();
+        function handleVideoFinished() {
+            if (quizQuestions.length > 0) {
+                // تفعيل زر الامتحان بمجرد انتهاء الفيديو
+                const examBtn = document.getElementById('start-exam-btn');
+                examBtn.classList.remove('disabled');
+                document.getElementById('exam-hint').style.display = 'none';
+                
+                // تنبيه المستخدم
+                alert("انتهى الفيديو! يرجى النقر على 'دخول امتحان المحاضرة' لاجتياز الاختبار.");
             } else {
-                // لو مفيش امتحان، نحفظ التقدم ونقفل الدرس
+                // لو مفيش امتحان، احفظ التقدم وافتح الدرس الجديد
                 markLessonCompleted();
             }
         }
 
-        function showQuizModal() {
-            // تجهيز واجهة الامتحان
-            document.getElementById('quiz-image').src = currentQuiz.image_url;
-            document.getElementById('btn-A').innerText = "أ) " + currentQuiz.option_a;
-            document.getElementById('btn-B').innerText = "ب) " + currentQuiz.option_b;
-            document.getElementById('btn-C').innerText = "ج) " + currentQuiz.option_c;
-            document.getElementById('btn-D').innerText = "د) " + currentQuiz.option_d;
-            
-            // تصفير الألوان والنتائج القديمة
-            ['A','B','C','D'].forEach(opt => {
-                const btn = document.getElementById(`btn-${opt}`);
-                btn.className = 'quiz-btn';
-                btn.disabled = false;
-            });
-            document.getElementById('quiz-result').style.display = 'none';
-            document.getElementById('btn-continue').style.display = 'none';
+        function startExam() {
+            if(document.getElementById('start-exam-btn').classList.contains('disabled')) {
+                alert("يجب عليك إكمال مشاهدة الفيديو أولاً قبل دخول الامتحان!");
+                return;
+            }
 
-            // إظهار النافذة
-            document.getElementById('quiz-overlay').style.display = 'flex';
+            // إعادة ضبط الإعدادات
+            userAnswers = {};
+            currentQIndex = 0;
+            
+            // تحديد وقت الامتحان: دقيقة لكل سؤال
+            timeLeft = quizQuestions.length * 60; 
+            
+            document.getElementById('total-q-num').innerText = quizQuestions.length;
+            document.getElementById('exam-result-screen').style.display = 'none';
+            document.getElementById('exam-quiz-ui').style.display = 'block';
+            
+            renderQuestion(currentQIndex);
+            
+            document.getElementById('exam-overlay').style.display = 'flex';
+            
+            // بدء العداد
+            clearInterval(examTimerInterval);
+            updateTimerDisplay();
+            examTimerInterval = setInterval(() => {
+                timeLeft--;
+                updateTimerDisplay();
+                if(timeLeft <= 0) {
+                    clearInterval(examTimerInterval);
+                    alert("انتهى الوقت المخصص للامتحان!");
+                    submitExam();
+                }
+            }, 1000);
         }
 
-        function submitAnswer(selectedOption) {
-            const correctOption = currentQuiz.correct_option;
-            const resultDiv = document.getElementById('quiz-result');
+        function updateTimerDisplay() {
+            const m = Math.floor(timeLeft / 60);
+            const s = timeLeft % 60;
+            document.querySelector('#exam-timer span').innerText = `${m < 10 ? '0'+m : m}:${s < 10 ? '0'+s : s}`;
             
-            // قفل الزراير عشان ميجاوبش تاني
-            ['A','B','C','D'].forEach(opt => {
-                document.getElementById(`btn-${opt}`).disabled = true;
-            });
-
-            if (selectedOption === correctOption) {
-                document.getElementById(`btn-${selectedOption}`).classList.add('correct');
-                resultDiv.innerText = "إجابة صحيحة! ممتاز جداً \uD83C\uDF89";
-                resultDiv.style.color = "var(--success)";
-                resultDiv.style.display = "block";
-                document.getElementById('btn-continue').style.display = "block"; // إظهار زرار المتابعة
-            } else {
-                document.getElementById(`btn-${selectedOption}`).classList.add('wrong');
-                document.getElementById(`btn-${correctOption}`).classList.add('correct'); // نورله الصح
-                resultDiv.innerText = "إجابة خاطئة. راجع الفيديو مرة أخرى.";
-                resultDiv.style.color = "var(--danger)";
-                resultDiv.style.display = "block";
-                
-                // هنخليه يعيد المحاضرة أو يكمل (تقدر تخليها إجباري يعيد لو حابب)
-                document.getElementById('btn-continue').style.display = "block"; 
+            if(timeLeft < 30) {
+                document.getElementById('exam-timer').style.backgroundColor = '#fef2f2';
             }
         }
 
-        function closeQuizAndSave() {
-            document.getElementById('quiz-overlay').style.display = 'none';
-            markLessonCompleted();
+        function renderQuestion(index) {
+            const q = quizQuestions[index];
+            document.getElementById('current-q-num').innerText = index + 1;
+            
+            document.getElementById('q-image').src = q.image_url;
+            document.getElementById('opt-A').innerText = "أ) " + q.option_a;
+            document.getElementById('opt-B').innerText = "ب) " + q.option_b;
+            document.getElementById('opt-C').innerText = "ج) " + q.option_c;
+            document.getElementById('opt-D').innerText = "د) " + q.option_d;
+
+            // تحديد الاختيار لو الطالب كان مختاره قبل كده
+            ['A','B','C','D'].forEach(opt => {
+                const btn = document.getElementById(`opt-${opt}`);
+                if(userAnswers[index] === opt) {
+                    btn.classList.add('selected');
+                } else {
+                    btn.classList.remove('selected');
+                }
+            });
+
+            // التحكم في أزرار التنقل
+            document.getElementById('btn-prev').disabled = (index === 0);
+            
+            if(index === quizQuestions.length - 1) {
+                document.getElementById('btn-next').style.display = 'none';
+                document.getElementById('btn-submit-exam').style.display = 'inline-flex';
+            } else {
+                document.getElementById('btn-next').style.display = 'inline-flex';
+                document.getElementById('btn-submit-exam').style.display = 'none';
+            }
         }
 
+        function selectOption(opt) {
+            userAnswers[currentQIndex] = opt;
+            renderQuestion(currentQIndex); // لتحديث واجهة الاختيار (تلوين الزر)
+        }
+
+        function nextQuestion() {
+            if(currentQIndex < quizQuestions.length - 1) {
+                currentQIndex++;
+                renderQuestion(currentQIndex);
+            }
+        }
+
+        function prevQuestion() {
+            if(currentQIndex > 0) {
+                currentQIndex--;
+                renderQuestion(currentQIndex);
+            }
+        }
+
+        function submitExam() {
+            clearInterval(examTimerInterval);
+            
+            // التصحيح التلقائي
+            let score = 0;
+            for(let i=0; i < quizQuestions.length; i++) {
+                if(userAnswers[i] === quizQuestions[i].correct_option) {
+                    score++;
+                }
+            }
+
+            const percentage = (score / quizQuestions.length) * 100;
+            const isPassed = percentage >= 50;
+
+            // تحديث شاشة النتيجة
+            document.getElementById('exam-quiz-ui').style.display = 'none';
+            const resultScreen = document.getElementById('exam-result-screen');
+            const circle = document.getElementById('result-circle');
+            const msg = document.getElementById('result-msg');
+            const scoreText = document.getElementById('result-score');
+
+            circle.innerText = `${Math.round(percentage)}%`;
+            scoreText.innerText = `أجبت بشكل صحيح على ${score} من أصل ${quizQuestions.length} أسئلة`;
+
+            if(isPassed) {
+                circle.className = 'result-circle pass';
+                msg.innerText = "ممتاز! لقد اجتزت الاختبار بنجاح \uD83C\uDF89";
+                msg.style.color = "var(--success)";
+            } else {
+                circle.className = 'result-circle fail';
+                msg.innerText = "للأسف، لم تجتز الاختبار. يجب إعادة المحاولة.";
+                msg.style.color = "var(--danger)";
+            }
+
+            resultScreen.style.display = 'flex';
+            
+            // إذا نجح، يحفظ التقدم في السيرفر
+            if(isPassed) {
+                markLessonCompleted();
+            }
+        }
+
+        function closeExamAndSave() {
+            document.getElementById('exam-overlay').style.display = 'none';
+        }
+
+        // ======================================
+        // الاتصال بالسيرفر لحفظ التقدم
+        // ======================================
         async function markLessonCompleted() {
             const lessonId = lessonsData[currentLessonIndex].id;
             const token = localStorage.getItem('auth_token');
@@ -373,25 +563,28 @@
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify({ lessonId: lessonId })
                 });
-                // لو فيه درس بعده، شغله تلقائي
+                
+                // الانتقال التلقائي للدرس التالي لو متاح
                 if(currentLessonIndex + 1 < lessonsData.length) {
                     loadVideo(currentLessonIndex + 1);
                 } else {
-                    alert("مبروك! لقد أنهيت هذه الدورة بنجاح.");
+                    // لو ده آخر درس في الكورس
+                    if(!document.getElementById('exam-overlay').style.display || document.getElementById('exam-overlay').style.display === 'none') {
+                        alert("مبروك! لقد أنهيت جميع محاضرات هذا الكورس بنجاح.");
+                    }
                 }
             } catch (error) { console.error(error); }
         }
 
+        // تحكمات الفيديو
         document.getElementById('play-pause-btn').addEventListener('click', () => {
             if (!player) return;
             if (isPlaying) player.pauseVideo(); else player.playVideo();
         });
-
         document.getElementById('player-overlay').addEventListener('click', () => {
             if (!player) return;
             if (isPlaying) player.pauseVideo(); else player.playVideo();
         });
-
         function extractVideoID(url) {
             if (!url) return "";
             try {
@@ -400,12 +593,10 @@
             } catch(e) {}
             return url;
         }
-
         function updateTimeDisplay(current, dur) {
             document.getElementById('current-time').innerText = formatTime(current);
             document.getElementById('duration-time').innerText = formatTime(dur);
         }
-
         function formatTime(seconds) {
             const m = Math.floor(seconds / 60); const s = Math.floor(seconds % 60);
             return `${m < 10 ? '0'+m : m}:${s < 10 ? '0'+s : s}`;
