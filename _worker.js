@@ -98,6 +98,7 @@ export default {
           return new Response(JSON.stringify({ success: true, token: sessionToken, user }), {
             headers: { 
               "Content-Type": "application/json",
+              // حفظ التوكن في الكوكيز لحماية صفحات الإدارة
               "Set-Cookie": `auth_token=${sessionToken}; Path=/; Max-Age=86400; SameSite=Lax`,
               ...corsHeaders 
             }
@@ -211,6 +212,18 @@ export default {
             "SELECT * FROM lessons WHERE course_id = ? ORDER BY order_num ASC"
           ).bind(courseId).all();
           return new Response(JSON.stringify(lessons.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+        }
+
+        // --- مسار جلب امتحان خاص بمحاضرة معينة ---
+        if (path.match(/^\/api\/lessons\/\d+\/quiz$/) && request.method === "GET") {
+          const lessonId = path.split("/")[3];
+          const quiz = await env.DB.prepare(
+            "SELECT * FROM quizzes WHERE lesson_id = ?"
+          ).bind(lessonId).first();
+          
+          return new Response(JSON.stringify(quiz || null), {
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+          });
         }
 
         // حفظ تقدم الطالب
