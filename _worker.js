@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-// دالة التحقق من صلاحيات الإدارة (حارس البوابة)
+// دالة التحقق من صلاحيات الإدارة بشكل عام (admin أو instructor)
 async function verifyAdmin(request, env) {
   let token = null;
   const authHeader = request.headers.get("Authorization");
@@ -29,7 +29,7 @@ async function verifyAdmin(request, env) {
     const user = await env.DB.prepare("SELECT role FROM users WHERE id = ?").bind(sessionData.userId).first();
     
     if (user && (user.role === 'admin' || user.role === 'instructor')) {
-      return user;
+      return user; // نُرجع بيانات المستخدم لمعرفة رتبته لاحقاً
     }
     return null;
   } catch (e) {
@@ -46,10 +46,12 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    // 1. حماية صفحات الإدارة من جهة السيرفر
+    // --- 1. حماية صفحات الإدارة من جهة السيرفر ---
+    // نتحقق من المسارات التي تبدأ بـ /admin أو /api/admin
     if (path === "/admin.kollobeit3alem" || path === "/admin.html" || path.startsWith("/admin_") || path.startsWith("/api/admin/")) {
-      const admin = await verifyAdmin(request, env);
-      if (!admin) {
+      const adminUser = await verifyAdmin(request, env);
+      
+      if (!adminUser) {
         if (path.startsWith("/api/")) {
           return new Response(JSON.stringify({ error: "Access Denied" }), { 
             status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } 
@@ -58,9 +60,28 @@ export default {
           return Response.redirect(url.origin + "/courses.html", 302);
         }
       }
+
+      // --- تطبيق القيود الخاصة بالمعلم (Instructor Constraints) ---
+      // إذا كان المستخدم معلماً، نمنعه من مسارات الأكواد والمستخدمين
+      if (adminUser.role === 'instructor') {
+        const restrictedPaths = [
+          "/api/admin/users", 
+          "/api/admin/reports", 
+          "/api/admin/codes",
+          "/api/admin/users/role"
+        ];
+        
+        const isRestricted = restrictedPaths.some(restrictedPath => path.startsWith(restrictedPath));
+        
+        if (isRestricted) {
+          return new Response(JSON.stringify({ error: "Access Denied: هذا الإجراء مخصص للمدير فقط" }), { 
+            status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } 
+          });
+        }
+      }
     }
 
-    // 2. مسارات الـ API
+    // --- 2. مسارات الـ API ---
     if (path.startsWith("/api/")) {
       try {
         // --- مسار تسجيل الدخول بجوجل ---
@@ -160,6 +181,7 @@ export default {
           const isFree = body.is_free !== undefined ? body.is_free : 1;
           const price = body.price || 0;
           
+          // يمكنك لاحقاً تعديل الجدول ليحفظ instructor_id إذا أردت فصل الكورسات لكل مدرس
           await env.DB.prepare(
             "INSERT INTO courses (title, description, image_url, instructor_contact, is_free, price) VALUES (?, ?, ?, ?, ?, ?)"
           ).bind(body.title, body.description, body.image_url, body.instructor_contact || "", isFree, price).run();
@@ -256,7 +278,7 @@ export default {
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // تعديل رتبة مستخدم (التوافق مع الكود القديم)
+        // تعديل رتبة مستخدم 
         if (path === "/api/admin/users/role" && request.method === "PUT") {
           const body = await request.json();
           const result = await env.DB.prepare(
@@ -281,7 +303,7 @@ export default {
           return new Response(JSON.stringify(courses.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // جلب دروس دورة معينة
+        // جلب دروس دورة معينة (يُسمح بها فقط إذا كان الطالب مشتركاً أو الكورس مجاني - يمكن إضافة التحقق هنا لاحقاً لزيادة الأمان)
         if (path.match(/^\/api\/courses\/\d+\/lessons$/) && request.method === "GET") {
           const courseId = path.split("/")[3];
           const lessons = await env.DB.prepare(
