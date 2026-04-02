@@ -188,8 +188,10 @@
             <button class="nav-btn active" onclick="switchTab('courses', this)"><i class="fas fa-layer-group"></i> إدارة الدورات</button>
             <button class="nav-btn" onclick="switchTab('lessons', this)"><i class="fas fa-video"></i> إدارة المحاضرات</button>
             <button class="nav-btn" onclick="switchTab('quizzes', this)"><i class="fas fa-spell-check"></i> الامتحانات</button>
-            <button class="nav-btn" onclick="switchTab('users', this)"><i class="fas fa-users-cog"></i> الطلاب والتقارير</button>
+            
+            <button class="nav-btn" id="nav-users-btn" onclick="switchTab('users', this)"><i class="fas fa-users-cog"></i> الطلاب والتقارير</button>
             <button class="nav-btn" id="nav-codes-btn" onclick="switchTab('codes', this)"><i class="fas fa-key"></i> أكواد التفعيل</button>
+            
             <button class="nav-btn logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt"></i> تسجيل الخروج</button>
         </nav>
     </aside>
@@ -393,20 +395,21 @@
                 <button class="close-modal" onclick="closeReportModal()"><i class="fas fa-times"></i></button>
             </div>
             <div id="report-modal-body" style="line-height: 1.8;">
-                </div>
+            </div>
         </div>
     </div>
 
     <script>
         const workerBaseUrl = 'https://kollobeit3alem.pages.dev';
         let currentCourses = [];
+        let allUsers = []; // مصفوفة لتخزين بيانات المستخدمين وربط المدرسين بالكورسات
         let editingType = ''; // 'course', 'lesson', or 'user'
         let editingId = null;
 
         // --- Authentication ---
         function getToken() { return localStorage.getItem('auth_token'); }
 
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             const token = getToken();
             const userInfoStr = localStorage.getItem('user_info');
             if (!token || !userInfoStr) { window.location.href = '/'; return; }
@@ -421,8 +424,11 @@
                 document.getElementById('nav-codes-btn').style.display = 'none'; // إخفاء تبويب الأكواد
             }
 
-            loadCourses();
-            loadUsers(); 
+            // تحميل بيانات المستخدمين أولاً (المعلم يرى طلابه، والمدير يرى الجميع)
+            await loadUsers(); 
+            
+            // ثم تحميل الكورسات
+            await loadCourses();
         });
 
         // --- UI Interactions ---
@@ -450,6 +456,58 @@
             return res.json();
         }
 
+        // --- Users & Reports Management ---
+        async function loadUsers() {
+            try {
+                const users = await apiCall('/api/admin/users');
+                allUsers = users; 
+                
+                const tbody = document.getElementById('users-list-admin');
+                if(!tbody) return; 
+                tbody.innerHTML = '';
+                
+                if (users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">لا يوجد مستخدمين مسجلين.</td></tr>';
+                    return;
+                }
+
+                const userInfo = JSON.parse(localStorage.getItem('user_info'));
+                const isInstructor = userInfo.role === 'instructor';
+
+                users.forEach(u => {
+                    let roleAr = u.role === 'admin' ? '<span class="badge paid">مدير</span>' : (u.role === 'instructor' ? '<span class="badge free">مدرس</span>' : 'طالب');
+                    
+                    let actionsHtml = '';
+                    if (isInstructor) {
+                        actionsHtml = `<button class="btn-action btn-report" onclick="viewUserReport(${u.id}, '${u.name.replace(/'/g, "\\'")}')" title="عرض تقرير الطالب"><i class="fas fa-chart-pie"></i> التقرير</button>`;
+                    } else {
+                        actionsHtml = `
+                            <button class="btn-action btn-edit" onclick='openEditUser(${JSON.stringify(u)})' title="تعديل الرتبة والاسم"><i class="fas fa-edit"></i></button>
+                            <button class="btn-action btn-delete" onclick="deleteUser(${u.id})" title="حذف نهائي"><i class="fas fa-trash"></i></button>
+                            <button class="btn-action btn-report" onclick="viewUserReport(${u.id}, '${u.name.replace(/'/g, "\\'")}')" title="عرض تقرير الطالب"><i class="fas fa-chart-pie"></i> التقرير</button>
+                        `;
+                    }
+                    
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><strong>${u.name}</strong></td>
+                            <td style="color:var(--text-muted);">${u.email}</td>
+                            <td>${roleAr}</td>
+                            <td>
+                                <div style="display:flex; gap:5px;">
+                                    ${actionsHtml}
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (e) { 
+                console.error("Error loading users"); 
+                const tbody = document.getElementById('users-list-admin');
+                if(tbody) tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--danger);">لا توجد صلاحية لعرض المستخدمين أو حدث خطأ.</td></tr>';
+            }
+        }
+
         // --- Courses Management ---
         async function loadCourses() {
             try {
@@ -469,12 +527,24 @@
                 selectCode.innerHTML = defaultOpt;
                 selectViewCode.innerHTML = defaultOpt;
 
+                const userInfo = JSON.parse(localStorage.getItem('user_info'));
+                const isAdmin = userInfo.role === 'admin';
+
                 courses.forEach(c => {
                     const priceBadge = c.is_free === 1 ? '<span class="badge free">مجاني</span>' : `<span class="badge paid">مدفوع - ${c.price || 0} ج.م</span>`;
                     
+                    // إظهار اسم المعلم للمدير فقط
+                    let instructorBadge = '';
+                    if (isAdmin && c.instructor_id) {
+                        const inst = allUsers.find(u => u.id === c.instructor_id);
+                        const instName = inst ? inst.name : 'مدرس غير معروف';
+                        instructorBadge = `<div style="font-size:13px; color:var(--primary); margin-bottom: 8px;"><i class="fas fa-chalkboard-teacher"></i> <strong>بواسطة:</strong> ${instName}</div>`;
+                    }
+
                     list.innerHTML += `
                         <div class="item-card">
                             <div class="item-card-title">${c.title} ${priceBadge}</div>
+                            ${instructorBadge}
                             <div style="font-size:13px; color:var(--text-muted)"><i class="fas fa-clock"></i> تم الإنشاء: ${new Date(c.created_at).toLocaleDateString('ar-EG')}</div>
                             <div class="item-actions">
                                 <button class="btn-action btn-edit" onclick='openEditCourse(${JSON.stringify(c)})'><i class="fas fa-edit"></i> تعديل</button>
@@ -539,54 +609,6 @@
                 </div>
             `;
             document.getElementById('edit-modal').classList.add('active');
-        }
-
-        // --- Users & Reports Management ---
-        async function loadUsers() {
-            try {
-                const users = await apiCall('/api/admin/users');
-                const tbody = document.getElementById('users-list-admin');
-                tbody.innerHTML = '';
-                
-                if (users.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">لا يوجد مستخدمين مسجلين.</td></tr>';
-                    return;
-                }
-
-                // قراءة رتبة المستخدم الحالي لمعرفة إذا كان معلماً أم مديراً
-                const userInfo = JSON.parse(localStorage.getItem('user_info'));
-                const isInstructor = userInfo.role === 'instructor';
-
-                users.forEach(u => {
-                    let roleAr = u.role === 'admin' ? '<span class="badge paid">مدير</span>' : (u.role === 'instructor' ? '<span class="badge free">مدرس</span>' : 'طالب');
-                    
-                    let actionsHtml = '';
-                    if (isInstructor) {
-                        // المعلم يرى زر التقرير فقط
-                        actionsHtml = `<button class="btn-action btn-report" onclick="viewUserReport(${u.id}, '${u.name.replace(/'/g, "\\'")}')" title="عرض تقرير الطالب"><i class="fas fa-chart-pie"></i> التقرير</button>`;
-                    } else {
-                        // المدير يرى كل الأزرار
-                        actionsHtml = `
-                            <button class="btn-action btn-edit" onclick='openEditUser(${JSON.stringify(u)})' title="تعديل الرتبة والاسم"><i class="fas fa-edit"></i></button>
-                            <button class="btn-action btn-delete" onclick="deleteUser(${u.id})" title="حذف نهائي"><i class="fas fa-trash"></i></button>
-                            <button class="btn-action btn-report" onclick="viewUserReport(${u.id}, '${u.name.replace(/'/g, "\\'")}')" title="عرض تقرير الطالب"><i class="fas fa-chart-pie"></i> التقرير</button>
-                        `;
-                    }
-                    
-                    tbody.innerHTML += `
-                        <tr>
-                            <td><strong>${u.name}</strong></td>
-                            <td style="color:var(--text-muted);">${u.email}</td>
-                            <td>${roleAr}</td>
-                            <td>
-                                <div style="display:flex; gap:5px;">
-                                    ${actionsHtml}
-                                </div>
-                            </td>
-                        </tr>
-                    `;
-                });
-            } catch (e) { console.error("Error loading users"); }
         }
 
         async function deleteUser(id) {
