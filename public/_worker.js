@@ -457,6 +457,37 @@ export default {
           });
         }
 
+        // جلب تقدم الطالب في كورس معين (المحاضرات والفيديوهات المكتملة لتعمل المزامنة بين الأجهزة)
+        if (path.match(/^\/api\/courses\/\d+\/progress$/) && request.method === "GET") {
+          const courseId = path.split("/")[3];
+          const authCheck = await verifyStudentSession(request, env);
+          if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
+          
+          const userId = authCheck.userId;
+
+          // جلب المحاضرات المكتملة
+          const completedLessonsQuery = await env.DB.prepare(`
+            SELECT p.lesson_id 
+            FROM student_progress p 
+            JOIN lessons l ON p.lesson_id = l.id 
+            WHERE p.user_id = ? AND l.course_id = ?
+          `).bind(userId, courseId).all();
+          const completedLessons = completedLessonsQuery.results.map(row => row.lesson_id);
+
+          // جلب الفيديوهات المكتملة (تم وضعها داخل try catch في حال لم يتم بناء الجدول بعد)
+          let completedVideos = [];
+          try {
+            const completedVideosQuery = await env.DB.prepare(
+              "SELECT video_key FROM student_video_progress WHERE user_id = ? AND course_id = ?"
+            ).bind(userId, courseId).all();
+            completedVideos = completedVideosQuery.results.map(row => row.video_key);
+          } catch (e) {
+            // الجدول غير موجود بعد، لا بأس
+          }
+
+          return new Response(JSON.stringify({ completedLessons, completedVideos }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+        }
+
         // جلب معرفات الكورسات التي اشترك فيها الطالب
         if (path === "/api/my-enrollments" && request.method === "GET") {
           const authCheck = await verifyStudentSession(request, env);
@@ -536,7 +567,7 @@ export default {
           }
         }
 
-        // حفظ تقدم الطالب (إنهاء المحاضرة) - [تم التعديل لمنع التكرار]
+        // حفظ تقدم الطالب (إنهاء المحاضرة بالكامل)
         if (path === "/api/progress" && request.method === "POST") {
           const authCheck = await verifyStudentSession(request, env);
           if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -545,16 +576,41 @@ export default {
           const lessonId = body.lessonId;
           const userId = authCheck.userId;
 
-          // التحقق مما إذا كان الطالب قد أكمل هذه المحاضرة مسبقاً
+          // التحقق مما إذا كان الطالب قد أكمل هذه المحاضرة مسبقاً لمنع التكرار
           const existingProgress = await env.DB.prepare(
             "SELECT id FROM student_progress WHERE user_id = ? AND lesson_id = ?"
           ).bind(userId, lessonId).first();
 
-          // إذا لم يكملها مسبقاً، نقوم بإضافة السجل (تفادياً للتكرار)
           if (!existingProgress) {
             await env.DB.prepare(
               "INSERT INTO student_progress (user_id, lesson_id, is_completed, completed_at) VALUES (?, ?, 1, CURRENT_TIMESTAMP)"
             ).bind(userId, lessonId).run();
+          }
+
+          return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+        }
+
+        // حفظ تقدم فيديو معين (تتبع الأجزاء)
+        if (path === "/api/progress/video" && request.method === "POST") {
+          const authCheck = await verifyStudentSession(request, env);
+          if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
+
+          const body = await request.json();
+          const { courseId, lessonId, videoKey } = body;
+          const userId = authCheck.userId;
+
+          try {
+            const existingProgress = await env.DB.prepare(
+              "SELECT id FROM student_video_progress WHERE user_id = ? AND video_key = ?"
+            ).bind(userId, videoKey).first();
+
+            if (!existingProgress) {
+              await env.DB.prepare(
+                "INSERT INTO student_video_progress (user_id, course_id, lesson_id, video_key, completed_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)"
+              ).bind(userId, courseId, lessonId, videoKey).run();
+            }
+          } catch (e) {
+             // يتم تجاهل الخطأ في حال لم يقم المستخدم بإنشاء جدول student_video_progress بعد
           }
 
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
