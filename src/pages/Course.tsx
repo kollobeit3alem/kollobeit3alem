@@ -84,8 +84,12 @@ export default function CoursePage() {
     const loadProgress = async () => {
       if (user && token && courseId) {
         try {
-          // جلب التقدم من قاعدة البيانات
-          const data = await apiCall(`/api/courses/${courseId}/progress`, token);
+          // جلب التقدم من قاعدة البيانات مع تحديد نوع البيانات لـ TypeScript
+          const data = await apiCall(`/api/courses/${courseId}/progress`, token) as { 
+            completedLessons?: number[], 
+            completedVideos?: string[] 
+          };
+          
           if (data.completedLessons) {
             setCompletedLessons(new Set(data.completedLessons));
           }
