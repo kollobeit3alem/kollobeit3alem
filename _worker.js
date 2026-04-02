@@ -1,6 +1,6 @@
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,HEAD,POST,OPTIONS,DELETE",
+  "Access-Control-Allow-Methods": "GET,HEAD,POST,OPTIONS,DELETE,PUT",
   "Access-Control-Max-Age": "86400",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
@@ -98,87 +98,133 @@ export default {
           return new Response(JSON.stringify({ success: true, token: sessionToken, user }), {
             headers: { 
               "Content-Type": "application/json",
-              // حفظ التوكن في الكوكيز لحماية صفحات الإدارة
               "Set-Cookie": `auth_token=${sessionToken}; Path=/; Max-Age=86400; SameSite=Lax`,
               ...corsHeaders 
             }
           });
         }
 
-        // --- مسارات الإدارة (إضافة دورة) ---
+        // ==========================================
+        // مسارات لوحة الإدارة (Admin API)
+        // ==========================================
+
+        // إضافة دورة
         if (path === "/api/admin/courses" && request.method === "POST") {
           const body = await request.json();
           await env.DB.prepare(
             "INSERT INTO courses (title, description, image_url, instructor_contact) VALUES (?, ?, ?, ?)"
           ).bind(body.title, body.description, body.image_url, body.instructor_contact || "").run();
-          
-          return new Response(JSON.stringify({ success: true }), {
-            headers: { "Content-Type": "application/json", ...corsHeaders }
-          });
+          return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // --- مسارات الإدارة (حذف دورة) ---
-        if (path.startsWith("/api/admin/courses/") && request.method === "DELETE") {
+        // حذف دورة
+        if (path.match(/^\/api\/admin\/courses\/\d+$/) && request.method === "DELETE") {
           const courseId = path.split("/")[4];
           await env.DB.prepare("DELETE FROM courses WHERE id = ?").bind(courseId).run();
-          
-          return new Response(JSON.stringify({ success: true }), {
-            headers: { "Content-Type": "application/json", ...corsHeaders }
-          });
+          return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // --- مسارات الإدارة (إضافة درس) ---
+        // تعديل دورة
+        if (path.match(/^\/api\/admin\/courses\/\d+$/) && request.method === "PUT") {
+          const courseId = path.split("/")[4];
+          const body = await request.json();
+          await env.DB.prepare(
+            "UPDATE courses SET title = ?, description = ?, image_url = ? WHERE id = ?"
+          ).bind(body.title, body.description, body.image_url, courseId).run();
+          return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+        }
+
+        // إضافة محاضرة
         if (path === "/api/admin/lessons" && request.method === "POST") {
           const body = await request.json();
           await env.DB.prepare(
             "INSERT INTO lessons (course_id, title, video_url, order_num) VALUES (?, ?, ?, ?)"
           ).bind(body.course_id, body.title, body.video_url, body.order_num).run();
-          
-          return new Response(JSON.stringify({ success: true }), {
-            headers: { "Content-Type": "application/json", ...corsHeaders }
-          });
+          return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // --- مسار جلب الكورسات للطلاب ---
+        // حذف محاضرة
+        if (path.match(/^\/api\/admin\/lessons\/\d+$/) && request.method === "DELETE") {
+          const lessonId = path.split("/")[4];
+          await env.DB.prepare("DELETE FROM lessons WHERE id = ?").bind(lessonId).run();
+          return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+        }
+
+        // تعديل محاضرة
+        if (path.match(/^\/api\/admin\/lessons\/\d+$/) && request.method === "PUT") {
+          const lessonId = path.split("/")[4];
+          const body = await request.json();
+          await env.DB.prepare(
+            "UPDATE lessons SET title = ?, video_url = ?, order_num = ? WHERE id = ?"
+          ).bind(body.title, body.video_url, body.order_num, lessonId).run();
+          return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+        }
+
+        // قفل وفتح محاضرة (Toggle Lock)
+        if (path.match(/^\/api\/admin\/lessons\/\d+\/lock$/) && request.method === "PUT") {
+          const lessonId = path.split("/")[4];
+          const body = await request.json();
+          await env.DB.prepare(
+            "UPDATE lessons SET is_admin_locked = ? WHERE id = ?"
+          ).bind(body.is_locked, lessonId).run();
+          return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+        }
+
+        // إضافة امتحان
+        if (path === "/api/admin/quizzes" && request.method === "POST") {
+          const body = await request.json();
+          await env.DB.prepare(
+            "INSERT INTO quizzes (lesson_id, image_url, option_a, option_b, option_c, option_d, correct_option) VALUES (?, ?, ?, ?, ?, ?, ?)"
+          ).bind(body.lesson_id, body.image_url, body.option_a, body.option_b, body.option_c, body.option_d, body.correct_option).run();
+          return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+        }
+
+        // تعديل رتبة مستخدم (ترقية)
+        if (path === "/api/admin/users/role" && request.method === "PUT") {
+          const body = await request.json();
+          const result = await env.DB.prepare(
+            "UPDATE users SET role = ? WHERE email = ?"
+          ).bind(body.role, body.email).run();
+          
+          if (result.meta.changes === 0) {
+             return new Response(JSON.stringify({ error: "المستخدم غير موجود" }), { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } });
+          }
+          return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+        }
+
+        // ==========================================
+        // مسارات الطلاب العامة
+        // ==========================================
+
+        // جلب الكورسات
         if (path === "/api/courses" && request.method === "GET") {
           const courses = await env.DB.prepare(
             "SELECT * FROM courses WHERE is_published = 1 ORDER BY created_at DESC"
           ).all();
-
-          return new Response(JSON.stringify(courses.results), {
-            headers: { "Content-Type": "application/json", ...corsHeaders }
-          });
+          return new Response(JSON.stringify(courses.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // --- مسار جلب دروس دورة معينة ---
-        if (path.startsWith("/api/courses/") && path.endsWith("/lessons") && request.method === "GET") {
+        // جلب دروس دورة معينة
+        if (path.match(/^\/api\/courses\/\d+\/lessons$/) && request.method === "GET") {
           const courseId = path.split("/")[3];
-          
           const lessons = await env.DB.prepare(
             "SELECT * FROM lessons WHERE course_id = ? ORDER BY order_num ASC"
           ).bind(courseId).all();
-
-          return new Response(JSON.stringify(lessons.results), {
-            headers: { "Content-Type": "application/json", ...corsHeaders }
-          });
+          return new Response(JSON.stringify(lessons.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // --- مسار حفظ تقدم الطالب ---
+        // حفظ تقدم الطالب
         if (path === "/api/progress" && request.method === "POST") {
           const authHeader = request.headers.get("Authorization");
           if (!authHeader) {
-            return new Response(JSON.stringify({ error: "Unauthorized" }), { 
-              status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } 
-            });
+            return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } });
           }
 
           const token = authHeader.split(" ")[1];
           const sessionData = JSON.parse(atob(token));
           
           if (sessionData.exp < Date.now()) {
-            return new Response(JSON.stringify({ error: "Session Expired" }), { 
-              status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } 
-            });
+            return new Response(JSON.stringify({ error: "Session Expired" }), { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } });
           }
 
           const body = await request.json();
@@ -189,20 +235,13 @@ export default {
             "INSERT INTO student_progress (user_id, lesson_id, is_completed, completed_at) VALUES (?, ?, 1, CURRENT_TIMESTAMP)"
           ).bind(userId, lessonId).run();
 
-          return new Response(JSON.stringify({ success: true }), {
-            headers: { "Content-Type": "application/json", ...corsHeaders }
-          });
+          return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        return new Response(JSON.stringify({ error: "Not Found" }), { 
-          status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } 
-        });
+        return new Response(JSON.stringify({ error: "Not Found" }), { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } });
 
       } catch (error) {
-        return new Response(JSON.stringify({ error: error.message }), { 
-          status: 500, 
-          headers: { "Content-Type": "application/json", ...corsHeaders } 
-        });
+        return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
       }
     }
 
