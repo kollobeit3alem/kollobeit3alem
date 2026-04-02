@@ -16,15 +16,16 @@
             font-style: normal;
         }
 
-        /* متغيرات الألوان (تقدر تغير اللون الأساسي هنا عشان يتطابق مع الشعار 100%) */
+        /* متغيرات الألوان المعدلة بناءً على كودك للحصول على مظهر مريح وشبابي */
         :root {
-            --primary-color: #015669; /* غير هذا اللون ليتطابق مع لون الشعار الأساسي */
-            --primary-light: #015669;
-            --bg-gradient: linear-gradient(135deg, #f0f4f8 0%, #e2e8f0 100%); 
-            --text-main: #015669;
-            --text-muted: #64748b;
+            --primary-color: #015669; /* لون الشعار الأساسي الغامق */
+            --primary-light-bg: rgba(1, 86, 105, 0.05); /* لون فاتح جداً للخلفيات من نفس الدرجة */
+            --bg-gradient: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); /* خلفية فاتحة جداً وأنيقة */
+            --text-title: #015669; /* اللون الغامق للعناوين فقط */
+            --text-body: #1e293b; /* لون أسود مزرق ناعم للنصوص الأساسية */
+            --text-muted: #64748b; /* لون رمادي للنصوص الثانوية والتاجلين */
             --card-bg: #ffffff;
-            --card-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1);
+            --card-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.08);
         }
 
         /* تطبيق الهوية البصرية والخط على كامل الصفحة */
@@ -37,15 +38,14 @@
 
         body {
             background: var(--bg-gradient);
-            color: var(--text-main);
+            color: var(--text-body);
             min-height: 100vh;
             display: flex;
-            flex-direction: column; /* لضمان نزول الفوتر للأسفل */
+            flex-direction: column;
             justify-content: space-between;
             align-items: center;
         }
 
-        /* حاوية تسجيل الدخول في المنتصف */
         .login-wrapper {
             flex: 1;
             display: flex;
@@ -57,7 +57,7 @@
 
         .login-card {
             background-color: var(--card-bg);
-            border-radius: 24px;
+            border-radius: 28px; /* حواف أنعم للكارت */
             box-shadow: var(--card-shadow);
             width: 100%;
             max-width: 450px;
@@ -67,23 +67,23 @@
             flex-direction: column;
             align-items: center;
             gap: 20px;
-            border: 1px solid rgba(0,0,0,0.05);
-            border-top: 5px solid var(--primary-color); /* خط علوي يعطي هوية بصرية قوية */
+            border: 1px solid rgba(0,0,0,0.03);
+            border-top: 6px solid var(--primary-color); /* الخط العلوي بهوية الشعار */
             position: relative;
             overflow: hidden;
         }
 
-        /* تأثير إضاءة خفيف خلف اللوجو */
+        /* تأثير إضاءة خلف الشعار بألوانك */
         .login-card::before {
             content: '';
             position: absolute;
-            top: -50px;
+            top: -60px;
             left: 50%;
             transform: translateX(-50%);
-            width: 150px;
-            height: 150px;
-            background: var(--primary-light);
-            filter: blur(40px);
+            width: 180px;
+            height: 180px;
+            background: rgba(1, 86, 105, 0.1);
+            filter: blur(45px);
             z-index: 0;
             border-radius: 50%;
         }
@@ -92,32 +92,35 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 15px;
-            z-index: 1; /* ليكون فوق الإضاءة */
+            gap: 18px;
+            z-index: 1;
         }
 
         .logo-img {
-            max-width: 160px;
+            max-width: 150px;
             height: auto;
+            border-radius: 20px; /* حواف دائرية شبابية وليست دائرة كاملة */
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05); /* ظل خفيف خلف الصورة لإبرازها */
             transition: transform 0.3s ease;
         }
 
         .logo-img:hover {
-            transform: scale(1.05);
+            transform: scale(1.03);
         }
 
         .platform-name {
-            font-size: 26px;
+            font-size: 28px;
             font-weight: 700;
-            color: var(--text-main);
+            color: var(--text-title); /* اسم المنصة بلون الشعار الغامق */
             margin-bottom: -5px;
         }
 
         .tagline {
             font-size: 15px;
-            color: var(--text-muted);
+            color: var(--text-muted); /* نص الشرح بلون رمادي مريح */
             margin-bottom: 10px;
             z-index: 1;
+            line-height: 1.6;
         }
 
         .login-separator {
@@ -128,17 +131,17 @@
             position: relative;
         }
 
-        /* كلمة "أو" في منتصف الفاصل */
         .login-separator::after {
-            content: 'ابدأ الآن';
+            content: 'ابدأ التعلم الآن';
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             background-color: var(--card-bg);
             padding: 0 15px;
-            color: var(--text-muted);
+            color: var(--primary-color); /* كلمة الترحيب بلون الشعار */
             font-size: 13px;
+            font-weight: bold;
         }
 
         #g_id_signin_wrapper {
@@ -149,16 +152,16 @@
             margin-top: 10px;
         }
 
-        /* تصميم الفوتر */
+        /* تنسيق الفوتر */
         footer {
             width: 100%;
-            padding: 20px;
+            padding: 25px;
             text-align: center;
             color: var(--text-muted);
             font-size: 14px;
-            background-color: rgba(255, 255, 255, 0.5);
+            background-color: rgba(255, 255, 255, 0.6);
             backdrop-filter: blur(10px);
-            border-top: 1px solid rgba(0,0,0,0.05);
+            border-top: 1px solid rgba(0,0,0,0.04);
         }
 
         footer .footer-link {
@@ -171,7 +174,6 @@
 
         footer .footer-link:hover {
             text-decoration: underline;
-            color: var(--text-main);
         }
     </style>
 </head>
@@ -185,7 +187,7 @@
                 <h1 class="platform-name">كله بيتعلم لتعلم المهارات</h1>
             </div>
 
-            <p class="tagline">منصتك المتكاملة لإتقان المهارات العملية بيسر.</p>
+            <p class="tagline">منصتك الشبابية المتكاملة لإتقان المهارات العملية بيسر.</p>
             
             <div class="login-separator"></div>
 
@@ -214,12 +216,11 @@
     <footer>
         جميع الحقوق محفوظة لمنصة كله بيتعلم &copy; 2026 
         | 
-        <a href="https://adham-protofoilo.vercel.app" class="footer-link" target="_blank">اضغط هنا للمزيد</a>
+        <a href="https://adham-protofoilo.vercel.app" class="footer-link" target="_blank">انضم لمجتمعنا</a>
     </footer>
 
     <script>
         async function handleGoogleLogin(response) {
-            // استبدل الرابط أدناه برابط الـ Worker الخاص بك عند النشر
             const workerUrl = 'https://your-worker-name.your-subdomain.workers.dev/api/auth/google';
 
             try {
