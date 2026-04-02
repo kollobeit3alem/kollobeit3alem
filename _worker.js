@@ -26,7 +26,6 @@ async function verifyAdmin(request, env) {
     const sessionData = JSON.parse(atob(token));
     if (sessionData.exp < Date.now()) return null;
     
-    // التعديل هنا: جلب الـ id مع الـ role لمعرفة من هو المدرس الذي يقوم بالعملية
     const user = await env.DB.prepare("SELECT id, role FROM users WHERE id = ?").bind(sessionData.userId).first();
     
     if (user && (user.role === 'admin' || user.role === 'instructor')) {
@@ -50,7 +49,6 @@ export default {
     let adminUser = null;
 
     // --- 1. حماية مسارات الإدارة ---
-    // إذا كان المسار يخص لوحة التحكم أو API الإدارة
     if (path === "/admin.kollobeit3alem" || path === "/admin.html" || path.startsWith("/admin_") || path.startsWith("/api/admin/")) {
       adminUser = await verifyAdmin(request, env);
       
@@ -67,15 +65,16 @@ export default {
       // --- تطبيق القيود الصارمة على المعلم (Instructor Constraints) ---
       if (adminUser.role === 'instructor') {
         const restrictedPaths = [
-          "/api/admin/users", 
-          "/api/admin/reports", 
           "/api/admin/codes",
           "/api/admin/users/role"
         ];
         
         const isRestricted = restrictedPaths.some(rp => path.startsWith(rp));
         
-        if (isRestricted) {
+        // منع المعلم من حذف أو تعديل المستخدمين (يسمح له فقط بطلب GET للرؤية)
+        const isUserModify = path.match(/^\/api\/admin\/users\/\d+$/) && (request.method === "DELETE" || request.method === "PUT");
+        
+        if (isRestricted || isUserModify) {
           return new Response(JSON.stringify({ error: "Access Denied: هذا الإجراء مخصص للمدير فقط" }), { 
             status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } 
           });
@@ -130,20 +129,34 @@ export default {
         // مسارات لوحة الإدارة (Admin API)
         // ==========================================
 
-        // جلب جميع المستخدمين (للمدير فقط)
+        // جلب المستخدمين (المدير يرى الكل، المعلم يرى طلابه فقط)
         if (path === "/api/admin/users" && request.method === "GET") {
-          const users = await env.DB.prepare("SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC").all();
-          return new Response(JSON.stringify(users.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+          if (adminUser.role === 'instructor') {
+            // جلب الطلاب المشتركين في دورات هذا المعلم فقط (بشكل فريد DISTINCT لمنع التكرار)
+            const users = await env.DB.prepare(`
+              SELECT DISTINCT u.id, u.name, u.email, u.role, u.created_at 
+              FROM users u
+              JOIN enrollments e ON u.id = e.user_id
+              JOIN courses c ON e.course_id = c.id
+              WHERE c.instructor_id = ?
+              ORDER BY u.created_at DESC
+            `).bind(adminUser.id).all();
+            return new Response(JSON.stringify(users.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+          } else {
+            // المدير يرى الكل
+            const users = await env.DB.prepare("SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC").all();
+            return new Response(JSON.stringify(users.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+          }
         }
 
-        // حذف مستخدم (للمدير فقط)
+        // حذف مستخدم (للمدير فقط، ومحمية بالأعلى)
         if (path.match(/^\/api\/admin\/users\/\d+$/) && request.method === "DELETE") {
           const userId = path.split("/")[4];
           await env.DB.prepare("DELETE FROM users WHERE id = ?").bind(userId).run();
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // تعديل بيانات مستخدم (للمدير فقط)
+        // تعديل بيانات مستخدم (للمدير فقط، ومحمية بالأعلى)
         if (path.match(/^\/api\/admin\/users\/\d+$/) && request.method === "PUT") {
           const userId = path.split("/")[4];
           const body = await request.json();
@@ -151,24 +164,24 @@ export default {
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // جلب تقرير شامل للطالب (للمدير فقط)
+        // جلب تقرير شامل للطالب (فلترة للمعلم)
         if (path.match(/^\/api\/admin\/reports\/\d+$/) && request.method === "GET") {
           const userId = path.split("/")[4];
           
-          const enrollments = await env.DB.prepare(`
-            SELECT c.title, e.enrolled_at 
-            FROM enrollments e 
-            JOIN courses c ON e.course_id = c.id 
-            WHERE e.user_id = ?
-          `).bind(userId).all();
+          let enrollmentsQuery = `SELECT c.title, e.enrolled_at FROM enrollments e JOIN courses c ON e.course_id = c.id WHERE e.user_id = ?`;
+          let progressQuery = `SELECT l.title as lesson_title, c.title as course_title, p.completed_at FROM student_progress p JOIN lessons l ON p.lesson_id = l.id JOIN courses c ON l.course_id = c.id WHERE p.user_id = ?`;
           
-          const progress = await env.DB.prepare(`
-            SELECT l.title as lesson_title, c.title as course_title, p.completed_at 
-            FROM student_progress p 
-            JOIN lessons l ON p.lesson_id = l.id 
-            JOIN courses c ON l.course_id = c.id 
-            WHERE p.user_id = ?
-          `).bind(userId).all();
+          let bindParams = [userId];
+
+          // إذا كان طالباً للتقرير معلماً، نضيف شرط الـ instructor_id
+          if (adminUser.role === 'instructor') {
+            enrollmentsQuery += ` AND c.instructor_id = ?`;
+            progressQuery += ` AND c.instructor_id = ?`;
+            bindParams.push(adminUser.id);
+          }
+          
+          const enrollments = await env.DB.prepare(enrollmentsQuery).bind(...bindParams).all();
+          const progress = await env.DB.prepare(progressQuery).bind(...bindParams).all();
           
           return new Response(JSON.stringify({ enrollments: enrollments.results, progress: progress.results }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
