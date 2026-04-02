@@ -350,6 +350,27 @@ export default {
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
+        // --- الإضافة الجديدة: مسار حذف الأسئلة ---
+        if (path.match(/^\/api\/admin\/quizzes\/\d+$/) && request.method === "DELETE") {
+          const quizId = path.split("/")[4];
+          
+          // حماية ملكية المعلم: التأكد من أن السؤال تابع لدورة تخص المعلم
+          if (adminUser.role === 'instructor') {
+            const quiz = await env.DB.prepare("SELECT lesson_id FROM quizzes WHERE id = ?").bind(quizId).first();
+            if (quiz) {
+               const lesson = await env.DB.prepare("SELECT course_id FROM lessons WHERE id = ?").bind(quiz.lesson_id).first();
+               const check = await env.DB.prepare("SELECT instructor_id FROM courses WHERE id = ?").bind(lesson?.course_id).first();
+               if (!check || check.instructor_id !== adminUser.id) {
+                 return new Response(JSON.stringify({ error: "Access Denied" }), { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } });
+               }
+            }
+          }
+
+          await env.DB.prepare("DELETE FROM quizzes WHERE id = ?").bind(quizId).run();
+          return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+        }
+        // ----------------------------------------
+
         // تعديل رتبة مستخدم 
         if (path === "/api/admin/users/role" && request.method === "PUT") {
           const body = await request.json();
