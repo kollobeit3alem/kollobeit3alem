@@ -410,10 +410,17 @@
         }
 
         function startExam() {
-            if(document.getElementById('start-exam-btn').classList.contains('disabled')) {
-                alert("يجب عليك إكمال مشاهدة الفيديو أولاً قبل دخول الامتحان!");
-                return;
-            }
+    if(document.getElementById('start-exam-btn').classList.contains('disabled')) {
+        alert("يجب عليك إكمال مشاهدة الفيديو أولاً قبل دخول الامتحان!");
+        return;
+    }
+
+    // جلب معرف المحاضرة الحالية
+    const lessonId = lessonsData[currentLessonIndex].id;
+
+    // التوجه لصفحة الامتحان مع إرسال رقم المحاضرة في الرابط
+    window.location.href = `/quiz.html?lesson_id=${lessonId}`;
+}
 
             // إعادة ضبط الإعدادات
             userAnswers = {};
