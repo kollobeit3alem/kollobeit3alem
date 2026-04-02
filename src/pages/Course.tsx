@@ -1,0 +1,793 @@
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useAuth, apiCall } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import type { Course, Lesson, QuizQuestion } from '@/types';
+
+declare global {
+  interface Window {
+    YT: {
+      Player: new (
+        elementId: string,
+        options: {
+          videoId: string;
+          playerVars?: Record<string, number>;
+          events?: {
+            onReady?: (event: { target: YTPlayer }) => void;
+            onStateChange?: (event: { data: number; target: YTPlayer }) => void;
+          };
+        }
+      ) => YTPlayer;
+      PlayerState: {
+        PLAYING: number;
+        PAUSED: number;
+        ENDED: number;
+      };
+    };
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
+interface YTPlayer {
+  playVideo: () => void;
+  pauseVideo: () => void;
+  loadVideoById: (videoId: string) => void;
+  seekTo: (seconds: number, allowSeekAhead: boolean) => void;
+  getCurrentTime: () => number;
+  getDuration: () => number;
+}
+
+export default function CoursePage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { user, token, isAuthenticated } = useAuth();
+  
+  const [course, setCourse] = useState<Course | null>(null);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [completedLessons, setCompletedLessons] = useState<Set<number>>(new Set());
+  const [expandedLesson, setExpandedLesson] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Video Modal State
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [activeLessonId, setActiveLessonId] = useState<number | null>(null);
+  const [activeVideoIndex, setActiveVideoIndex] = useState(0);
+  const [activeVideoTotal, setActiveVideoTotal] = useState(1);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [maxWatchedTime, setMaxWatchedTime] = useState(0);
+  const [showCheatAlert, setShowCheatAlert] = useState(false);
+  
+  // Exam Modal State
+  const [showExamModal, setShowExamModal] = useState(false);
+  const [activeExamLesson, setActiveExamLesson] = useState<Lesson | null>(null);
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
+  const [currentQIndex, setCurrentQIndex] = useState(0);
+  const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [examFinished, setExamFinished] = useState(false);
+  const [examScore, setExamScore] = useState(0);
+  
+  const playerRef = useRef<YTPlayer | null>(null);
+  const videoIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const courseId = searchParams.get('id');
+
+  // Load saved progress
+  useEffect(() => {
+    if (user) {
+      const savedProgress = localStorage.getItem(`progress_${user.id}`);
+      if (savedProgress) {
+        setCompletedLessons(new Set(JSON.parse(savedProgress)));
+      }
+    }
+  }, [user]);
+
+  // Save progress
+  const saveProgress = useCallback(() => {
+    if (user) {
+      localStorage.setItem(`progress_${user.id}`, JSON.stringify(Array.from(completedLessons)));
+    }
+  }, [completedLessons, user]);
+
+  // Fetch course details
+  const fetchCourseDetails = useCallback(async () => {
+    if (!token || !courseId) return;
+    try {
+      const courses = await apiCall('/api/courses', token) as Course[];
+      const foundCourse = courses.find(c => c.id === parseInt(courseId));
+      if (foundCourse) {
+        setCourse(foundCourse);
+      }
+    } catch (error) {
+      console.error('Failed to load course details:', error);
+    }
+  }, [token, courseId]);
+
+  // Fetch lessons
+  const fetchLessons = useCallback(async () => {
+    if (!token || !courseId) return;
+    try {
+      const lessonsData = await apiCall(`/api/courses/${courseId}/lessons`, token) as Lesson[];
+      
+      // Fetch quiz data for each lesson
+      const lessonsWithQuiz = await Promise.all(
+        lessonsData.map(async (lesson) => {
+          try {
+            const quizData = await apiCall(`/api/lessons/${lesson.id}/quiz`, token) as QuizQuestion[];
+            return { ...lesson, hasQuiz: quizData.length > 0, quizData };
+          } catch {
+            return { ...lesson, hasQuiz: false, quizData: [] };
+          }
+        })
+      );
+      
+      setLessons(lessonsWithQuiz);
+    } catch (error) {
+      console.error('Failed to load lessons:', error);
+      toast.error('فشل تحميل المحاضرات');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [token, courseId]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/');
+      return;
+    }
+    if (courseId) {
+      fetchCourseDetails();
+      fetchLessons();
+    }
+  }, [isAuthenticated, courseId, navigate, fetchCourseDetails, fetchLessons]);
+
+  // Check if lesson is locked
+  const isLessonLocked = (lesson: Lesson, index: number): { locked: boolean; message: string } => {
+    if (lesson.is_admin_locked === 1) {
+      return { locked: true, message: 'هذه المحاضرة مغلقة حالياً من قبل الإدارة.' };
+    }
+    
+    if (index > 0) {
+      const prevLesson = lessons[index - 1];
+      if (!completedLessons.has(prevLesson.id)) {
+        return { locked: true, message: 'عذراً، يجب إتمام المحاضرة السابقة أولاً لتتمكن من فتح هذه المحاضرة.' };
+      }
+    }
+    
+    return { locked: false, message: '' };
+  };
+
+  // Toggle accordion
+  const toggleAccordion = (lessonId: number, index: number) => {
+    const lesson = lessons.find(l => l.id === lessonId);
+    if (!lesson) return;
+    
+    const { locked } = isLessonLocked(lesson, index);
+    if (locked) return;
+    
+    setExpandedLesson(expandedLesson === lessonId ? null : lessonId);
+  };
+
+  // Extract YouTube video ID
+  const extractVideoID = (url: string): string => {
+    if (!url) return '';
+    if (url.includes('v=')) return url.split('v=')[1].split('&')[0];
+    if (url.includes('youtu.be/')) return url.split('youtu.be/')[1].split('?')[0];
+    return url;
+  };
+
+  // Open video modal
+  const openVideo = (lesson: Lesson, videoUrl: string, vIdx: number, vTotal: number) => {
+    setActiveLessonId(lesson.id);
+    setActiveVideoIndex(vIdx);
+    setActiveVideoTotal(vTotal);
+    setMaxWatchedTime(0);
+    setShowCheatAlert(false);
+    setShowVideoModal(true);
+    
+    const videoId = extractVideoID(videoUrl);
+    
+    if (playerRef.current) {
+      playerRef.current.loadVideoById(videoId);
+    } else {
+      // Load YouTube API
+      if (!window.YT) {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+        
+        window.onYouTubeIframeAPIReady = () => {
+          initPlayer(videoId);
+        };
+      } else {
+        initPlayer(videoId);
+      }
+    }
+  };
+
+  const initPlayer = (videoId: string) => {
+    playerRef.current = new window.YT.Player('player', {
+      videoId,
+      playerVars: {
+        autoplay: 1,
+        controls: 0,
+        disablekb: 1,
+        fs: 0,
+        modestbranding: 1,
+        rel: 0,
+        showinfo: 0,
+      },
+      events: {
+        onReady: (event) => {
+          event.target.playVideo();
+        },
+        onStateChange: (event) => {
+          handlePlayerStateChange(event.data);
+        },
+      },
+    });
+  };
+
+  const handlePlayerStateChange = (state: number) => {
+    if (state === window.YT.PlayerState.PLAYING) {
+      setIsVideoPlaying(true);
+      if (playerRef.current) {
+        setVideoDuration(playerRef.current.getDuration());
+      }
+      
+      // Start monitoring
+      if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
+      videoIntervalRef.current = setInterval(() => {
+        if (playerRef.current) {
+          const current = playerRef.current.getCurrentTime();
+          setCurrentTime(current);
+          
+          if (current > maxWatchedTime && current - maxWatchedTime < 3) {
+            setMaxWatchedTime(current);
+          }
+          
+          if (current > maxWatchedTime + 2) {
+            playerRef.current.seekTo(maxWatchedTime, true);
+            setShowCheatAlert(true);
+            setTimeout(() => setShowCheatAlert(false), 4000);
+          }
+        }
+      }, 500);
+    } else {
+      setIsVideoPlaying(false);
+      if (videoIntervalRef.current) {
+        clearInterval(videoIntervalRef.current);
+        videoIntervalRef.current = null;
+      }
+      
+      if (state === window.YT.PlayerState.ENDED) {
+        handleVideoEnd();
+      }
+    }
+  };
+
+  const togglePlayPause = () => {
+    if (!playerRef.current) return;
+    if (isVideoPlaying) {
+      playerRef.current.pauseVideo();
+    } else {
+      playerRef.current.playVideo();
+    }
+  };
+
+  const seekVideo = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!playerRef.current || !videoDuration) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const percent = (e.clientX - rect.left) / rect.width;
+    let seekTime = percent * videoDuration;
+    
+    if (seekTime > maxWatchedTime) {
+      seekTime = maxWatchedTime;
+      setShowCheatAlert(true);
+      setTimeout(() => setShowCheatAlert(false), 3000);
+    }
+    
+    playerRef.current.seekTo(seekTime, true);
+    setCurrentTime(seekTime);
+  };
+
+  const skipVideo = (seconds: number) => {
+    if (!playerRef.current || !videoDuration) return;
+    const current = playerRef.current.getCurrentTime();
+    let newTime = current + seconds;
+    
+    if (seconds > 0 && newTime > maxWatchedTime) {
+      newTime = maxWatchedTime;
+      setShowCheatAlert(true);
+      setTimeout(() => setShowCheatAlert(false), 3000);
+    }
+    
+    if (newTime < 0) newTime = 0;
+    if (newTime > videoDuration) newTime = videoDuration;
+    
+    playerRef.current.seekTo(newTime, true);
+  };
+
+  const formatTime = (seconds: number): string => {
+    if (!seconds) return '00:00';
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`;
+  };
+
+  const handleVideoEnd = () => {
+    const lesson = lessons.find(l => l.id === activeLessonId);
+    if (!lesson) return;
+    
+    if (activeVideoIndex < activeVideoTotal - 1) {
+      toast.info('انتهى الجزء الحالي! يرجى تشغيل الجزء التالي من الشرح.');
+      closeVideo();
+      return;
+    }
+    
+    if (completedLessons.has(lesson.id)) {
+      closeVideo();
+      return;
+    }
+    
+    if (lesson.hasQuiz) {
+      toast.info('ممتاز! لقد أكملت جميع أجزاء الشرح، يرجى فتح الامتحان من القائمة لإتمام المحاضرة بالكامل.');
+      closeVideo();
+    } else {
+      closeVideo();
+      markLessonCompleted(lesson.id);
+    }
+  };
+
+  const closeVideo = () => {
+    setShowVideoModal(false);
+    if (playerRef.current) {
+      playerRef.current.pauseVideo();
+    }
+    if (videoIntervalRef.current) {
+      clearInterval(videoIntervalRef.current);
+      videoIntervalRef.current = null;
+    }
+  };
+
+  // Open exam
+  const openExam = (lesson: Lesson) => {
+    if (completedLessons.has(lesson.id)) {
+      toast.info('لقد اجتزت هذا الاختبار مسبقاً بنجاح!');
+      return;
+    }
+    
+    setActiveExamLesson(lesson);
+    setQuizQuestions(lesson.quizData || []);
+    setCurrentQIndex(0);
+    setUserAnswers({});
+    setTimeRemaining((lesson.quizData?.length || 0) * 60);
+    setExamFinished(false);
+    setExamScore(0);
+    setShowExamModal(true);
+    
+    // Start timer
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    timerIntervalRef.current = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev <= 1) {
+          submitExam();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const closeExam = () => {
+    setShowExamModal(false);
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+  };
+
+  const chooseAnswer = (option: string) => {
+    setUserAnswers(prev => ({ ...prev, [currentQIndex]: option }));
+  };
+
+  const nextQuestion = () => {
+    if (currentQIndex < quizQuestions.length - 1) {
+      setCurrentQIndex(prev => prev + 1);
+    }
+  };
+
+  const prevQuestion = () => {
+    if (currentQIndex > 0) {
+      setCurrentQIndex(prev => prev - 1);
+    }
+  };
+
+  const submitExam = () => {
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+    
+    let score = 0;
+    for (let i = 0; i < quizQuestions.length; i++) {
+      if (userAnswers[i] === quizQuestions[i].correct_option) {
+        score++;
+      }
+    }
+    
+    const percentage = Math.round((score / quizQuestions.length) * 100);
+    setExamScore(percentage);
+    setExamFinished(true);
+    
+    if (percentage >= 50 && activeExamLesson) {
+      markLessonCompleted(activeExamLesson.id);
+    }
+  };
+
+  // Mark lesson as completed
+  const markLessonCompleted = async (lessonId: number) => {
+    if (completedLessons.has(lessonId)) return;
+    
+    if (!token) return;
+    
+    // Trigger confetti
+    import('canvas-confetti').then(confetti => {
+      const duration = 3000;
+      const end = Date.now() + duration;
+      
+      const frame = () => {
+        confetti.default({
+          particleCount: 6,
+          angle: 60,
+          spread: 55,
+          origin: { x: 0 },
+          colors: ['#10b981', '#015669', '#f59e0b'],
+        });
+        confetti.default({
+          particleCount: 6,
+          angle: 120,
+          spread: 55,
+          origin: { x: 1 },
+          colors: ['#10b981', '#015669', '#f59e0b'],
+        });
+        if (Date.now() < end) {
+          requestAnimationFrame(frame);
+        }
+      };
+      frame();
+    });
+    
+    const newCompleted = new Set(completedLessons);
+    newCompleted.add(lessonId);
+    setCompletedLessons(newCompleted);
+    
+    try {
+      await apiCall('/api/progress', token, 'POST', { lessonId });
+    } catch (error) {
+      console.error('Failed to save progress:', error);
+    }
+  };
+
+  useEffect(() => {
+    saveProgress();
+  }, [completedLessons, saveProgress]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    };
+  }, []);
+
+  if (!user) return null;
+
+  return (
+    <div className="min-h-screen bg-page-bg flex flex-col" onContextMenu={(e) => e.preventDefault()}>
+      {/* Header */}
+      <header className="bg-white py-4 px-[5%] flex justify-between items-center shadow-[0_4px_20px_rgba(0,0,0,0.04)] sticky top-0 z-[100] border-b-[3px] border-b-primary">
+        <Link to="/courses" className="flex items-center gap-2.5 no-underline">
+          <img src="/logo.png" alt="شعار المنصة" className="h-10 rounded-lg" />
+          <h1 className="text-xl text-primary font-bold">كله بيتعلم</h1>
+        </Link>
+        <div className="flex items-center gap-2.5 font-bold text-text-main bg-page-bg py-1.5 px-4 pl-1.5 rounded-[30px] border border-border">
+          <span>{user.name.split(' ')[0]}</span>
+          {user.avatar_url && (
+            <img src={user.avatar_url} alt="الصورة الشخصية" className="w-9 h-9 rounded-full border-2 border-primary object-cover" />
+          )}
+        </div>
+      </header>
+
+      {/* Course Hero */}
+      <div className="bg-white mx-[5%] my-5 rounded-2xl overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.03)] flex flex-col relative border border-border">
+        <img 
+          src={course?.image_url || 'https://via.placeholder.com/1200x400/015669/ffffff?text=جاري+التحميل...'} 
+          className="w-full h-[250px] object-cover bg-slate-200"
+          alt="غلاف الكورس"
+        />
+        <div className="p-6 text-center">
+          <h2 className="text-[26px] text-primary mb-2.5 font-bold">{course?.title || 'جاري تحميل بيانات الكورس...'}</h2>
+          <p className="text-text-muted text-base mb-5">{course?.description || 'دورة تدريبية متميزة'}</p>
+          <div className="bg-primary text-white border-none py-3 px-8 rounded-xl text-base font-bold inline-block">
+            <i className="fas fa-graduation-cap ml-2"></i> أنت مشترك في هذا الكورس
+          </div>
+        </div>
+      </div>
+
+      {/* Section Header */}
+      <div className="text-center my-8 mb-5">
+        <h3 className="text-[32px] text-primary relative inline-block font-bold after:content-[''] after:absolute after:-bottom-2.5 after:left-1/2 after:-translate-x-1/2 after:w-[60%] after:h-1 after:bg-border after:rounded-sm">محتوى الكورس</h3>
+      </div>
+
+      {/* Accordion Container */}
+      <div className="max-w-[800px] mx-auto mb-12 px-[5%] flex flex-col gap-5 w-full">
+        {isLoading ? (
+          <div className="text-center py-10 text-text-muted">
+            <i className="fas fa-circle-notch fa-spin text-[40px] mb-4 block"></i>
+            <p>جاري تحميل المحاضرات...</p>
+          </div>
+        ) : lessons.length === 0 ? (
+          <div className="text-center py-10">
+            <i className="fas fa-folder-open text-[50px] text-slate-300 mb-4 block"></i>
+            <p className="text-lg text-text-muted">المحتوى قيد التجهيز، سيتم إضافة المحاضرات قريباً.</p>
+          </div>
+        ) : (
+          lessons.map((lesson, index) => {
+            const { locked, message } = isLessonLocked(lesson, index);
+            const isCompleted = completedLessons.has(lesson.id);
+            const isExpanded = expandedLesson === lesson.id;
+            
+            const videoUrls = lesson.video_url.split(/[,|\s]+/).filter(url => url.trim() !== '');
+            
+            return (
+              <div 
+                key={lesson.id}
+                className={`bg-white rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.05)] overflow-hidden transition-all border-2 ${
+                  isCompleted ? 'border-success' : locked ? 'border-slate-300 opacity-70' : 'border-transparent hover:-translate-y-0.5 hover:shadow-[0_8px_25px_rgba(0,0,0,0.08)]'
+                }`}
+              >
+                <div 
+                  className={`p-6 flex justify-between items-center cursor-pointer transition-all select-none ${
+                    isCompleted ? 'bg-success/5' : locked ? 'bg-slate-50 cursor-not-allowed' : 'bg-white'
+                  }`}
+                  onClick={() => toggleAccordion(lesson.id, index)}
+                >
+                  <div className="flex flex-col gap-1.5 flex-1 pl-4">
+                    <div className="text-2xl font-bold text-text-main flex items-center gap-2.5">
+                      <i className={`${locked ? 'fas fa-lock' : 'fas fa-border-all'} ${isCompleted ? 'text-success' : locked ? 'text-text-muted' : 'text-red-500'} text-[35px] ml-4 opacity-80`}></i>
+                      المحاضرة {index + 1} {locked && <span className="text-danger text-sm">({lesson.is_admin_locked === 1 ? 'مغلقة من الإدارة' : 'مقفولة تتابعياً'})</span>}
+                    </div>
+                    <div className="text-[15px] text-text-muted leading-relaxed">{lesson.title}</div>
+                  </div>
+                  <div className={`bg-page-bg w-10 h-10 rounded-full flex justify-center items-center text-lg text-text-main transition-all ${isExpanded ? 'rotate-180 bg-primary text-white' : ''}`}>
+                    <i className="fas fa-chevron-down"></i>
+                  </div>
+                </div>
+                
+                <div 
+                  className={`overflow-hidden transition-all duration-400 ${isExpanded ? 'max-h-[1000px]' : 'max-h-0'}`}
+                >
+                  <div className="p-5 flex flex-col gap-4 bg-[#fdfdfd] border-t border-border">
+                    {videoUrls.map((vUrl, vIdx) => (
+                      <div 
+                        key={vIdx}
+                        onClick={() => locked ? toast.warning(message) : openVideo(lesson, vUrl, vIdx, videoUrls.length)}
+                        className={`bg-warning/10 border border-warning/30 p-4 px-6 rounded-xl flex justify-between items-center cursor-pointer transition-all hover:-translate-x-1 hover:shadow-[0_5px_15px_rgba(245,158,11,0.15)] font-bold text-red-500 text-lg ${isCompleted ? 'bg-success/10 border-success/30 text-success' : ''}`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <i className={`${isCompleted ? 'fas fa-circle-check' : 'fas fa-video'} text-2xl`}></i>
+                          <span>جزء الشرح والتدريبات{videoUrls.length > 1 ? ` (الجزء ${vIdx + 1})` : ''}</span>
+                        </div>
+                        <span className="text-sm text-text-main bg-white py-1.5 px-3 rounded-lg border border-border flex items-center gap-1.5">
+                          {isCompleted ? 'تمت المشاهدة' : 'مشاهدة الفيديو'} <i className="fas fa-play text-xs"></i>
+                        </span>
+                      </div>
+                    ))}
+                    
+                    {lesson.hasQuiz && (
+                      <div 
+                        onClick={() => locked ? toast.warning(message) : openExam(lesson)}
+                        className={`bg-danger/10 border border-danger/30 p-4 px-6 rounded-xl flex justify-between items-center cursor-pointer transition-all hover:-translate-x-1 hover:shadow-[0_5px_15px_rgba(239,68,68,0.15)] font-bold text-red-500 text-lg ${isCompleted ? 'bg-success/10 border-success/30 text-success' : ''}`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <i className={`${isCompleted ? 'fas fa-circle-check' : 'fas fa-file-pen'} text-2xl`}></i>
+                          <span>امتحان المحاضرة</span>
+                        </div>
+                        <span className="text-sm text-text-main bg-white py-1.5 px-3 rounded-lg border border-border flex items-center gap-1.5">
+                          {isCompleted ? 'مكتمل' : 'دخول الامتحان'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Video Modal */}
+      {showVideoModal && (
+        <div className="video-modal-overlay">
+          <button 
+            onClick={closeVideo}
+            className="absolute top-5 right-8 bg-white/10 text-white border-none w-[50px] h-[50px] rounded-full text-2xl cursor-pointer transition-all hover:bg-red-500 z-[1001]"
+          >
+            <i className="fas fa-xmark"></i>
+          </button>
+          
+          <div className="w-[95%] max-w-[1000px] bg-[#0f172a] rounded-2xl overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-slate-700">
+            {/* Cheat Alert */}
+            <div 
+              className={`absolute top-5 left-1/2 -translate-x-1/2 bg-red-500/90 text-white py-2.5 px-5 rounded-xl font-bold flex items-center gap-2.5 z-10 text-sm ${showCheatAlert ? 'flex' : 'hidden'}`}
+            >
+              <i className="fas fa-triangle-exclamation"></i>
+              <span>عذراً، يجب مشاهدة الفيديو بالترتيب ولا يمكن التخطي للأمام!</span>
+            </div>
+
+            <div className="yt-wrapper">
+              <div id="player"></div>
+              <div className="yt-overlay" onClick={togglePlayPause}></div>
+            </div>
+            
+            <div className="bg-[#0f172a] p-5 flex flex-col gap-4 border-t border-slate-700">
+              <div 
+                className="w-full h-2.5 bg-white/10 rounded-md cursor-pointer relative overflow-hidden transition-all hover:h-3.5"
+                onClick={seekVideo}
+              >
+                <div 
+                  className="h-full bg-primary pointer-events-none transition-all"
+                  style={{ width: `${videoDuration ? (currentTime / videoDuration) * 100 : 0}%` }}
+                />
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-5">
+                  <button 
+                    onClick={() => skipVideo(-10)}
+                    className="bg-transparent text-white border-none text-2xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center"
+                    title="تأخير 10 ثواني"
+                  >
+                    <i className="fas fa-backward-step"></i>
+                  </button>
+                  <button 
+                    onClick={togglePlayPause}
+                    className="bg-transparent text-primary-light border-none text-[32px] cursor-pointer transition-all hover:scale-110 flex items-center justify-center"
+                  >
+                    <i className={`fas ${isVideoPlaying ? 'fa-circle-pause' : 'fa-circle-play'}`}></i>
+                  </button>
+                  <button 
+                    onClick={() => skipVideo(10)}
+                    className="bg-transparent text-white border-none text-2xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center"
+                    title="تقديم 10 ثواني"
+                  >
+                    <i className="fas fa-forward-step"></i>
+                  </button>
+                </div>
+                <div className="text-slate-400 font-bold text-[15px] font-mono tracking-wide">
+                  <span>{formatTime(currentTime)}</span> / <span>{formatTime(videoDuration)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Exam Modal */}
+      {showExamModal && activeExamLesson && (
+        <div className="exam-modal-overlay">
+          {/* Anti-cheat overlay */}
+          <div 
+            id="anti-cheat-overlay"
+            className="anti-cheat-overlay"
+            onClick={(e) => {
+              (e.currentTarget as HTMLDivElement).style.display = 'none';
+            }}
+          >
+            <i className="fas fa-shield-halved text-[80px] text-red-500 mb-5"></i>
+            <p>تنبيه أمني!</p>
+            <p className="text-base font-normal mt-2.5">تم إخفاء الامتحان لأنك قمت بالخروج من النافذة أو محاولة التقاط الشاشة.<br />يرجى النقر هنا للعودة للامتحان.</p>
+          </div>
+
+          <div className="bg-white py-5 px-[5%] flex justify-between items-center border-b border-border shadow-[0_4px_15px_rgba(0,0,0,0.02)]">
+            <h2 className="text-primary text-[22px] font-bold"><i className="fas fa-pen-to-square ml-2"></i> اختبار: {activeExamLesson.title}</h2>
+            <button 
+              onClick={closeExam}
+              className="bg-red-50 text-red-500 border-none py-2.5 px-5 rounded-xl font-bold cursor-pointer flex items-center gap-2 hover:bg-red-500 hover:text-white transition-all"
+            >
+              <i className="fas fa-xmark"></i> إغلاق مؤقت
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto py-8 px-[5%] flex flex-col items-center">
+            {!examFinished ? (
+              <>
+                <div 
+                  className={`text-white py-2.5 px-6 rounded-[30px] font-bold text-xl mb-5 flex items-center gap-2.5 shadow-[0_5px_15px_rgba(239,68,68,0.3)] ${timeRemaining < 30 ? 'bg-red-50 text-red-500 border-2 border-red-500' : 'bg-red-500'}`}
+                >
+                  <i className="fas fa-stopwatch"></i> 
+                  <span>{Math.floor(timeRemaining / 60).toString().padStart(2, '0')}:{(timeRemaining % 60).toString().padStart(2, '0')}</span>
+                </div>
+                
+                <h3 className="text-text-muted mb-6 text-lg">السؤال <span className="text-primary font-bold text-[22px]">{currentQIndex + 1}</span> من <span>{quizQuestions.length}</span></h3>
+
+                {quizQuestions[currentQIndex]?.image_url && (
+                  <img 
+                    src={quizQuestions[currentQIndex].image_url} 
+                    alt="سؤال الامتحان" 
+                    className="max-w-full max-h-[300px] rounded-xl border-2 border-border mb-8 pointer-events-none"
+                  />
+                )}
+                
+                <div className="grid grid-cols-1 gap-4 w-full max-w-[600px]">
+                  {['A', 'B', 'C', 'D'].map((option) => (
+                    <button
+                      key={option}
+                      onClick={() => chooseAnswer(option)}
+                      className={`bg-white border-2 border-border py-4 px-5 rounded-2xl text-lg font-bold cursor-pointer text-right flex items-center gap-4 transition-all text-text-main shadow-[0_4px_10px_rgba(0,0,0,0.02)] hover:border-primary ${
+                        userAnswers[currentQIndex] === option ? 'border-primary bg-primary/5 shadow-[0_8px_20px_rgba(1,86,105,0.15)] -translate-y-0.5' : ''
+                      }`}
+                    >
+                      <span className={`w-10 h-10 rounded-full flex justify-center items-center text-primary text-xl flex-shrink-0 ${userAnswers[currentQIndex] === option ? 'bg-primary text-white' : 'bg-page-bg'}`}>
+                        {option === 'A' ? 'أ' : option === 'B' ? 'ب' : option === 'C' ? 'ج' : 'د'}
+                      </span>
+                      <span>{quizQuestions[currentQIndex]?.[`option_${option.toLowerCase()}` as keyof QuizQuestion] as string}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="w-full max-w-[600px] mt-10 flex justify-between">
+                  <button 
+                    onClick={prevQuestion}
+                    disabled={currentQIndex === 0}
+                    className="bg-white text-text-main border border-border py-4 px-8 rounded-xl font-bold text-base cursor-pointer transition-all flex items-center gap-2.5 shadow-[0_4px_10px_rgba(0,0,0,0.02)] hover:bg-primary/5 hover:text-primary hover:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <i className="fas fa-arrow-right-long"></i> السابق
+                  </button>
+                  
+                  {currentQIndex === quizQuestions.length - 1 ? (
+                    <button 
+                      onClick={submitExam}
+                      className="bg-success text-white border-none py-4 px-10 rounded-xl font-bold text-lg cursor-pointer flex items-center gap-2.5 shadow-[0_5px_20px_rgba(16,185,129,0.3)] hover:bg-emerald-600 hover:-translate-y-0.5 transition-all"
+                    >
+                      إنهاء وتصحيح <i className="fas fa-check-double"></i>
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={nextQuestion}
+                      className="bg-white text-text-main border border-border py-4 px-8 rounded-xl font-bold text-base cursor-pointer transition-all flex items-center gap-2.5 shadow-[0_4px_10px_rgba(0,0,0,0.02)] hover:bg-primary/5 hover:text-primary hover:border-primary"
+                    >
+                      التالي <i className="fas fa-arrow-left-long"></i>
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className={`w-[150px] h-[150px] rounded-full flex items-center justify-center text-[50px] font-bold text-white mb-5 shadow-[0_10px_30px_rgba(0,0,0,0.1)] ${examScore >= 50 ? 'bg-success' : 'bg-red-500'}`}>
+                  {examScore}%
+                </div>
+                <div className={`text-[32px] font-bold mb-2.5 ${examScore >= 50 ? 'text-success' : 'text-red-500'}`}>
+                  {examScore >= 50 ? 'ممتاز! لقد اجتزت الاختبار بنجاح' : 'للأسف، لم تجتز الاختبار'}
+                </div>
+                <div className="text-xl text-text-muted mb-10">
+                  أجبت بشكل صحيح على {Math.round((examScore / 100) * quizQuestions.length)} من أصل {quizQuestions.length} أسئلة
+                </div>
+                <button 
+                  onClick={closeExam}
+                  className="bg-primary text-white py-4 px-10 border-none rounded-xl text-lg font-bold cursor-pointer flex items-center gap-2.5 hover:bg-primary/90 transition-all"
+                >
+                  <i className="fas fa-rotate-left"></i> العودة للمحاضرات
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
