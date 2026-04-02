@@ -350,7 +350,7 @@ export default {
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // --- الإضافة الجديدة: مسار حذف الأسئلة ---
+        // --- مسار حذف الأسئلة ---
         if (path.match(/^\/api\/admin\/quizzes\/\d+$/) && request.method === "DELETE") {
           const quizId = path.split("/")[4];
           
@@ -369,7 +369,6 @@ export default {
           await env.DB.prepare("DELETE FROM quizzes WHERE id = ?").bind(quizId).run();
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
-        // ----------------------------------------
 
         // تعديل رتبة مستخدم 
         if (path === "/api/admin/users/role" && request.method === "PUT") {
@@ -537,7 +536,7 @@ export default {
           }
         }
 
-        // حفظ تقدم الطالب (إنهاء المحاضرة)
+        // حفظ تقدم الطالب (إنهاء المحاضرة) - [تم التعديل لمنع التكرار]
         if (path === "/api/progress" && request.method === "POST") {
           const authCheck = await verifyStudentSession(request, env);
           if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -546,9 +545,17 @@ export default {
           const lessonId = body.lessonId;
           const userId = authCheck.userId;
 
-          await env.DB.prepare(
-            "INSERT INTO student_progress (user_id, lesson_id, is_completed, completed_at) VALUES (?, ?, 1, CURRENT_TIMESTAMP)"
-          ).bind(userId, lessonId).run();
+          // التحقق مما إذا كان الطالب قد أكمل هذه المحاضرة مسبقاً
+          const existingProgress = await env.DB.prepare(
+            "SELECT id FROM student_progress WHERE user_id = ? AND lesson_id = ?"
+          ).bind(userId, lessonId).first();
+
+          // إذا لم يكملها مسبقاً، نقوم بإضافة السجل (تفادياً للتكرار)
+          if (!existingProgress) {
+            await env.DB.prepare(
+              "INSERT INTO student_progress (user_id, lesson_id, is_completed, completed_at) VALUES (?, ?, 1, CURRENT_TIMESTAMP)"
+            ).bind(userId, lessonId).run();
+          }
 
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
