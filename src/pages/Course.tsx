@@ -35,6 +35,9 @@ interface YTPlayer {
   seekTo: (seconds: number, allowSeekAhead: boolean) => void;
   getCurrentTime: () => number;
   getDuration: () => number;
+  setPlaybackRate: (suggestedRate: number) => void;
+  getPlaybackRate: () => number;
+  getAvailablePlaybackRates: () => number[];
 }
 
 export default function CoursePage() {
@@ -45,7 +48,7 @@ export default function CoursePage() {
   const [course, setCourse] = useState<Course | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [completedLessons, setCompletedLessons] = useState<Set<number>>(new Set());
-  const [completedVideos, setCompletedVideos] = useState<Set<string>>(new Set()); // إضافة حالة لتتبع الفيديوهات المكتملة
+  const [completedVideos, setCompletedVideos] = useState<Set<string>>(new Set()); 
   const [expandedLesson, setExpandedLesson] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -59,6 +62,8 @@ export default function CoursePage() {
   const [currentTime, setCurrentTime] = useState(0);
   const [maxWatchedTime, setMaxWatchedTime] = useState(0);
   const [showCheatAlert, setShowCheatAlert] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   // Exam Modal State
   const [showExamModal, setShowExamModal] = useState(false);
@@ -73,6 +78,7 @@ export default function CoursePage() {
   const playerRef = useRef<YTPlayer | null>(null);
   const videoIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
   const courseId = searchParams.get('id');
 
   // Load saved progress
@@ -150,6 +156,17 @@ export default function CoursePage() {
     }
   }, [isAuthenticated, courseId, navigate, fetchCourseDetails, fetchLessons]);
 
+  // Listen to fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
   // Check if lesson is locked
   const isLessonLocked = (lesson: Lesson, index: number): { locked: boolean; message: string } => {
     if (lesson.is_admin_locked === 1) {
@@ -192,12 +209,14 @@ export default function CoursePage() {
     setActiveVideoTotal(vTotal);
     setMaxWatchedTime(0);
     setShowCheatAlert(false);
+    setPlaybackRate(1);
     setShowVideoModal(true);
     
     const videoId = extractVideoID(videoUrl);
     
     if (playerRef.current) {
       playerRef.current.loadVideoById(videoId);
+      playerRef.current.setPlaybackRate(1);
     } else {
       // Load YouTube API
       if (!window.YT) {
@@ -230,6 +249,7 @@ export default function CoursePage() {
       events: {
         onReady: (event) => {
           event.target.playVideo();
+          event.target.setPlaybackRate(1);
         },
         onStateChange: (event) => {
           handlePlayerStateChange(event.data);
@@ -318,6 +338,29 @@ export default function CoursePage() {
     playerRef.current.seekTo(newTime, true);
   };
 
+  const cyclePlaybackRate = () => {
+    const rates = [0.5, 1, 1.25, 1.5, 2];
+    const currentIndex = rates.indexOf(playbackRate);
+    const nextRate = rates[(currentIndex + 1) % rates.length];
+    
+    setPlaybackRate(nextRate);
+    if (playerRef.current) {
+      playerRef.current.setPlaybackRate(nextRate);
+    }
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      if (videoContainerRef.current) {
+        videoContainerRef.current.requestFullscreen().catch((err) => {
+          toast.error(`لا يمكن تفعيل ملء الشاشة: ${err.message}`);
+        });
+      }
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
   const formatTime = (seconds: number): string => {
     if (!seconds) return '00:00';
     const m = Math.floor(seconds / 60);
@@ -357,6 +400,9 @@ export default function CoursePage() {
   };
 
   const closeVideo = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    }
     setShowVideoModal(false);
     if (playerRef.current) {
       playerRef.current.pauseVideo();
@@ -636,14 +682,16 @@ export default function CoursePage() {
       {/* Video Modal */}
       {showVideoModal && (
         <div className="video-modal-overlay">
-          <button 
-            onClick={closeVideo}
-            className="absolute top-5 right-8 bg-white/10 text-white border-none w-[50px] h-[50px] rounded-full text-2xl cursor-pointer transition-all hover:bg-red-500 z-[1001]"
-          >
-            <i className="fas fa-xmark"></i>
-          </button>
+          {!isFullscreen && (
+            <button 
+              onClick={closeVideo}
+              className="absolute top-5 right-8 bg-white/10 text-white border-none w-[50px] h-[50px] rounded-full text-2xl cursor-pointer transition-all hover:bg-red-500 z-[1001]"
+            >
+              <i className="fas fa-xmark"></i>
+            </button>
+          )}
           
-          <div className="w-[95%] max-w-[1000px] bg-[#0f172a] rounded-2xl overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-slate-700">
+          <div ref={videoContainerRef} className={`w-[95%] max-w-[1000px] bg-[#0f172a] rounded-2xl overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-slate-700 flex flex-col ${isFullscreen ? '!w-full !max-w-none !h-full !rounded-none !border-none' : ''}`}>
             {/* Cheat Alert */}
             <div 
               className={`absolute top-5 left-1/2 -translate-x-1/2 bg-red-500/90 text-white py-2.5 px-5 rounded-xl font-bold flex items-center gap-2.5 z-10 text-sm ${showCheatAlert ? 'flex' : 'hidden'}`}
@@ -652,12 +700,12 @@ export default function CoursePage() {
               <span>عذراً، يجب مشاهدة الفيديو بالترتيب ولا يمكن التخطي للأمام!</span>
             </div>
 
-            <div className="yt-wrapper">
-              <div id="player"></div>
-              <div className="yt-overlay" onClick={togglePlayPause}></div>
+            <div className="yt-wrapper flex-1 relative">
+              <div id="player" className="absolute top-0 left-0 w-full h-full"></div>
+              <div className="yt-overlay absolute top-0 left-0 w-full h-full z-10 cursor-pointer" onClick={togglePlayPause}></div>
             </div>
             
-            <div className="bg-[#0f172a] p-5 flex flex-col gap-4 border-t border-slate-700">
+            <div className="bg-[#0f172a] p-5 flex flex-col gap-4 border-t border-slate-700 flex-shrink-0 z-20">
               <div 
                 className="w-full h-2.5 bg-white/10 rounded-md cursor-pointer relative overflow-hidden transition-all hover:h-3.5"
                 onClick={seekVideo}
@@ -691,8 +739,34 @@ export default function CoursePage() {
                     <i className="fas fa-forward-step"></i>
                   </button>
                 </div>
-                <div className="text-slate-400 font-bold text-[15px] font-mono tracking-wide">
-                  <span>{formatTime(currentTime)}</span> / <span>{formatTime(videoDuration)}</span>
+                
+                <div className="flex items-center gap-4">
+                  <button 
+                    onClick={cyclePlaybackRate}
+                    className="bg-transparent text-white border border-slate-600 px-3 py-1.5 rounded-lg text-sm font-bold cursor-pointer transition-all hover:bg-slate-700 hover:text-primary-light"
+                    title="سرعة التشغيل"
+                  >
+                    {playbackRate}x
+                  </button>
+                  <div className="text-slate-400 font-bold text-[15px] font-mono tracking-wide" dir="ltr">
+                    <span>{formatTime(currentTime)}</span> / <span>{formatTime(videoDuration)}</span>
+                  </div>
+                  <button 
+                    onClick={toggleFullscreen}
+                    className="bg-transparent text-white border-none text-xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center ml-2"
+                    title="ملء الشاشة"
+                  >
+                    <i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i>
+                  </button>
+                  {isFullscreen && (
+                     <button 
+                       onClick={closeVideo}
+                       className="bg-transparent text-red-500 border-none text-2xl cursor-pointer transition-all hover:scale-110 flex items-center justify-center ml-2"
+                       title="إغلاق الفيديو"
+                     >
+                       <i className="fas fa-xmark"></i>
+                     </button>
+                  )}
                 </div>
               </div>
             </div>
