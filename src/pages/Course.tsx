@@ -82,8 +82,8 @@ export default function Course() {
   const videoContainerRef = useRef<HTMLDivElement>(null);
   
   const isVideoEndingRef = useRef(false);
-  const videoSavedRef = useRef(false); // لمنع الحفظ أكثر من مرة
-  const celebrationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null); // مؤقت الاحتفال
+  const videoSavedRef = useRef(false);
+  const celebrationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // الخزنة الحية لمنع تجمد المتغيرات وقت انتهاء الفيديو
   const ytDataRef = useRef<{ lesson: Lesson | null; vIdx: number; vTotal: number }>({
@@ -231,7 +231,6 @@ export default function Course() {
     setActiveVideoIndex(vIdx);
     setPlaybackRate(1);
     
-    // تصفير الإشارات والمؤقتات عند فتح فيديو جديد
     isVideoEndingRef.current = false;
     videoSavedRef.current = false;
     if (celebrationTimeoutRef.current) {
@@ -273,7 +272,6 @@ export default function Course() {
     });
   };
 
-  // دالة الحفظ الصامت في الداتابيز
   const silentSaveVideoProgress = () => {
     const { lesson, vIdx } = ytDataRef.current;
     if (!lesson || !token) return;
@@ -296,15 +294,11 @@ export default function Course() {
           const duration = playerRef.current.getDuration();
           setCurrentTime(current);
 
-          // المنطق الذكي: إذا تبقى 10 ثواني أو أقل
           if (duration > 0 && current > 0 && (duration - current <= 10)) {
             if (!videoSavedRef.current) {
               videoSavedRef.current = true;
-              
-              // 1. حفظ في السيرفر صامتاً
               silentSaveVideoProgress();
               
-              // 2. تشغيل مؤقت لمدة 10 ثواني (لحين انتهاء الفيديو طبيعياً) ليحتفل ويختفي
               celebrationTimeoutRef.current = setTimeout(() => {
                 handleVideoCelebration();
               }, 10000);
@@ -319,7 +313,6 @@ export default function Course() {
         videoIntervalRef.current = null;
       }
       
-      // إذا وصل للنهاية فعلياً قبل الـ 10 ثواني (مثلاً كان يسرع الفيديو)
       if (state === window.YT.PlayerState.ENDED) {
         if (celebrationTimeoutRef.current) clearTimeout(celebrationTimeoutRef.current);
         handleVideoCelebration();
@@ -373,7 +366,6 @@ export default function Course() {
     return `${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`;
   };
 
-  // دالة الاحتفال وإخفاء الفيديو التي تعمل بعد الـ 10 ثواني
   const handleVideoCelebration = () => {
     if (isVideoEndingRef.current) return;
     isVideoEndingRef.current = true;
@@ -383,14 +375,12 @@ export default function Course() {
     
     const videoKey = `${lesson.id}_${vIdx}`;
 
-    // تحديث الواجهة بعلامة الصح
     setCompletedVideos(prev => {
       const newSet = new Set(prev);
       newSet.add(videoKey);
       return newSet;
     });
 
-    // احتفال صغير لكل فيديو يتم إنجازه
     import('canvas-confetti').then(confetti => {
       confetti.default({
         particleCount: 80,
@@ -518,6 +508,8 @@ export default function Course() {
   const markLessonCompleted = async (lessonId: number) => {
     if (completedLessons.has(lessonId)) return;
     
+    if (!token) return;
+    
     import('canvas-confetti').then(confetti => {
       const duration = 3000; const end = Date.now() + duration;
       const frame = () => {
@@ -534,12 +526,10 @@ export default function Course() {
       return newSet;
     });
 
-    if (token) {
-      try {
-        await apiCall('/api/progress', token, 'POST', { lessonId });
-      } catch (error) {
-        handleApiError(error);
-      }
+    try {
+      await apiCall('/api/progress', token, 'POST', { lessonId });
+    } catch (error) {
+      handleApiError(error);
     }
   };
 
@@ -717,7 +707,7 @@ export default function Course() {
                   <div className="p-5 flex flex-col gap-4 bg-[#fdfdfd] border-t border-border">
                     {videoUrls.map((vUrl, vIdx) => {
                       const isVideoCompleted = completedVideos.has(`${lesson.id}_${vIdx}`) || isCompleted;
-                      const isActiveVideo = ytDataRef.current.lesson?.id === lesson.id && ytDataRef.current.vIdx === vIdx && activeLessonId !== null;
+                      const isActiveVideo = activeLessonId === lesson.id && activeVideoIndex === vIdx;
                       
                       return (
                         <div 
@@ -825,7 +815,7 @@ export default function Course() {
                   {examScore}%
                 </div>
                 <div className={`text-[32px] font-bold mb-2.5 ${examScore >= 50 ? 'text-success' : 'text-red-500'}`}>
-                  {examScore >= 50 ? 'ممتاز! لقد اجتزت الاختبار بنجاح' : 'للأسف، لم تجتز الاختبار'}
+                  {examScore >= 50 ? 'ممتاز! لقد اجتز الاختبار بنجاح' : 'للأسف، لم تجتز الاختبار'}
                 </div>
                 <div className="text-xl text-text-muted mb-10">
                   أجبت بشكل صحيح على {Math.round((examScore / 100) * quizQuestions.length)} من أصل {quizQuestions.length} أسئلة
