@@ -11,7 +11,7 @@ declare global {
         elementId: string,
         options: {
           videoId: string;
-          playerVars?: Record<string, number>;
+          playerVars?: Record<string, any>; // 💡 تم التعديل هنا لتجاوز خطأ الـ TypeScript
           events?: {
             onReady?: (event: { target: YTPlayer }) => void;
             onStateChange?: (event: { data: number; target: YTPlayer }) => void;
@@ -313,7 +313,7 @@ export default function Course() {
               
               celebrationTimeoutRef.current = setTimeout(() => {
                 handleVideoCelebration();
-              }, 11000); // 11 ثانية بدلاً من 10 لضمان انتهاء الفيديو تماماً
+              }, 11000); // 11 ثانية
             }
           }
         }
@@ -325,7 +325,6 @@ export default function Course() {
         videoIntervalRef.current = null;
       }
       
-      // إذا وصل يوتيوب للنهاية الطبيعية قبل الـ 11 ثانية، سيتم الاحتفال فوراً
       if (state === window.YT.PlayerState.ENDED) {
         if (celebrationTimeoutRef.current) clearTimeout(celebrationTimeoutRef.current);
         handleVideoCelebration();
@@ -619,7 +618,7 @@ export default function Course() {
         </div>
       </div>
 
-      {/* مشغل الفيديو: يظهر بحجم 16:9 قياسي، ويتحول لتجربة يوتيوب الكاملة في وضع ملء الشاشة */}
+      {/* مشغل الفيديو */}
       {activeLessonId !== null && (
         <div id="video-player-section" className="mx-[5%] mb-10 flex justify-center animate-fade-in scroll-mt-6">
           <div ref={videoContainerRef} className={`group bg-black rounded-2xl overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex flex-col w-full max-w-[854px] border border-slate-700 ${isFullscreen ? '!max-w-none !w-full !h-full !rounded-none !border-none' : ''}`}>
@@ -642,7 +641,7 @@ export default function Course() {
               <div className="absolute inset-0 w-full h-full z-10 cursor-pointer" onClick={togglePlayPause}></div>
             </div>
             
-            {/* شريط التحكم (يظهر دائمًا في الوضع العادي، ويختفي/يظهر في ملء الشاشة زي يوتيوب) */}
+            {/* شريط التحكم */}
             <div className={`${isFullscreen ? `absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/95 via-black/60 to-transparent pb-6 pt-16 px-8 transition-opacity duration-300 ${isVideoPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}` : 'bg-[#0f172a] p-4 px-6 border-t border-slate-700'} flex flex-col gap-4 flex-shrink-0 z-20`}>
               {/* شريط التقدم */}
               <div className="w-full h-2.5 bg-white/20 rounded-md cursor-pointer relative overflow-hidden transition-all hover:h-3.5" onClick={seekVideo}>
@@ -725,7 +724,7 @@ export default function Course() {
                   <div className="p-5 flex flex-col gap-4 bg-[#fdfdfd] border-t border-border">
                     {videoUrls.map((vUrl, vIdx) => {
                       const isVideoCompleted = completedVideos.has(`${lesson.id}_${vIdx}`) || isCompleted;
-                      const isActiveVideo = activeLessonId === lesson.id && activeVideoIndex === vIdx;
+                      const isActiveVideo = ytDataRef.current.lesson?.id === lesson.id && ytDataRef.current.vIdx === vIdx && activeLessonId !== null;
                       
                       return (
                         <div 
