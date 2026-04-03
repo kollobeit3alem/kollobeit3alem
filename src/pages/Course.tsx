@@ -227,9 +227,9 @@ export default function Course() {
     setPlaybackRate(1);
     isVideoEndingRef.current = false;
     
-    // الصعود للأعلى بسلاسة لرؤية الفيديو
+    // الصعود للفيديو بشكل ناعم
     setTimeout(() => {
-      document.getElementById('top-section')?.scrollIntoView({ behavior: 'smooth' });
+      document.getElementById('video-player-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 100);
     
     const videoId = extractVideoID(videoUrl);
@@ -274,7 +274,8 @@ export default function Course() {
           const duration = playerRef.current.getDuration();
           setCurrentTime(current);
 
-          if (duration > 0 && current >= duration - 0.5) {
+          // إتمام الفيديو إذا تبقى منه 10 ثواني أو أقل
+          if (duration > 0 && current >= duration - 10) {
             if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
             handleVideoEnd();
           }
@@ -539,27 +540,28 @@ export default function Course() {
         </div>
       </header>
 
-      {/* منطقة الغلاف (تتبدل بين صورة الكورس ومشغل الفيديو) */}
+      {/* Course Hero - دائماً ظاهر */}
       <div className="mx-[5%] my-5 relative">
-        {activeLessonId === null ? (
-          // Course Hero
-          <div className="bg-white rounded-2xl overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.03)] flex flex-col relative border border-border">
-            <img 
-              src={course?.image_url || 'https://via.placeholder.com/1200x400/015669/ffffff?text=جاري+التحميل...'} 
-              className="w-full h-[250px] object-cover bg-slate-200"
-              alt="غلاف الكورس"
-            />
-            <div className="p-6 text-center">
-              <h2 className="text-[26px] text-primary mb-2.5 font-bold">{course?.title || 'جاري تحميل بيانات الكورس...'}</h2>
-              <p className="text-text-muted text-base mb-5">{course?.description || 'دورة تدريبية متميزة'}</p>
-              <div className="bg-primary text-white border-none py-3 px-8 rounded-xl text-base font-bold inline-block">
-                <i className="fas fa-graduation-cap ml-2"></i> أنت مشترك في هذا الكورس
-              </div>
+        <div className="bg-white rounded-2xl overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.03)] flex flex-col relative border border-border">
+          <img 
+            src={course?.image_url || 'https://via.placeholder.com/1200x400/015669/ffffff?text=جاري+التحميل...'} 
+            className="w-full h-[250px] object-cover bg-slate-200"
+            alt="غلاف الكورس"
+          />
+          <div className="p-6 text-center">
+            <h2 className="text-[26px] text-primary mb-2.5 font-bold">{course?.title || 'جاري تحميل بيانات الكورس...'}</h2>
+            <p className="text-text-muted text-base mb-5">{course?.description || 'دورة تدريبية متميزة'}</p>
+            <div className="bg-primary text-white border-none py-3 px-8 rounded-xl text-base font-bold inline-block">
+              <i className="fas fa-graduation-cap ml-2"></i> أنت مشترك في هذا الكورس
             </div>
           </div>
-        ) : (
-          // Inline Video Player
-          <div ref={videoContainerRef} className={`bg-[#0f172a] rounded-2xl overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.2)] flex flex-col w-full max-w-[1000px] mx-auto border border-slate-700 ${isFullscreen ? '!w-full !max-w-none !h-full !rounded-none !border-none' : ''}`}>
+        </div>
+      </div>
+
+      {/* Inline Video Player - يظهر تحت الكورس عند التشغيل */}
+      {activeLessonId !== null && (
+        <div id="video-player-section" className="mx-[5%] mb-10 flex justify-center animate-fade-in scroll-mt-6">
+          <div ref={videoContainerRef} className={`bg-[#0f172a] rounded-2xl overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.2)] flex flex-col w-full max-w-[800px] border border-slate-700 ${isFullscreen ? '!max-w-none !h-full !rounded-none !border-none' : ''}`}>
             
             {/* زر إغلاق الفيديو للعودة للغلاف */}
             {!isFullscreen && (
@@ -572,36 +574,36 @@ export default function Course() {
               </button>
             )}
 
-            <div className="yt-wrapper relative w-full pt-[56.25%]">
+            <div className="yt-wrapper relative w-full pt-[56.25%] bg-black">
               <div id="player" className="absolute top-0 left-0 w-full h-full"></div>
               <div className="yt-overlay absolute top-0 left-0 w-full h-full z-10 cursor-pointer" onClick={togglePlayPause}></div>
             </div>
             
-            <div className="bg-[#0f172a] p-4 flex flex-col gap-3 border-t border-slate-700 flex-shrink-0 z-20">
-              <div className="w-full h-2.5 bg-white/10 rounded-md cursor-pointer relative overflow-hidden transition-all hover:h-3.5" onClick={seekVideo}>
+            <div className="bg-[#0f172a] p-4 px-6 flex flex-col gap-4 border-t border-slate-700 flex-shrink-0 z-20">
+              <div className="w-full h-3 bg-white/10 rounded-md cursor-pointer relative overflow-hidden transition-all hover:h-4" onClick={seekVideo}>
                 <div className="h-full bg-primary pointer-events-none transition-all" style={{ width: `${videoDuration ? (currentTime / videoDuration) * 100 : 0}%` }} />
               </div>
               
-              <div className="flex justify-between items-center px-2">
-                <div className="flex items-center gap-5">
-                  <button onClick={() => skipVideo(-10)} className="bg-transparent text-white border-none text-xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center"><i className="fas fa-backward-step"></i></button>
-                  <button onClick={togglePlayPause} className="bg-transparent text-primary-light border-none text-[28px] cursor-pointer transition-all hover:scale-110 flex items-center justify-center"><i className={`fas ${isVideoPlaying ? 'fa-circle-pause' : 'fa-circle-play'}`}></i></button>
-                  <button onClick={() => skipVideo(10)} className="bg-transparent text-white border-none text-xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center"><i className="fas fa-forward-step"></i></button>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-6">
+                  <button onClick={() => skipVideo(-10)} className="bg-transparent text-white border-none text-2xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center" title="تأخير 10 ثواني"><i className="fas fa-backward-step"></i></button>
+                  <button onClick={togglePlayPause} className="bg-transparent text-primary-light border-none text-[32px] cursor-pointer transition-all hover:scale-110 flex items-center justify-center" title="تشغيل / إيقاف"><i className={`fas ${isVideoPlaying ? 'fa-circle-pause' : 'fa-circle-play'}`}></i></button>
+                  <button onClick={() => skipVideo(10)} className="bg-transparent text-white border-none text-2xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center" title="تقديم 10 ثواني"><i className="fas fa-forward-step"></i></button>
                 </div>
                 
-                <div className="flex items-center gap-4">
-                  <button onClick={cyclePlaybackRate} className="bg-transparent text-white border border-slate-600 px-3 py-1.5 rounded-lg text-sm font-bold cursor-pointer transition-all hover:bg-slate-700 hover:text-primary-light">{playbackRate}x</button>
-                  <div className="text-slate-400 font-bold text-[14px] font-mono tracking-wide" dir="ltr"><span>{formatTime(currentTime)}</span> / <span>{formatTime(videoDuration)}</span></div>
-                  <button onClick={toggleFullscreen} className="bg-transparent text-white border-none text-xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center ml-2"><i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i></button>
+                <div className="flex items-center gap-5">
+                  <button onClick={cyclePlaybackRate} className="bg-transparent text-white border border-slate-600 px-4 py-2 rounded-lg text-sm font-bold cursor-pointer transition-all hover:bg-slate-700 hover:text-primary-light" title="سرعة التشغيل">{playbackRate}x</button>
+                  <div className="text-slate-300 font-bold text-[15px] font-mono tracking-wide" dir="ltr"><span>{formatTime(currentTime)}</span> / <span>{formatTime(videoDuration)}</span></div>
+                  <button onClick={toggleFullscreen} className="bg-transparent text-white border-none text-xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center ml-2" title="ملء الشاشة"><i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i></button>
                   {isFullscreen && (
-                     <button onClick={closeVideo} className="bg-transparent text-red-500 border-none text-2xl cursor-pointer transition-all hover:scale-110 flex items-center justify-center ml-2"><i className="fas fa-xmark"></i></button>
+                     <button onClick={closeVideo} className="bg-transparent text-red-500 border-none text-2xl cursor-pointer transition-all hover:scale-110 flex items-center justify-center ml-2" title="إغلاق الفيديو"><i className="fas fa-xmark"></i></button>
                   )}
                 </div>
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Section Header */}
       <div className="text-center my-6 mb-4">
