@@ -406,7 +406,7 @@ export default {
         // مسارات الطلاب العامة (والمنصة بشكل عام)
         // ==========================================
 
-        // دالة مساعدة داخلية للتحقق من التوكن وصلاحية الجلسة للطلاب
+        // تحديث هذه الدالة لترجع رتبة المستخدم (Role) لاستخدامها في جدار الحماية
         async function verifyStudentSession(request, env) {
             const authHeader = request.headers.get("Authorization");
             if (!authHeader) return { error: "Unauthorized", status: 401 };
@@ -417,14 +417,13 @@ export default {
                 
                 if (sessionData.exp < Date.now()) return { error: "Session Expired", status: 401 };
 
-                // التحقق من قاعدة البيانات لمطابقة session_id
-                const user = await env.DB.prepare("SELECT session_id FROM users WHERE id = ?").bind(sessionData.userId).first();
+                const user = await env.DB.prepare("SELECT role, session_id FROM users WHERE id = ?").bind(sessionData.userId).first();
                 
                 if (!user || user.session_id !== sessionData.sessionId) {
                     return { error: "تم تسجيل الدخول من جهاز آخر. يرجى تسجيل الدخول مجدداً.", status: 403, invalidSession: true };
                 }
 
-                return { userId: sessionData.userId };
+                return { userId: sessionData.userId, role: user.role };
             } catch (e) {
                 return { error: "Invalid Token", status: 401 };
             }
@@ -458,18 +457,59 @@ export default {
           return new Response(JSON.stringify(courses.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // جلب دروس دورة معينة
+        // 💡 جدار الحماية للمحاضرات (يمنع المتطفلين من سحب الفيديوهات)
         if (path.match(/^\/api\/courses\/\d+\/lessons$/) && request.method === "GET") {
           const courseId = path.split("/")[3];
+          
+          // 1. التوثيق
+          const authCheck = await verifyStudentSession(request, env);
+          if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
+
+          // 2. جدار الاشتراك: منع من ليس لديه اشتراك رسمي (مع إعفاء المدير والمعلم المالك)
+          if (authCheck.role === 'student') {
+            const isEnrolled = await env.DB.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").bind(authCheck.userId, courseId).first();
+            if (!isEnrolled) {
+              return new Response(JSON.stringify({ error: "Access Denied: يجب الاشتراك في الكورس أولاً." }), { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } });
+            }
+          } else if (authCheck.role === 'instructor') {
+            const isOwner = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND instructor_id = ?").bind(courseId, authCheck.userId).first();
+            if (!isOwner) {
+              return new Response(JSON.stringify({ error: "Access Denied: غير مصرح لك." }), { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } });
+            }
+          }
+
+          // 3. إرسال الدروس فقط لمن يملك الصلاحية
           const lessons = await env.DB.prepare(
             "SELECT * FROM lessons WHERE course_id = ? ORDER BY order_num ASC"
           ).bind(courseId).all();
           return new Response(JSON.stringify(lessons.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // جلب امتحان خاص بمحاضرة معينة
+        // 💡 جدار الحماية للامتحانات
         if (path.match(/^\/api\/lessons\/\d+\/quiz$/) && request.method === "GET") {
           const lessonId = path.split("/")[3];
+          
+          // 1. التوثيق
+          const authCheck = await verifyStudentSession(request, env);
+          if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
+
+          // جلب الكورس الخاص بالدرس
+          const lesson = await env.DB.prepare("SELECT course_id FROM lessons WHERE id = ?").bind(lessonId).first();
+          if (!lesson) return new Response(JSON.stringify([]), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+
+          // 2. جدار الاشتراك
+          if (authCheck.role === 'student') {
+            const isEnrolled = await env.DB.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").bind(authCheck.userId, lesson.course_id).first();
+            if (!isEnrolled) {
+              return new Response(JSON.stringify({ error: "Access Denied: يجب الاشتراك في الكورس أولاً." }), { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } });
+            }
+          } else if (authCheck.role === 'instructor') {
+            const isOwner = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND instructor_id = ?").bind(lesson.course_id, authCheck.userId).first();
+            if (!isOwner) {
+              return new Response(JSON.stringify({ error: "Access Denied: غير مصرح لك." }), { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } });
+            }
+          }
+
           const quiz = await env.DB.prepare(
             "SELECT * FROM quizzes WHERE lesson_id = ?"
           ).bind(lessonId).all();
