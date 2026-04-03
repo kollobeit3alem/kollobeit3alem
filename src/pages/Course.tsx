@@ -104,15 +104,24 @@ export default function Course() {
   }, []);
 
   useEffect(() => {
-    const loadProgress = async () => {
+    const verifyAndLoadProgress = async () => {
       if (user && token && courseId) {
-        const savedVideoProgress = localStorage.getItem(`video_progress_${user.id}`);
-        if (savedVideoProgress) setCompletedVideos(new Set(JSON.parse(savedVideoProgress)));
-
-        const savedLessonProgress = localStorage.getItem(`progress_${user.id}`);
-        if (savedLessonProgress) setCompletedLessons(new Set(JSON.parse(savedLessonProgress)));
-
         try {
+          if (user.role !== 'admin' && user.role !== 'instructor') {
+            const enrolledIds: number[] = await apiCall('/api/my-enrollments', token);
+            if (!enrolledIds.includes(parseInt(courseId))) {
+              toast.error('غير مصرح لك بمشاهدة المحتوى! يرجى الاشتراك في الكورس أولاً.');
+              navigate('/courses');
+              return;
+            }
+          }
+
+          const savedVideoProgress = localStorage.getItem(`video_progress_${user.id}`);
+          if (savedVideoProgress) setCompletedVideos(new Set(JSON.parse(savedVideoProgress)));
+
+          const savedLessonProgress = localStorage.getItem(`progress_${user.id}`);
+          if (savedLessonProgress) setCompletedLessons(new Set(JSON.parse(savedLessonProgress)));
+
           const data: any = await apiCall(`/api/courses/${courseId}/progress`, token);
           if (data && data.completedLessons && Array.isArray(data.completedLessons)) {
             setCompletedLessons(prev => {
@@ -133,8 +142,8 @@ export default function Course() {
         }
       }
     };
-    loadProgress();
-  }, [user, token, courseId, handleApiError]);
+    verifyAndLoadProgress();
+  }, [user, token, courseId, navigate, handleApiError]);
 
   const saveProgressLocally = useCallback(() => {
     if (user) {
@@ -264,7 +273,7 @@ export default function Course() {
 
     playerRef.current = new window.YT.Player('player', {
       videoId,
-      playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, modestbranding: 1, rel: 0, showinfo: 0 },
+      playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, modestbranding: 1, rel: 0, showinfo: 0, origin: window.location.origin },
       events: {
         onReady: (event) => { event.target.playVideo(); event.target.setPlaybackRate(1); },
         onStateChange: (event) => handlePlayerStateChange(event.data),
@@ -294,6 +303,7 @@ export default function Course() {
           const duration = playerRef.current.getDuration();
           setCurrentTime(current);
 
+          // الحفظ الصامت قبل 10 ثواني، ثم الاحتفال بعد 11 ثانية لضمان المشاهدة الكاملة
           if (duration > 0 && current > 0 && (duration - current <= 10)) {
             if (!videoSavedRef.current) {
               videoSavedRef.current = true;
@@ -301,7 +311,7 @@ export default function Course() {
               
               celebrationTimeoutRef.current = setTimeout(() => {
                 handleVideoCelebration();
-              }, 10000);
+              }, 11000); // 11 ثانية بدلاً من 10 لضمان انتهاء الفيديو تماماً
             }
           }
         }
@@ -313,6 +323,7 @@ export default function Course() {
         videoIntervalRef.current = null;
       }
       
+      // إذا وصل يوتيوب للنهاية الطبيعية قبل الـ 11 ثانية، سيتم الاحتفال فوراً
       if (state === window.YT.PlayerState.ENDED) {
         if (celebrationTimeoutRef.current) clearTimeout(celebrationTimeoutRef.current);
         handleVideoCelebration();
@@ -383,10 +394,10 @@ export default function Course() {
 
     import('canvas-confetti').then(confetti => {
       confetti.default({
-        particleCount: 80,
-        spread: 60,
+        particleCount: 100,
+        spread: 70,
         origin: { y: 0.6 },
-        colors: ['#10b981', '#015669', '#f59e0b']
+        colors: ['#10b981', '#015669', '#f59e0b', '#38bdf8']
       });
     });
 
@@ -606,32 +617,37 @@ export default function Course() {
         </div>
       </div>
 
-      {/* Inline Video Player - يظهر تحت الكورس عند التشغيل بحجم متناسق */}
+      {/* مشغل الفيديو: يظهر بحجم 16:9 قياسي، ويتحول لتجربة يوتيوب الكاملة في وضع ملء الشاشة */}
       {activeLessonId !== null && (
         <div id="video-player-section" className="mx-[5%] mb-10 flex justify-center animate-fade-in scroll-mt-6">
-          <div ref={videoContainerRef} className={`bg-[#0f172a] rounded-2xl overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.2)] flex flex-col w-full max-w-[800px] border border-slate-700 ${isFullscreen ? '!max-w-none !h-full !rounded-none !border-none' : ''}`}>
+          <div ref={videoContainerRef} className={`group bg-black rounded-2xl overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex flex-col w-full max-w-[854px] border border-slate-700 ${isFullscreen ? '!max-w-none !w-full !h-full !rounded-none !border-none' : ''}`}>
             
-            {/* زر إغلاق الفيديو */}
+            {/* زر إغلاق الفيديو في الوضع العادي */}
             {!isFullscreen && (
               <button 
                 onClick={closeVideo}
-                className="absolute top-4 right-4 bg-white/10 text-white border-none w-[40px] h-[40px] rounded-full text-xl cursor-pointer transition-all hover:bg-red-500 z-[20] flex items-center justify-center"
+                className="absolute top-4 right-4 bg-black/40 hover:bg-red-600 text-white border-none w-[40px] h-[40px] rounded-full text-xl cursor-pointer transition-all z-[30] flex items-center justify-center backdrop-blur-sm"
                 title="إغلاق الفيديو"
               >
                 <i className="fas fa-xmark"></i>
               </button>
             )}
 
-            <div className="yt-wrapper relative w-full pt-[56.25%] bg-black">
-              <div id="player" className="absolute top-0 left-0 w-full h-full"></div>
-              <div className="yt-overlay absolute top-0 left-0 w-full h-full z-10 cursor-pointer" onClick={togglePlayPause}></div>
+            {/* منطقة الفيديو 16:9 */}
+            <div className={`relative w-full ${isFullscreen ? 'flex-1 h-full' : 'aspect-video'} bg-black flex items-center justify-center`}>
+              <div id="player" className="absolute inset-0 w-full h-full pointer-events-none"></div>
+              {/* طبقة حماية شفافة لالتقاط نقرات التشغيل/الإيقاف وحماية الفيديو من السرقة */}
+              <div className="absolute inset-0 w-full h-full z-10 cursor-pointer" onClick={togglePlayPause}></div>
             </div>
             
-            <div className="bg-[#0f172a] p-4 px-6 flex flex-col gap-4 border-t border-slate-700 flex-shrink-0 z-20">
-              <div className="w-full h-3 bg-white/10 rounded-md cursor-pointer relative overflow-hidden transition-all hover:h-4" onClick={seekVideo}>
+            {/* شريط التحكم (يظهر دائمًا في الوضع العادي، ويختفي/يظهر في ملء الشاشة زي يوتيوب) */}
+            <div className={`${isFullscreen ? `absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/95 via-black/60 to-transparent pb-6 pt-16 px-8 transition-opacity duration-300 ${isVideoPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}` : 'bg-[#0f172a] p-4 px-6 border-t border-slate-700'} flex flex-col gap-4 flex-shrink-0 z-20`}>
+              {/* شريط التقدم */}
+              <div className="w-full h-2.5 bg-white/20 rounded-md cursor-pointer relative overflow-hidden transition-all hover:h-3.5" onClick={seekVideo}>
                 <div className="h-full bg-primary pointer-events-none transition-all" style={{ width: `${videoDuration ? (currentTime / videoDuration) * 100 : 0}%` }} />
               </div>
               
+              {/* أزرار التحكم */}
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-6">
                   <button onClick={() => skipVideo(-10)} className="bg-transparent text-white border-none text-2xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center" title="تأخير 10 ثواني"><i className="fas fa-backward-step"></i></button>
@@ -640,8 +656,8 @@ export default function Course() {
                 </div>
                 
                 <div className="flex items-center gap-5">
-                  <button onClick={cyclePlaybackRate} className="bg-transparent text-white border border-slate-600 px-4 py-2 rounded-lg text-sm font-bold cursor-pointer transition-all hover:bg-slate-700 hover:text-primary-light" title="سرعة التشغيل">{playbackRate}x</button>
-                  <div className="text-slate-300 font-bold text-[15px] font-mono tracking-wide" dir="ltr"><span>{formatTime(currentTime)}</span> / <span>{formatTime(videoDuration)}</span></div>
+                  <button onClick={cyclePlaybackRate} className="bg-transparent text-white border border-slate-600 px-3 py-1.5 rounded-lg text-sm font-bold cursor-pointer transition-all hover:bg-slate-700 hover:text-primary-light" title="سرعة التشغيل">{playbackRate}x</button>
+                  <div className="text-slate-300 font-bold text-[14px] font-mono tracking-wide" dir="ltr"><span>{formatTime(currentTime)}</span> / <span>{formatTime(videoDuration)}</span></div>
                   <button onClick={toggleFullscreen} className="bg-transparent text-white border-none text-xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center ml-2" title="ملء الشاشة"><i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i></button>
                   {isFullscreen && (
                      <button onClick={closeVideo} className="bg-transparent text-red-500 border-none text-2xl cursor-pointer transition-all hover:scale-110 flex items-center justify-center ml-2" title="إغلاق الفيديو"><i className="fas fa-xmark"></i></button>
@@ -707,7 +723,7 @@ export default function Course() {
                   <div className="p-5 flex flex-col gap-4 bg-[#fdfdfd] border-t border-border">
                     {videoUrls.map((vUrl, vIdx) => {
                       const isVideoCompleted = completedVideos.has(`${lesson.id}_${vIdx}`) || isCompleted;
-                      const isActiveVideo = activeLessonId === lesson.id && activeVideoIndex === vIdx;
+                      const isActiveVideo = ytDataRef.current.lesson?.id === lesson.id && ytDataRef.current.vIdx === vIdx && activeLessonId !== null;
                       
                       return (
                         <div 
@@ -815,7 +831,7 @@ export default function Course() {
                   {examScore}%
                 </div>
                 <div className={`text-[32px] font-bold mb-2.5 ${examScore >= 50 ? 'text-success' : 'text-red-500'}`}>
-                  {examScore >= 50 ? 'ممتاز! لقد اجتز الاختبار بنجاح' : 'للأسف، لم تجتز الاختبار'}
+                  {examScore >= 50 ? 'ممتاز! لقد اجتزت الاختبار بنجاح' : 'للأسف، لم تجتز الاختبار'}
                 </div>
                 <div className="text-xl text-text-muted mb-10">
                   أجبت بشكل صحيح على {Math.round((examScore / 100) * quizQuestions.length)} من أصل {quizQuestions.length} أسئلة
