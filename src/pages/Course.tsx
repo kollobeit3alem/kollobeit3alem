@@ -54,7 +54,7 @@ export default function Course() {
   const [expandedLesson, setExpandedLesson] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Session Expiry State
+  // نظام الجلسة الأحادية (Session Expiry)
   const [sessionExpired, setSessionExpired] = useState(false);
 
   // Video Inline State
@@ -80,7 +80,10 @@ export default function Course() {
   const videoIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
+  
   const isVideoEndingRef = useRef(false);
+  const videoSavedRef = useRef(false); // لمنع الحفظ أكثر من مرة
+  const celebrationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null); // مؤقت الاحتفال
 
   // الخزنة الحية لمنع تجمد المتغيرات وقت انتهاء الفيديو
   const ytDataRef = useRef<{ lesson: Lesson | null; vIdx: number; vTotal: number }>({
@@ -227,7 +230,14 @@ export default function Course() {
     setActiveLessonId(lesson.id);
     setActiveVideoIndex(vIdx);
     setPlaybackRate(1);
+    
+    // تصفير الإشارات والمؤقتات عند فتح فيديو جديد
     isVideoEndingRef.current = false;
+    videoSavedRef.current = false;
+    if (celebrationTimeoutRef.current) {
+      clearTimeout(celebrationTimeoutRef.current);
+      celebrationTimeoutRef.current = null;
+    }
     
     setTimeout(() => {
       document.getElementById('video-player-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -263,6 +273,17 @@ export default function Course() {
     });
   };
 
+  // دالة الحفظ الصامت في الداتابيز
+  const silentSaveVideoProgress = () => {
+    const { lesson, vIdx } = ytDataRef.current;
+    if (!lesson || !token) return;
+    const videoKey = `${lesson.id}_${vIdx}`;
+    
+    apiCall('/api/progress/video', token, 'POST', { 
+      courseId: courseId, lessonId: lesson.id, videoKey: videoKey 
+    }).catch(e => console.log(e));
+  };
+
   const handlePlayerStateChange = (state: number) => {
     if (state === window.YT.PlayerState.PLAYING) {
       setIsVideoPlaying(true);
@@ -275,9 +296,19 @@ export default function Course() {
           const duration = playerRef.current.getDuration();
           setCurrentTime(current);
 
+          // المنطق الذكي: إذا تبقى 10 ثواني أو أقل
           if (duration > 0 && current > 0 && (duration - current <= 10)) {
-            if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
-            handleVideoEnd();
+            if (!videoSavedRef.current) {
+              videoSavedRef.current = true;
+              
+              // 1. حفظ في السيرفر صامتاً
+              silentSaveVideoProgress();
+              
+              // 2. تشغيل مؤقت لمدة 10 ثواني (لحين انتهاء الفيديو طبيعياً) ليحتفل ويختفي
+              celebrationTimeoutRef.current = setTimeout(() => {
+                handleVideoCelebration();
+              }, 10000);
+            }
           }
         }
       }, 500);
@@ -287,8 +318,11 @@ export default function Course() {
         clearInterval(videoIntervalRef.current);
         videoIntervalRef.current = null;
       }
+      
+      // إذا وصل للنهاية فعلياً قبل الـ 10 ثواني (مثلاً كان يسرع الفيديو)
       if (state === window.YT.PlayerState.ENDED) {
-        handleVideoEnd();
+        if (celebrationTimeoutRef.current) clearTimeout(celebrationTimeoutRef.current);
+        handleVideoCelebration();
       }
     }
   };
@@ -339,7 +373,8 @@ export default function Course() {
     return `${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`;
   };
 
-  const handleVideoEnd = () => {
+  // دالة الاحتفال وإخفاء الفيديو التي تعمل بعد الـ 10 ثواني
+  const handleVideoCelebration = () => {
     if (isVideoEndingRef.current) return;
     isVideoEndingRef.current = true;
 
@@ -348,17 +383,22 @@ export default function Course() {
     
     const videoKey = `${lesson.id}_${vIdx}`;
 
+    // تحديث الواجهة بعلامة الصح
     setCompletedVideos(prev => {
       const newSet = new Set(prev);
       newSet.add(videoKey);
       return newSet;
     });
 
-    if (token) {
-      apiCall('/api/progress/video', token, 'POST', { 
-        courseId: courseId, lessonId: lesson.id, videoKey: videoKey 
-      }).catch(e => console.log(e));
-    }
+    // احتفال صغير لكل فيديو يتم إنجازه
+    import('canvas-confetti').then(confetti => {
+      confetti.default({
+        particleCount: 80,
+        spread: 60,
+        origin: { y: 0.6 },
+        colors: ['#10b981', '#015669', '#f59e0b']
+      });
+    });
 
     if (vIdx < vTotal - 1) {
       toast.success('تم إنهاء هذا الجزء بنجاح! يرجى تشغيل الجزء التالي من الشرح.');
@@ -377,6 +417,8 @@ export default function Course() {
           toast.success('تهانينا! لقد أنهيت المحاضرة بنجاح.');
           markLessonCompleted(lesson.id);
         }
+      } else {
+        toast.success('تم إنهاء هذا الجزء بنجاح!');
       }
       closeVideo();
     }
@@ -393,6 +435,11 @@ export default function Course() {
     if (videoIntervalRef.current) {
       clearInterval(videoIntervalRef.current);
       videoIntervalRef.current = null;
+    }
+
+    if (celebrationTimeoutRef.current) {
+      clearTimeout(celebrationTimeoutRef.current);
+      celebrationTimeoutRef.current = null;
     }
     
     setActiveLessonId(null);
@@ -491,7 +538,7 @@ export default function Course() {
       try {
         await apiCall('/api/progress', token, 'POST', { lessonId });
       } catch (error) {
-        console.error('Failed to save progress:', error);
+        handleApiError(error);
       }
     }
   };
@@ -507,6 +554,7 @@ export default function Course() {
     return () => {
       if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      if (celebrationTimeoutRef.current) clearTimeout(celebrationTimeoutRef.current);
     };
   }, []);
 
@@ -669,7 +717,7 @@ export default function Course() {
                   <div className="p-5 flex flex-col gap-4 bg-[#fdfdfd] border-t border-border">
                     {videoUrls.map((vUrl, vIdx) => {
                       const isVideoCompleted = completedVideos.has(`${lesson.id}_${vIdx}`) || isCompleted;
-                      const isActiveVideo = activeLessonId === lesson.id && activeVideoIndex === vIdx;
+                      const isActiveVideo = ytDataRef.current.lesson?.id === lesson.id && ytDataRef.current.vIdx === vIdx && activeLessonId !== null;
                       
                       return (
                         <div 
