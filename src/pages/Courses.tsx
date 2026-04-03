@@ -13,6 +13,9 @@ export default function Courses() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [activationCode, setActivationCode] = useState('');
+  
+  // حالة لمنع الضغط المزدوج أثناء التسجيل
+  const [isEnrolling, setIsEnrolling] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -54,12 +57,21 @@ export default function Courses() {
 
   const handleEnroll = async (courseId: number, code?: string) => {
     if (!token) return;
+    
+    setIsEnrolling(true);
     try {
+      // إرسال طلب الاشتراك (سواء مجاني أو بكود مدفوع) ليتم حفظه في التقارير
       await apiCall('/api/enroll', token, 'POST', { course_id: courseId, code });
+      
+      // تحديث حالة الواجهة محلياً فوراً لضمان المزامنة
+      setEnrolledCourseIds(prev => [...prev, courseId]);
+      
       toast.success('تم الاشتراك بنجاح!');
       navigate(`/course?id=${courseId}`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'فشل الاشتراك');
+      toast.error(error instanceof Error ? error.message : 'فشل الاشتراك. تأكد من صحة الكود.');
+    } finally {
+      setIsEnrolling(false);
     }
   };
 
@@ -77,7 +89,7 @@ export default function Courses() {
 
   const activateCourse = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCourse || !activationCode.trim()) return;
+    if (!selectedCourse || !activationCode.trim() || isEnrolling) return;
     
     await handleEnroll(selectedCourse.id, activationCode.trim().toUpperCase());
     closePaymentModal();
@@ -103,8 +115,8 @@ export default function Courses() {
     } else if (isFree) {
       return {
         badge: <span className="badge-free absolute top-4 right-4 shadow-lg z-10">مجاني</span>,
-        button: <button className="bg-emerald-100 text-emerald-600 px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all group-hover:bg-emerald-500 group-hover:text-white">اشترك مجاناً <i className="fas fa-bolt"></i></button>,
-        action: () => handleEnroll(course.id),
+        button: <button disabled={isEnrolling} className="bg-emerald-100 text-emerald-600 px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all group-hover:bg-emerald-500 group-hover:text-white disabled:opacity-50">اشترك مجاناً <i className="fas fa-bolt"></i></button>,
+        action: () => !isEnrolling && handleEnroll(course.id),
       };
     } else {
       return {
@@ -249,13 +261,16 @@ export default function Courses() {
                   onChange={(e) => setActivationCode(e.target.value)}
                   placeholder="أدخل الكود هنا (مثال: AB12CD34)" 
                   required
-                  className="w-full p-4 border-2 border-border rounded-xl text-base text-center uppercase bg-page-bg focus:border-primary focus:outline-none focus:bg-white"
+                  disabled={isEnrolling}
+                  className="w-full p-4 border-2 border-border rounded-xl text-base text-center uppercase bg-page-bg focus:border-primary focus:outline-none focus:bg-white disabled:opacity-50"
                 />
                 <button 
                   type="submit" 
-                  className="bg-primary text-white border-none py-4 rounded-xl font-bold cursor-pointer text-base transition-all hover:shadow-[0_5px_15px_var(--primary-light)] hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                  disabled={isEnrolling}
+                  className="bg-primary text-white border-none py-4 rounded-xl font-bold cursor-pointer text-base transition-all hover:shadow-[0_5px_15px_var(--primary-light)] hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  <i className="fas fa-check-circle"></i> تفعيل الدورة وبدء التعلم
+                  {isEnrolling ? <i className="fas fa-circle-notch fa-spin"></i> : <i className="fas fa-check-circle"></i>} 
+                  {isEnrolling ? 'جاري التفعيل...' : 'تفعيل الدورة وبدء التعلم'}
                 </button>
               </form>
             </div>
