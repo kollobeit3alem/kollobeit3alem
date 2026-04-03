@@ -42,7 +42,7 @@ interface YTPlayer {
   getAvailablePlaybackRates: () => number[];
 }
 
-export default function CoursePage() {
+export default function Course() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, token, isAuthenticated } = useAuth();
@@ -54,8 +54,10 @@ export default function CoursePage() {
   const [expandedLesson, setExpandedLesson] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Video Modal State
-  const [showVideoModal, setShowVideoModal] = useState(false);
+  // نظام الجلسة الأحادية (Session Expiry)
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Video Inline State
   const [activeLessonId, setActiveLessonId] = useState<number | null>(null);
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
   const [activeVideoTotal, setActiveVideoTotal] = useState(1);
@@ -79,39 +81,54 @@ export default function CoursePage() {
   const videoIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
-  
-  // Ref لمنع تشغيل دالة إنهاء الفيديو مرتين في نفس اللحظة
   const isVideoEndingRef = useRef(false);
   
   const courseId = searchParams.get('id');
+
+  // معالج الأخطاء للتحقق من الجلسة
+  const handleApiError = useCallback((error: any) => {
+    const errorMsg = error?.message || '';
+    if (errorMsg.includes('جهاز آخر') || errorMsg.includes('Session') || errorMsg.includes('Unauthorized')) {
+      setSessionExpired(true);
+    } else {
+      console.error(error);
+    }
+  }, []);
 
   // Load saved progress from Database (Fallback to localStorage)
   useEffect(() => {
     const loadProgress = async () => {
       if (user && token && courseId) {
+        const savedVideoProgress = localStorage.getItem(`video_progress_${user.id}`);
+        if (savedVideoProgress) setCompletedVideos(new Set(JSON.parse(savedVideoProgress)));
+
+        const savedLessonProgress = localStorage.getItem(`progress_${user.id}`);
+        if (savedLessonProgress) setCompletedLessons(new Set(JSON.parse(savedLessonProgress)));
+
         try {
           const data: any = await apiCall(`/api/courses/${courseId}/progress`, token);
-          
-          if (data && data.completedLessons) {
-            setCompletedLessons(new Set(data.completedLessons));
+          if (data && data.completedLessons && Array.isArray(data.completedLessons)) {
+            setCompletedLessons(prev => {
+              const merged = new Set([...prev, ...data.completedLessons]);
+              localStorage.setItem(`progress_${user.id}`, JSON.stringify(Array.from(merged)));
+              return merged;
+            });
           }
-          if (data && data.completedVideos) {
-            setCompletedVideos(new Set(data.completedVideos));
+          if (data && data.completedVideos && Array.isArray(data.completedVideos)) {
+            setCompletedVideos(prev => {
+              const merged = new Set([...prev, ...data.completedVideos]);
+              localStorage.setItem(`video_progress_${user.id}`, JSON.stringify(Array.from(merged)));
+              return merged;
+            });
           }
         } catch (error) {
-          console.error('Failed to load progress from DB, using fallback:', error);
-          const savedProgress = localStorage.getItem(`progress_${user.id}`);
-          if (savedProgress) setCompletedLessons(new Set(JSON.parse(savedProgress)));
-          
-          const savedVideoProgress = localStorage.getItem(`video_progress_${user.id}`);
-          if (savedVideoProgress) setCompletedVideos(new Set(JSON.parse(savedVideoProgress)));
+          handleApiError(error);
         }
       }
     };
     loadProgress();
-  }, [user, token, courseId]);
+  }, [user, token, courseId, handleApiError]);
 
-  // Save progress locally as a backup
   const saveProgressLocally = useCallback(() => {
     if (user) {
       localStorage.setItem(`progress_${user.id}`, JSON.stringify(Array.from(completedLessons)));
@@ -129,13 +146,11 @@ export default function CoursePage() {
     try {
       const courses = await apiCall('/api/courses', token) as Course[];
       const foundCourse = courses.find(c => c.id === parseInt(courseId));
-      if (foundCourse) {
-        setCourse(foundCourse);
-      }
+      if (foundCourse) setCourse(foundCourse);
     } catch (error) {
-      console.error('Failed to load course details:', error);
+      handleApiError(error);
     }
-  }, [token, courseId]);
+  }, [token, courseId, handleApiError]);
 
   // Fetch lessons
   const fetchLessons = useCallback(async () => {
@@ -153,66 +168,51 @@ export default function CoursePage() {
           }
         })
       );
-      
       setLessons(lessonsWithQuiz);
     } catch (error) {
-      console.error('Failed to load lessons:', error);
-      toast.error('فشل تحميل المحاضرات');
+      handleApiError(error);
     } finally {
       setIsLoading(false);
     }
-  }, [token, courseId]);
+  }, [token, courseId, handleApiError]);
 
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/');
       return;
     }
-    if (courseId) {
+    if (courseId && !sessionExpired) {
       fetchCourseDetails();
       fetchLessons();
     }
-  }, [isAuthenticated, courseId, navigate, fetchCourseDetails, fetchLessons]);
+  }, [isAuthenticated, courseId, navigate, fetchCourseDetails, fetchLessons, sessionExpired]);
 
   // Listen to fullscreen changes
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
+    const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    };
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
-  // Check if lesson is locked
   const isLessonLocked = (lesson: Lesson, index: number): { locked: boolean; message: string } => {
-    if (lesson.is_admin_locked === 1) {
-      return { locked: true, message: 'هذه المحاضرة مغلقة حالياً من قبل الإدارة.' };
-    }
-    
+    if (lesson.is_admin_locked === 1) return { locked: true, message: 'هذه المحاضرة مغلقة حالياً من الإدارة.' };
     if (index > 0) {
       const prevLesson = lessons[index - 1];
       if (!completedLessons.has(prevLesson.id)) {
         return { locked: true, message: 'عذراً، يجب إتمام المحاضرة السابقة أولاً لتتمكن من فتح هذه المحاضرة.' };
       }
     }
-    
     return { locked: false, message: '' };
   };
 
-  // Toggle accordion
   const toggleAccordion = (lessonId: number, index: number) => {
     const lesson = lessons.find(l => l.id === lessonId);
     if (!lesson) return;
-    
     const { locked } = isLessonLocked(lesson, index);
     if (locked) return;
-    
     setExpandedLesson(expandedLesson === lessonId ? null : lessonId);
   };
 
-  // Extract YouTube video ID
   const extractVideoID = (url: string): string => {
     if (!url) return '';
     if (url.includes('v=')) return url.split('v=')[1].split('&')[0];
@@ -220,14 +220,17 @@ export default function CoursePage() {
     return url;
   };
 
-  // Open video modal
   const openVideo = (lesson: Lesson, videoUrl: string, vIdx: number, vTotal: number) => {
     setActiveLessonId(lesson.id);
     setActiveVideoIndex(vIdx);
     setActiveVideoTotal(vTotal);
     setPlaybackRate(1);
-    isVideoEndingRef.current = false; // إعادة ضبط حالة نهاية الفيديو
-    setShowVideoModal(true);
+    isVideoEndingRef.current = false;
+    
+    // الصعود للأعلى بسلاسة لرؤية الفيديو
+    setTimeout(() => {
+      document.getElementById('top-section')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
     
     const videoId = extractVideoID(videoUrl);
     
@@ -237,10 +240,7 @@ export default function CoursePage() {
         tag.src = 'https://www.youtube.com/iframe_api';
         const firstScriptTag = document.getElementsByTagName('script')[0];
         firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
-        
-        window.onYouTubeIframeAPIReady = () => {
-          initPlayer(videoId);
-        };
+        window.onYouTubeIframeAPIReady = () => initPlayer(videoId);
       } else {
         initPlayer(videoId);
       }
@@ -249,30 +249,15 @@ export default function CoursePage() {
 
   const initPlayer = (videoId: string) => {
     if (playerRef.current && typeof playerRef.current.destroy === 'function') {
-      try {
-        playerRef.current.destroy();
-      } catch (e) {}
+      try { playerRef.current.destroy(); } catch (e) {}
     }
 
     playerRef.current = new window.YT.Player('player', {
       videoId,
-      playerVars: {
-        autoplay: 1,
-        controls: 0,
-        disablekb: 1,
-        fs: 0,
-        modestbranding: 1,
-        rel: 0,
-        showinfo: 0,
-      },
+      playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, modestbranding: 1, rel: 0, showinfo: 0 },
       events: {
-        onReady: (event) => {
-          event.target.playVideo();
-          event.target.setPlaybackRate(1);
-        },
-        onStateChange: (event) => {
-          handlePlayerStateChange(event.data);
-        },
+        onReady: (event) => { event.target.playVideo(); event.target.setPlaybackRate(1); },
+        onStateChange: (event) => handlePlayerStateChange(event.data),
       },
     });
   };
@@ -280,9 +265,7 @@ export default function CoursePage() {
   const handlePlayerStateChange = (state: number) => {
     if (state === window.YT.PlayerState.PLAYING) {
       setIsVideoPlaying(true);
-      if (playerRef.current) {
-        setVideoDuration(playerRef.current.getDuration());
-      }
+      if (playerRef.current) setVideoDuration(playerRef.current.getDuration());
       
       if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
       videoIntervalRef.current = setInterval(() => {
@@ -291,7 +274,6 @@ export default function CoursePage() {
           const duration = playerRef.current.getDuration();
           setCurrentTime(current);
 
-          // الحل الجذري: ننهي الفيديو يدوياً إذا تبقى أقل من نصف ثانية (تجنب مشكلة توقف الـ API عند السرعة 1x)
           if (duration > 0 && current >= duration - 0.5) {
             if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
             handleVideoEnd();
@@ -304,7 +286,6 @@ export default function CoursePage() {
         clearInterval(videoIntervalRef.current);
         videoIntervalRef.current = null;
       }
-      
       if (state === window.YT.PlayerState.ENDED) {
         handleVideoEnd();
       }
@@ -313,11 +294,8 @@ export default function CoursePage() {
 
   const togglePlayPause = () => {
     if (!playerRef.current) return;
-    if (isVideoPlaying) {
-      playerRef.current.pauseVideo();
-    } else {
-      playerRef.current.playVideo();
-    }
+    if (isVideoPlaying) playerRef.current.pauseVideo();
+    else playerRef.current.playVideo();
   };
 
   const seekVideo = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -325,7 +303,6 @@ export default function CoursePage() {
     const rect = e.currentTarget.getBoundingClientRect();
     const percent = (e.clientX - rect.left) / rect.width;
     let seekTime = percent * videoDuration;
-    
     playerRef.current.seekTo(seekTime, true);
     setCurrentTime(seekTime);
   };
@@ -334,10 +311,8 @@ export default function CoursePage() {
     if (!playerRef.current || !videoDuration) return;
     const current = playerRef.current.getCurrentTime();
     let newTime = current + seconds;
-    
     if (newTime < 0) newTime = 0;
     if (newTime > videoDuration) newTime = videoDuration;
-    
     playerRef.current.seekTo(newTime, true);
   };
 
@@ -345,20 +320,13 @@ export default function CoursePage() {
     const rates = [0.5, 1, 1.25, 1.5, 2];
     const currentIndex = rates.indexOf(playbackRate);
     const nextRate = rates[(currentIndex + 1) % rates.length];
-    
     setPlaybackRate(nextRate);
-    if (playerRef.current) {
-      playerRef.current.setPlaybackRate(nextRate);
-    }
+    if (playerRef.current) playerRef.current.setPlaybackRate(nextRate);
   };
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      if (videoContainerRef.current) {
-        videoContainerRef.current.requestFullscreen().catch((err) => {
-          toast.error(`لا يمكن تفعيل ملء الشاشة: ${err.message}`);
-        });
-      }
+      if (videoContainerRef.current) videoContainerRef.current.requestFullscreen().catch(() => {});
     } else {
       document.exitFullscreen();
     }
@@ -366,13 +334,11 @@ export default function CoursePage() {
 
   const formatTime = (seconds: number): string => {
     if (!seconds) return '00:00';
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
+    const m = Math.floor(seconds / 60); const s = Math.floor(seconds % 60);
     return `${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`;
   };
 
-  const handleVideoEnd = async () => {
-    // نمنع تشغيل الدالة مرتين في نفس الوقت لو اليوتيوب بعت ENDED واحنا كنا مخلصينه يدوياً
+  const handleVideoEnd = () => {
     if (isVideoEndingRef.current) return;
     isVideoEndingRef.current = true;
 
@@ -381,61 +347,39 @@ export default function CoursePage() {
     
     const videoKey = `${activeLessonId}_${activeVideoIndex}`;
 
-    // 1. تعليم الفيديو كمنتهي لتحديث الشاشة فوراً
+    // Update UI immediately
     setCompletedVideos(prev => {
       const newSet = new Set(prev);
       newSet.add(videoKey);
       return newSet;
     });
 
-    // 2. إرسال التقدم لقاعدة البيانات في الخلفية للحفظ الفوري
+    // Save to DB in background
     if (token) {
-      try {
-        await apiCall('/api/progress/video', token, 'POST', { 
-          courseId: course?.id,
-          lessonId: activeLessonId, 
-          videoKey: videoKey 
-        });
-      } catch (error) {
-        console.error('Failed to save video progress to DB:', error);
-      }
+      apiCall('/api/progress/video', token, 'POST', { 
+        courseId: course?.id, lessonId: activeLessonId, videoKey: videoKey 
+      }).catch(e => handleApiError(e));
     }
 
-    // 3. التحقق مما إذا كان هناك أجزاء أخرى
     if (activeVideoIndex < activeVideoTotal - 1) {
-      toast.success('تم إنهاء هذا الجزء بنجاح! يرجى تشغيل الجزء التالي.');
-      closeVideo();
-      return;
+      toast.success('تم إنهاء هذا الجزء بنجاح! يرجى تشغيل الجزء التالي من الشرح.');
+    } else if (!completedLessons.has(lesson.id)) {
+      if (lesson.hasQuiz) {
+        toast.success('ممتاز! لقد أكملت جميع الفيديوهات، يرجى فتح الامتحان لإتمام المحاضرة.');
+      } else {
+        toast.success('تهانينا! لقد أنهيت المحاضرة بنجاح.');
+        markLessonCompleted(lesson.id);
+      }
     }
     
-    // 4. إذا كانت المحاضرة منتهية من قبل
-    if (completedLessons.has(lesson.id)) {
-      closeVideo();
-      return;
-    }
-    
-    // 5. إذا كان هناك امتحان
-    if (lesson.hasQuiz) {
-      toast.success('ممتاز! لقد أكملت جميع الفيديوهات، يرجى فتح الامتحان لإتمام المحاضرة.');
-      closeVideo();
-    } else {
-      // 6. إذا لم يكن هناك امتحان
-      toast.success('تهانينا! لقد أنهيت المحاضرة بنجاح.');
-      closeVideo();
-      markLessonCompleted(lesson.id);
-    }
+    closeVideo();
   };
 
   const closeVideo = () => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
-    }
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     
     if (playerRef.current) {
-      try {
-        playerRef.current.stopVideo();
-        playerRef.current.destroy();
-      } catch(e) {}
+      try { playerRef.current.stopVideo(); playerRef.current.destroy(); } catch(e) {}
       playerRef.current = null;
     }
     
@@ -444,17 +388,15 @@ export default function CoursePage() {
       videoIntervalRef.current = null;
     }
     
-    setShowVideoModal(false);
+    setActiveLessonId(null);
   };
 
-  // Open exam with checking videos
   const openExam = (lesson: Lesson) => {
     if (completedLessons.has(lesson.id)) {
       toast.info('لقد اجتزت هذا الاختبار مسبقاً بنجاح!');
       return;
     }
 
-    // فحص صارم: هل شاهد الطالب كل أجزاء الفيديو؟
     const videoUrls = lesson.video_url.split(/[,|\s]+/).filter(url => url.trim() !== '');
     let allVideosWatched = true;
     for (let i = 0; i < videoUrls.length; i++) {
@@ -478,14 +420,10 @@ export default function CoursePage() {
     setExamScore(0);
     setShowExamModal(true);
     
-    // Start timer
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     timerIntervalRef.current = setInterval(() => {
       setTimeRemaining(prev => {
-        if (prev <= 1) {
-          submitExam();
-          return 0;
-        }
+        if (prev <= 1) { submitExam(); return 0; }
         return prev - 1;
       });
     }, 1000);
@@ -499,21 +437,9 @@ export default function CoursePage() {
     }
   };
 
-  const chooseAnswer = (option: string) => {
-    setUserAnswers(prev => ({ ...prev, [currentQIndex]: option }));
-  };
-
-  const nextQuestion = () => {
-    if (currentQIndex < quizQuestions.length - 1) {
-      setCurrentQIndex(prev => prev + 1);
-    }
-  };
-
-  const prevQuestion = () => {
-    if (currentQIndex > 0) {
-      setCurrentQIndex(prev => prev - 1);
-    }
-  };
+  const chooseAnswer = (option: string) => setUserAnswers(prev => ({ ...prev, [currentQIndex]: option }));
+  const nextQuestion = () => { if (currentQIndex < quizQuestions.length - 1) setCurrentQIndex(prev => prev + 1); };
+  const prevQuestion = () => { if (currentQIndex > 0) setCurrentQIndex(prev => prev - 1); };
 
   const submitExam = () => {
     if (timerIntervalRef.current) {
@@ -523,9 +449,7 @@ export default function CoursePage() {
     
     let score = 0;
     for (let i = 0; i < quizQuestions.length; i++) {
-      if (userAnswers[i] === quizQuestions[i].correct_option) {
-        score++;
-      }
+      if (userAnswers[i] === quizQuestions[i].correct_option) score++;
     }
     
     const percentage = Math.round((score / quizQuestions.length) * 100);
@@ -537,53 +461,37 @@ export default function CoursePage() {
     }
   };
 
-  // Mark lesson as completed (Saves to DB)
   const markLessonCompleted = async (lessonId: number) => {
     if (completedLessons.has(lessonId)) return;
-    
     if (!token) return;
     
-    // Trigger confetti
     import('canvas-confetti').then(confetti => {
-      const duration = 3000;
-      const end = Date.now() + duration;
-      
+      const duration = 3000; const end = Date.now() + duration;
       const frame = () => {
-        confetti.default({
-          particleCount: 6,
-          angle: 60,
-          spread: 55,
-          origin: { x: 0 },
-          colors: ['#10b981', '#015669', '#f59e0b'],
-        });
-        confetti.default({
-          particleCount: 6,
-          angle: 120,
-          spread: 55,
-          origin: { x: 1 },
-          colors: ['#10b981', '#015669', '#f59e0b'],
-        });
-        if (Date.now() < end) {
-          requestAnimationFrame(frame);
-        }
+        confetti.default({ particleCount: 6, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#10b981', '#015669', '#f59e0b'] });
+        confetti.default({ particleCount: 6, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#10b981', '#015669', '#f59e0b'] });
+        if (Date.now() < end) requestAnimationFrame(frame);
       };
       frame();
     });
     
-    setCompletedLessons(prev => {
-      const newSet = new Set(prev);
-      newSet.add(lessonId);
-      return newSet;
-    });
+    setCompletedLessons(prev => new Set(prev).add(lessonId));
     
     try {
       await apiCall('/api/progress', token, 'POST', { lessonId });
     } catch (error) {
-      console.error('Failed to save progress:', error);
+      handleApiError(error);
     }
   };
 
-  // Cleanup on unmount
+  // تسجيل الخروج الإجباري عند انتهاء الجلسة
+  const handleForceLogout = () => {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('user_info');
+    navigate('/');
+    window.location.reload();
+  };
+
   useEffect(() => {
     return () => {
       if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
@@ -594,7 +502,29 @@ export default function CoursePage() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-page-bg flex flex-col" onContextMenu={(e) => e.preventDefault()}>
+    <div className="min-h-screen bg-page-bg flex flex-col relative" id="top-section" onContextMenu={(e) => e.preventDefault()}>
+      
+      {/* مودال انتهاء الصلاحية الأنيق */}
+      {sessionExpired && (
+        <div className="fixed top-0 left-0 w-full h-full bg-slate-900/60 flex justify-center items-center z-[9999] backdrop-blur-sm">
+          <div className="bg-white p-8 rounded-3xl w-[90%] max-w-[420px] text-center shadow-[0_20px_60px_rgba(0,0,0,0.2)] animate-fade-in border border-border">
+            <div className="w-24 h-24 rounded-full border-[5px] border-orange-100 bg-orange-50 flex items-center justify-center mx-auto mb-6">
+              <span className="text-orange-400 text-5xl font-bold">!</span>
+            </div>
+            <h2 className="text-[22px] text-slate-800 font-bold mb-3">تم انتهاء صلاحية تسجيل دخولك</h2>
+            <p className="text-slate-500 mb-8 text-[15px] leading-relaxed">
+              في حد دخل على حسابك من جهاز تاني، أو انتهت جلستك. يرجى إعادة تسجيل الدخول لمتابعة التعلم.
+            </p>
+            <button
+              onClick={handleForceLogout}
+              className="bg-[#38bdf8] text-white border-none py-3.5 px-8 rounded-xl font-bold text-lg cursor-pointer w-full hover:bg-[#0284c7] transition-all shadow-[0_5px_15px_rgba(56,189,248,0.3)] hover:-translate-y-0.5"
+            >
+              تسجيل الدخول مجدداً
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white py-4 px-[5%] flex justify-between items-center shadow-[0_4px_20px_rgba(0,0,0,0.04)] sticky top-0 z-[100] border-b-[3px] border-b-primary">
         <Link to="/courses" className="flex items-center gap-2.5 no-underline">
@@ -609,25 +539,73 @@ export default function CoursePage() {
         </div>
       </header>
 
-      {/* Course Hero */}
-      <div className="bg-white mx-[5%] my-5 rounded-2xl overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.03)] flex flex-col relative border border-border">
-        <img 
-          src={course?.image_url || 'https://via.placeholder.com/1200x400/015669/ffffff?text=جاري+التحميل...'} 
-          className="w-full h-[250px] object-cover bg-slate-200"
-          alt="غلاف الكورس"
-        />
-        <div className="p-6 text-center">
-          <h2 className="text-[26px] text-primary mb-2.5 font-bold">{course?.title || 'جاري تحميل بيانات الكورس...'}</h2>
-          <p className="text-text-muted text-base mb-5">{course?.description || 'دورة تدريبية متميزة'}</p>
-          <div className="bg-primary text-white border-none py-3 px-8 rounded-xl text-base font-bold inline-block">
-            <i className="fas fa-graduation-cap ml-2"></i> أنت مشترك في هذا الكورس
+      {/* منطقة الغلاف (تتبدل بين صورة الكورس ومشغل الفيديو) */}
+      <div className="mx-[5%] my-5 relative">
+        {activeLessonId === null ? (
+          // Course Hero
+          <div className="bg-white rounded-2xl overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.03)] flex flex-col relative border border-border">
+            <img 
+              src={course?.image_url || 'https://via.placeholder.com/1200x400/015669/ffffff?text=جاري+التحميل...'} 
+              className="w-full h-[250px] object-cover bg-slate-200"
+              alt="غلاف الكورس"
+            />
+            <div className="p-6 text-center">
+              <h2 className="text-[26px] text-primary mb-2.5 font-bold">{course?.title || 'جاري تحميل بيانات الكورس...'}</h2>
+              <p className="text-text-muted text-base mb-5">{course?.description || 'دورة تدريبية متميزة'}</p>
+              <div className="bg-primary text-white border-none py-3 px-8 rounded-xl text-base font-bold inline-block">
+                <i className="fas fa-graduation-cap ml-2"></i> أنت مشترك في هذا الكورس
+              </div>
+            </div>
           </div>
-        </div>
+        ) : (
+          // Inline Video Player
+          <div ref={videoContainerRef} className={`bg-[#0f172a] rounded-2xl overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.2)] flex flex-col w-full max-w-[1000px] mx-auto border border-slate-700 ${isFullscreen ? '!w-full !max-w-none !h-full !rounded-none !border-none' : ''}`}>
+            
+            {/* زر إغلاق الفيديو للعودة للغلاف */}
+            {!isFullscreen && (
+              <button 
+                onClick={closeVideo}
+                className="absolute top-4 right-4 bg-white/10 text-white border-none w-[40px] h-[40px] rounded-full text-xl cursor-pointer transition-all hover:bg-red-500 z-[20] flex items-center justify-center"
+                title="إغلاق الفيديو"
+              >
+                <i className="fas fa-xmark"></i>
+              </button>
+            )}
+
+            <div className="yt-wrapper relative w-full pt-[56.25%]">
+              <div id="player" className="absolute top-0 left-0 w-full h-full"></div>
+              <div className="yt-overlay absolute top-0 left-0 w-full h-full z-10 cursor-pointer" onClick={togglePlayPause}></div>
+            </div>
+            
+            <div className="bg-[#0f172a] p-4 flex flex-col gap-3 border-t border-slate-700 flex-shrink-0 z-20">
+              <div className="w-full h-2.5 bg-white/10 rounded-md cursor-pointer relative overflow-hidden transition-all hover:h-3.5" onClick={seekVideo}>
+                <div className="h-full bg-primary pointer-events-none transition-all" style={{ width: `${videoDuration ? (currentTime / videoDuration) * 100 : 0}%` }} />
+              </div>
+              
+              <div className="flex justify-between items-center px-2">
+                <div className="flex items-center gap-5">
+                  <button onClick={() => skipVideo(-10)} className="bg-transparent text-white border-none text-xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center"><i className="fas fa-backward-step"></i></button>
+                  <button onClick={togglePlayPause} className="bg-transparent text-primary-light border-none text-[28px] cursor-pointer transition-all hover:scale-110 flex items-center justify-center"><i className={`fas ${isVideoPlaying ? 'fa-circle-pause' : 'fa-circle-play'}`}></i></button>
+                  <button onClick={() => skipVideo(10)} className="bg-transparent text-white border-none text-xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center"><i className="fas fa-forward-step"></i></button>
+                </div>
+                
+                <div className="flex items-center gap-4">
+                  <button onClick={cyclePlaybackRate} className="bg-transparent text-white border border-slate-600 px-3 py-1.5 rounded-lg text-sm font-bold cursor-pointer transition-all hover:bg-slate-700 hover:text-primary-light">{playbackRate}x</button>
+                  <div className="text-slate-400 font-bold text-[14px] font-mono tracking-wide" dir="ltr"><span>{formatTime(currentTime)}</span> / <span>{formatTime(videoDuration)}</span></div>
+                  <button onClick={toggleFullscreen} className="bg-transparent text-white border-none text-xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center ml-2"><i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i></button>
+                  {isFullscreen && (
+                     <button onClick={closeVideo} className="bg-transparent text-red-500 border-none text-2xl cursor-pointer transition-all hover:scale-110 flex items-center justify-center ml-2"><i className="fas fa-xmark"></i></button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Section Header */}
-      <div className="text-center my-8 mb-5">
-        <h3 className="text-[32px] text-primary relative inline-block font-bold after:content-[''] after:absolute after:-bottom-2.5 after:left-1/2 after:-translate-x-1/2 after:w-[60%] after:h-1 after:bg-border after:rounded-sm">محتوى الكورس</h3>
+      <div className="text-center my-6 mb-4">
+        <h3 className="text-[30px] text-primary relative inline-block font-bold after:content-[''] after:absolute after:-bottom-2.5 after:left-1/2 after:-translate-x-1/2 after:w-[60%] after:h-1 after:bg-border after:rounded-sm">محتوى الكورس</h3>
       </div>
 
       {/* Accordion Container */}
@@ -675,12 +653,11 @@ export default function CoursePage() {
                   </div>
                 </div>
                 
-                <div 
-                  className={`overflow-hidden transition-all duration-400 ${isExpanded ? 'max-h-[1000px]' : 'max-h-0'}`}
-                >
+                <div className={`overflow-hidden transition-all duration-400 ${isExpanded ? 'max-h-[1000px]' : 'max-h-0'}`}>
                   <div className="p-5 flex flex-col gap-4 bg-[#fdfdfd] border-t border-border">
                     {videoUrls.map((vUrl, vIdx) => {
                       const isVideoCompleted = completedVideos.has(`${lesson.id}_${vIdx}`) || isCompleted;
+                      const isActiveVideo = activeLessonId === lesson.id && activeVideoIndex === vIdx;
                       
                       return (
                         <div 
@@ -689,15 +666,17 @@ export default function CoursePage() {
                           className={`p-4 px-6 rounded-xl flex justify-between items-center cursor-pointer transition-all hover:-translate-x-1 font-bold text-lg ${
                             isVideoCompleted 
                               ? 'bg-success/10 border border-success/30 text-success' 
-                              : 'bg-warning/10 border border-warning/30 hover:shadow-[0_5px_15px_rgba(245,158,11,0.15)] text-red-500'
+                              : isActiveVideo 
+                                ? 'bg-primary/10 border border-primary text-primary shadow-[0_5px_15px_rgba(1,86,105,0.15)]'
+                                : 'bg-warning/10 border border-warning/30 hover:shadow-[0_5px_15px_rgba(245,158,11,0.15)] text-red-500'
                           }`}
                         >
                           <div className="flex items-center gap-4">
-                            <i className={`${isVideoCompleted ? 'fas fa-circle-check' : 'fas fa-video'} text-2xl`}></i>
+                            <i className={`${isVideoCompleted ? 'fas fa-circle-check' : isActiveVideo ? 'fas fa-circle-play fa-fade' : 'fas fa-video'} text-2xl`}></i>
                             <span>جزء الشرح والتدريبات{videoUrls.length > 1 ? ` (الجزء ${vIdx + 1})` : ''}</span>
                           </div>
                           <span className="text-sm text-text-main bg-white py-1.5 px-3 rounded-lg border border-border flex items-center gap-1.5">
-                            {isVideoCompleted ? 'تمت المشاهدة' : 'مشاهدة الفيديو'} <i className="fas fa-play text-xs"></i>
+                            {isVideoCompleted ? 'تمت المشاهدة' : isActiveVideo ? 'يتم العرض الآن' : 'مشاهدة الفيديو'} {isVideoCompleted ? '' : <i className="fas fa-play text-xs"></i>}
                           </span>
                         </div>
                       );
@@ -725,126 +704,24 @@ export default function CoursePage() {
         )}
       </div>
 
-      {/* Video Modal */}
-      {showVideoModal && (
-        <div className="video-modal-overlay">
-          {!isFullscreen && (
-            <button 
-              onClick={closeVideo}
-              className="absolute top-5 right-8 bg-white/10 text-white border-none w-[50px] h-[50px] rounded-full text-2xl cursor-pointer transition-all hover:bg-red-500 z-[1001]"
-            >
-              <i className="fas fa-xmark"></i>
-            </button>
-          )}
-          
-          <div ref={videoContainerRef} className={`w-[95%] max-w-[1000px] bg-[#0f172a] rounded-2xl overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-slate-700 flex flex-col ${isFullscreen ? '!w-full !max-w-none !h-full !rounded-none !border-none' : ''}`}>
-            
-            <div className="yt-wrapper flex-1 relative">
-              <div id="player" className="absolute top-0 left-0 w-full h-full"></div>
-              <div className="yt-overlay absolute top-0 left-0 w-full h-full z-10 cursor-pointer" onClick={togglePlayPause}></div>
-            </div>
-            
-            <div className="bg-[#0f172a] p-5 flex flex-col gap-4 border-t border-slate-700 flex-shrink-0 z-20">
-              <div 
-                className="w-full h-2.5 bg-white/10 rounded-md cursor-pointer relative overflow-hidden transition-all hover:h-3.5"
-                onClick={seekVideo}
-              >
-                <div 
-                  className="h-full bg-primary pointer-events-none transition-all"
-                  style={{ width: `${videoDuration ? (currentTime / videoDuration) * 100 : 0}%` }}
-                />
-              </div>
-              
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-5">
-                  <button 
-                    onClick={() => skipVideo(-10)}
-                    className="bg-transparent text-white border-none text-2xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center"
-                    title="تأخير 10 ثواني"
-                  >
-                    <i className="fas fa-backward-step"></i>
-                  </button>
-                  <button 
-                    onClick={togglePlayPause}
-                    className="bg-transparent text-primary-light border-none text-[32px] cursor-pointer transition-all hover:scale-110 flex items-center justify-center"
-                  >
-                    <i className={`fas ${isVideoPlaying ? 'fa-circle-pause' : 'fa-circle-play'}`}></i>
-                  </button>
-                  <button 
-                    onClick={() => skipVideo(10)}
-                    className="bg-transparent text-white border-none text-2xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center"
-                    title="تقديم 10 ثواني"
-                  >
-                    <i className="fas fa-forward-step"></i>
-                  </button>
-                </div>
-                
-                <div className="flex items-center gap-4">
-                  <button 
-                    onClick={cyclePlaybackRate}
-                    className="bg-transparent text-white border border-slate-600 px-3 py-1.5 rounded-lg text-sm font-bold cursor-pointer transition-all hover:bg-slate-700 hover:text-primary-light"
-                    title="سرعة التشغيل"
-                  >
-                    {playbackRate}x
-                  </button>
-                  <div className="text-slate-400 font-bold text-[15px] font-mono tracking-wide" dir="ltr">
-                    <span>{formatTime(currentTime)}</span> / <span>{formatTime(videoDuration)}</span>
-                  </div>
-                  <button 
-                    onClick={toggleFullscreen}
-                    className="bg-transparent text-white border-none text-xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center ml-2"
-                    title="ملء الشاشة"
-                  >
-                    <i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i>
-                  </button>
-                  {isFullscreen && (
-                     <button 
-                       onClick={closeVideo}
-                       className="bg-transparent text-red-500 border-none text-2xl cursor-pointer transition-all hover:scale-110 flex items-center justify-center ml-2"
-                       title="إغلاق الفيديو"
-                     >
-                       <i className="fas fa-xmark"></i>
-                     </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Exam Modal */}
       {showExamModal && activeExamLesson && (
-        <div className="exam-modal-overlay">
-          {/* Anti-cheat overlay */}
-          <div 
-            id="anti-cheat-overlay"
-            className="anti-cheat-overlay"
-            onClick={(e) => {
-              (e.currentTarget as HTMLDivElement).style.display = 'none';
-            }}
-          >
+        <div className="fixed top-0 left-0 w-full h-full bg-slate-50/95 z-[2000] flex flex-col overflow-hidden select-none">
+          <div id="anti-cheat-overlay" className="absolute top-0 left-0 w-full h-full bg-black text-white z-[3000] hidden flex-col justify-center items-center text-center p-5" onClick={(e) => { (e.currentTarget as HTMLDivElement).style.display = 'none'; }}>
             <i className="fas fa-shield-halved text-[80px] text-red-500 mb-5"></i>
-            <p>تنبيه أمني!</p>
-            <p className="text-base font-normal mt-2.5">تم إخفاء الامتحان لأنك قمت بالخروج من النافذة أو محاولة التقاط الشاشة.<br />يرجى النقر هنا للعودة للامتحان.</p>
+            <p className="text-2xl font-bold">تنبيه أمني!</p>
+            <p className="text-base font-normal mt-2.5 leading-relaxed">تم إخفاء الامتحان لأنك قمت بالخروج من النافذة أو محاولة التقاط الشاشة.<br />يرجى النقر هنا للعودة للامتحان.</p>
           </div>
 
           <div className="bg-white py-5 px-[5%] flex justify-between items-center border-b border-border shadow-[0_4px_15px_rgba(0,0,0,0.02)]">
             <h2 className="text-primary text-[22px] font-bold"><i className="fas fa-pen-to-square ml-2"></i> اختبار: {activeExamLesson.title}</h2>
-            <button 
-              onClick={closeExam}
-              className="bg-red-50 text-red-500 border-none py-2.5 px-5 rounded-xl font-bold cursor-pointer flex items-center gap-2 hover:bg-red-500 hover:text-white transition-all"
-            >
-              <i className="fas fa-xmark"></i> إغلاق مؤقت
-            </button>
+            <button onClick={closeExam} className="bg-red-50 text-red-500 border-none py-2.5 px-5 rounded-xl font-bold cursor-pointer flex items-center gap-2 hover:bg-red-500 hover:text-white transition-all"><i className="fas fa-xmark"></i> إغلاق مؤقت</button>
           </div>
 
           <div className="flex-1 overflow-y-auto py-8 px-[5%] flex flex-col items-center">
             {!examFinished ? (
               <>
-                <div 
-                  className={`text-white py-2.5 px-6 rounded-[30px] font-bold text-xl mb-5 flex items-center gap-2.5 shadow-[0_5px_15px_rgba(239,68,68,0.3)] ${timeRemaining < 30 ? 'bg-red-50 text-red-500 border-2 border-red-500' : 'bg-red-500'}`}
-                >
+                <div className={`text-white py-2.5 px-6 rounded-[30px] font-bold text-xl mb-5 flex items-center gap-2.5 shadow-[0_5px_15px_rgba(239,68,68,0.3)] ${timeRemaining < 30 ? 'bg-red-50 text-red-500 border-2 border-red-500' : 'bg-red-500'}`}>
                   <i className="fas fa-stopwatch"></i> 
                   <span>{Math.floor(timeRemaining / 60).toString().padStart(2, '0')}:{(timeRemaining % 60).toString().padStart(2, '0')}</span>
                 </div>
@@ -852,22 +729,12 @@ export default function CoursePage() {
                 <h3 className="text-text-muted mb-6 text-lg">السؤال <span className="text-primary font-bold text-[22px]">{currentQIndex + 1}</span> من <span>{quizQuestions.length}</span></h3>
 
                 {quizQuestions[currentQIndex]?.image_url && (
-                  <img 
-                    src={quizQuestions[currentQIndex].image_url} 
-                    alt="سؤال الامتحان" 
-                    className="max-w-full max-h-[300px] rounded-xl border-2 border-border mb-8 pointer-events-none"
-                  />
+                  <img src={quizQuestions[currentQIndex].image_url} alt="سؤال الامتحان" className="max-w-full max-h-[300px] rounded-xl border-2 border-border mb-8 pointer-events-none" />
                 )}
                 
                 <div className="grid grid-cols-1 gap-4 w-full max-w-[600px]">
                   {['A', 'B', 'C', 'D'].map((option) => (
-                    <button
-                      key={option}
-                      onClick={() => chooseAnswer(option)}
-                      className={`bg-white border-2 border-border py-4 px-5 rounded-2xl text-lg font-bold cursor-pointer text-right flex items-center gap-4 transition-all text-text-main shadow-[0_4px_10px_rgba(0,0,0,0.02)] hover:border-primary ${
-                        userAnswers[currentQIndex] === option ? 'border-primary bg-primary/5 shadow-[0_8px_20px_rgba(1,86,105,0.15)] -translate-y-0.5' : ''
-                      }`}
-                    >
+                    <button key={option} onClick={() => chooseAnswer(option)} className={`bg-white border-2 border-border py-4 px-5 rounded-2xl text-lg font-bold cursor-pointer text-right flex items-center gap-4 transition-all text-text-main shadow-[0_4px_10px_rgba(0,0,0,0.02)] hover:border-primary ${userAnswers[currentQIndex] === option ? 'border-primary bg-primary/5 shadow-[0_8px_20px_rgba(1,86,105,0.15)] -translate-y-0.5' : ''}`}>
                       <span className={`w-10 h-10 rounded-full flex justify-center items-center text-primary text-xl flex-shrink-0 ${userAnswers[currentQIndex] === option ? 'bg-primary text-white' : 'bg-page-bg'}`}>
                         {option === 'A' ? 'أ' : option === 'B' ? 'ب' : option === 'C' ? 'ج' : 'د'}
                       </span>
@@ -877,26 +744,16 @@ export default function CoursePage() {
                 </div>
 
                 <div className="w-full max-w-[600px] mt-10 flex justify-between">
-                  <button 
-                    onClick={prevQuestion}
-                    disabled={currentQIndex === 0}
-                    className="bg-white text-text-main border border-border py-4 px-8 rounded-xl font-bold text-base cursor-pointer transition-all flex items-center gap-2.5 shadow-[0_4px_10px_rgba(0,0,0,0.02)] hover:bg-primary/5 hover:text-primary hover:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
+                  <button onClick={prevQuestion} disabled={currentQIndex === 0} className="bg-white text-text-main border border-border py-4 px-8 rounded-xl font-bold text-base cursor-pointer transition-all flex items-center gap-2.5 shadow-[0_4px_10px_rgba(0,0,0,0.02)] hover:bg-primary/5 hover:text-primary hover:border-primary disabled:opacity-50 disabled:cursor-not-allowed">
                     <i className="fas fa-arrow-right-long"></i> السابق
                   </button>
                   
                   {currentQIndex === quizQuestions.length - 1 ? (
-                    <button 
-                      onClick={submitExam}
-                      className="bg-success text-white border-none py-4 px-10 rounded-xl font-bold text-lg cursor-pointer flex items-center gap-2.5 shadow-[0_5px_20px_rgba(16,185,129,0.3)] hover:bg-emerald-600 hover:-translate-y-0.5 transition-all"
-                    >
+                    <button onClick={submitExam} className="bg-success text-white border-none py-4 px-10 rounded-xl font-bold text-lg cursor-pointer flex items-center gap-2.5 shadow-[0_5px_20px_rgba(16,185,129,0.3)] hover:bg-emerald-600 hover:-translate-y-0.5 transition-all">
                       إنهاء وتصحيح <i className="fas fa-check-double"></i>
                     </button>
                   ) : (
-                    <button 
-                      onClick={nextQuestion}
-                      className="bg-white text-text-main border border-border py-4 px-8 rounded-xl font-bold text-base cursor-pointer transition-all flex items-center gap-2.5 shadow-[0_4px_10px_rgba(0,0,0,0.02)] hover:bg-primary/5 hover:text-primary hover:border-primary"
-                    >
+                    <button onClick={nextQuestion} className="bg-white text-text-main border border-border py-4 px-8 rounded-xl font-bold text-base cursor-pointer transition-all flex items-center gap-2.5 shadow-[0_4px_10px_rgba(0,0,0,0.02)] hover:bg-primary/5 hover:text-primary hover:border-primary">
                       التالي <i className="fas fa-arrow-left-long"></i>
                     </button>
                   )}
@@ -913,10 +770,7 @@ export default function CoursePage() {
                 <div className="text-xl text-text-muted mb-10">
                   أجبت بشكل صحيح على {Math.round((examScore / 100) * quizQuestions.length)} من أصل {quizQuestions.length} أسئلة
                 </div>
-                <button 
-                  onClick={closeExam}
-                  className="bg-primary text-white py-4 px-10 border-none rounded-xl text-lg font-bold cursor-pointer flex items-center gap-2.5 hover:bg-primary/90 transition-all"
-                >
+                <button onClick={closeExam} className="bg-primary text-white py-4 px-10 border-none rounded-xl text-lg font-bold cursor-pointer flex items-center gap-2.5 hover:bg-primary/90 transition-all">
                   <i className="fas fa-rotate-left"></i> العودة للمحاضرات
                 </button>
               </div>
