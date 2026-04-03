@@ -11,7 +11,7 @@ declare global {
         elementId: string,
         options: {
           videoId: string;
-          playerVars?: Record<string, any>; // 💡 تم التعديل هنا لتجاوز خطأ الـ TypeScript
+          playerVars?: Record<string, any>;
           events?: {
             onReady?: (event: { target: YTPlayer }) => void;
             onStateChange?: (event: { data: number; target: YTPlayer }) => void;
@@ -237,7 +237,7 @@ export default function Course() {
     ytDataRef.current = { lesson, vIdx, vTotal };
     
     setActiveLessonId(lesson.id);
-    setActiveVideoIndex(vIdx);
+    setActiveVideoIndex(vIdx); // هنا المتغير يتم استخدامه بشكل فعّال
     setPlaybackRate(1);
     
     isVideoEndingRef.current = false;
@@ -305,7 +305,6 @@ export default function Course() {
           const duration = playerRef.current.getDuration();
           setCurrentTime(current);
 
-          // الحفظ الصامت قبل 10 ثواني، ثم الاحتفال بعد 11 ثانية لضمان المشاهدة الكاملة
           if (duration > 0 && current > 0 && (duration - current <= 10)) {
             if (!videoSavedRef.current) {
               videoSavedRef.current = true;
@@ -313,7 +312,7 @@ export default function Course() {
               
               celebrationTimeoutRef.current = setTimeout(() => {
                 handleVideoCelebration();
-              }, 11000); // 11 ثانية
+              }, 11000);
             }
           }
         }
@@ -478,10 +477,7 @@ export default function Course() {
     
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     timerIntervalRef.current = setInterval(() => {
-      setTimeRemaining(prev => {
-        if (prev <= 1) { submitExam(); return 0; }
-        return prev - 1;
-      });
+      setTimeRemaining(prev => (prev > 0 ? prev - 1 : 0));
     }, 1000);
   };
 
@@ -560,6 +556,25 @@ export default function Course() {
     };
   }, []);
 
+  // تشغيل التصحيح التلقائي عند انتهاء الوقت للامتحان
+  useEffect(() => {
+    if (showExamModal && !examFinished && timeRemaining === 0) {
+      submitExam();
+    }
+  }, [timeRemaining, showExamModal, examFinished]);
+
+  // إظهار تحذير منع الغش عند الخروج من نافذة الامتحان
+  useEffect(() => {
+    const handleBlur = () => {
+      if (showExamModal && !examFinished) {
+        const overlay = document.getElementById('anti-cheat-overlay');
+        if (overlay) overlay.style.display = 'flex';
+      }
+    };
+    window.addEventListener('blur', handleBlur);
+    return () => window.removeEventListener('blur', handleBlur);
+  }, [showExamModal, examFinished]);
+
   if (!user) return null;
 
   return (
@@ -634,9 +649,9 @@ export default function Course() {
               </button>
             )}
 
-            {/* منطقة الفيديو 16:9 */}
+            {/* منطقة الفيديو 16:9 مع استخدام key لمنع خطأ مكتبة اليوتيوب */}
             <div className={`relative w-full ${isFullscreen ? 'flex-1 h-full' : 'aspect-video'} bg-black flex items-center justify-center`}>
-              <div id="player" className="absolute inset-0 w-full h-full pointer-events-none"></div>
+              <div key={`${activeLessonId}-${activeVideoIndex}`} id="player" className="absolute inset-0 w-full h-full pointer-events-none"></div>
               {/* طبقة حماية شفافة لالتقاط نقرات التشغيل/الإيقاف وحماية الفيديو من السرقة */}
               <div className="absolute inset-0 w-full h-full z-10 cursor-pointer" onClick={togglePlayPause}></div>
             </div>
