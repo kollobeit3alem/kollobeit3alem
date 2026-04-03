@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, apiCall } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -293,7 +293,7 @@ export default function Admin() {
       setReportUserName(userName);
       setShowReportModal(true);
     } catch (error) {
-      toast.error('فشل جلب تقرير الطالب');
+      toast.error('فشل جلب تقرير الطالب، تأكد من صحة قاعدة البيانات.');
     }
   };
 
@@ -356,7 +356,6 @@ export default function Admin() {
 
   if (!user) return null;
 
-  // Custom styling strings mapped exactly from HTML
   const inputStyles = "w-full p-4 border-[1.5px] border-[#e2e8f0] rounded-xl text-[15px] text-[#1e293b] bg-[#f4f7f9] focus:bg-white focus:border-[#015669] focus:outline-none transition-colors";
   const btnSubmitStyles = "bg-[#015669] text-white border-none py-4 px-8 rounded-xl cursor-pointer font-bold text-base inline-flex items-center justify-center gap-2.5 transition-all shadow-[0_5px_15px_rgba(1,86,105,0.1)] hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(1,86,105,0.1)]";
   const navBtnBaseStyles = "bg-transparent border-none text-[#64748b] text-right p-4 rounded-xl cursor-pointer text-base font-bold flex items-center gap-3 transition-all hover:bg-[#f4f7f9] hover:text-[#015669] hover:-translate-x-1.5";
@@ -1091,13 +1090,16 @@ export default function Admin() {
               </button>
             </div>
             <div className="leading-[1.8]">
+              
+              {/* تبويبة الدورات المشترك بها (محمية ومطورة) */}
               <div className="bg-[#f4f7f9] p-[15px] rounded-[10px] mb-5 border border-[#e2e8f0]">
                 <h4 className="text-[#015669] mb-2.5 font-bold"><i className="fas fa-book-open ml-2"></i> الدورات المشترك بها ({reportData.enrollments?.length || 0})</h4>
+                
                 {reportData.enrollments && reportData.enrollments.length > 0 ? (
                   <ul className="list-inside pr-[15px] text-[#1e293b]">
                     {reportData.enrollments.map((e: any, i: number) => (
                       <li key={i}>
-                        <strong>{e.title || 'دورة غير معروفة'}</strong> 
+                        <strong>{e.title || 'دورة محذوفة أو غير معروفة'}</strong> 
                         <span className="text-[#64748b] text-[13px] mr-2">
                           (انضم في: {e.enrolled_at ? new Date(e.enrolled_at).toLocaleDateString('ar-EG') : 'غير محدد'})
                         </span>
@@ -1109,6 +1111,7 @@ export default function Admin() {
                 )}
               </div>
 
+              {/* تبويبة المحاضرات المكتملة */}
               <div className="bg-[#ecfdf5] border border-[#a7f3d0] p-[15px] rounded-[10px]">
                 <h4 className="text-[#10b981] mb-2.5 font-bold"><i className="fas fa-check-circle ml-2"></i> المحاضرات المكتملة ({reportData.progress?.length || 0})</h4>
                 {reportData.progress && reportData.progress.length > 0 ? (
@@ -1127,6 +1130,7 @@ export default function Admin() {
                   <p className="text-[#64748b]">لم يكمل أي محاضرة حتى الآن.</p>
                 )}
               </div>
+
             </div>
           </div>
         </div>
