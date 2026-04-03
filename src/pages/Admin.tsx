@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, apiCall } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -809,13 +809,17 @@ export default function Admin() {
                                 </button>
                               </>
                             )}
-                            <button 
-                              onClick={() => handleViewReport(u.id, u.name)}
-                              className="p-2.5 flex-1 border-none rounded-lg cursor-pointer font-bold transition-all text-center text-[14px] bg-[#e2e8f0] text-[#0f172a] hover:bg-[#cbd5e1]"
-                              title="عرض تقرير الطالب"
-                            >
-                              <i className="fas fa-chart-pie"></i> التقرير
-                            </button>
+                            
+                            {/* إخفاء زر التقرير من حسابات المدير والمدرس */}
+                            {u.role !== 'admin' && u.role !== 'instructor' && (
+                              <button 
+                                onClick={() => handleViewReport(u.id, u.name)}
+                                className="p-2.5 flex-1 border-none rounded-lg cursor-pointer font-bold transition-all text-center text-[14px] bg-[#e2e8f0] text-[#0f172a] hover:bg-[#cbd5e1]"
+                                title="عرض تقرير الطالب"
+                              >
+                                <i className="fas fa-chart-pie"></i> التقرير
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1088,11 +1092,16 @@ export default function Admin() {
             </div>
             <div className="leading-[1.8]">
               <div className="bg-[#f4f7f9] p-[15px] rounded-[10px] mb-5 border border-[#e2e8f0]">
-                <h4 className="text-[#015669] mb-2.5 font-bold"><i className="fas fa-book-open ml-2"></i> الدورات المشترك بها ({reportData.enrollments.length})</h4>
-                {reportData.enrollments.length > 0 ? (
+                <h4 className="text-[#015669] mb-2.5 font-bold"><i className="fas fa-book-open ml-2"></i> الدورات المشترك بها ({reportData.enrollments?.length || 0})</h4>
+                {reportData.enrollments && reportData.enrollments.length > 0 ? (
                   <ul className="list-inside pr-[15px] text-[#1e293b]">
-                    {reportData.enrollments.map((e, i) => (
-                      <li key={i}><strong>{e.title}</strong> <span className="text-[#64748b] text-[13px]">(انضم: {new Date(e.enrolled_at).toLocaleDateString('ar-EG')})</span></li>
+                    {reportData.enrollments.map((e: any, i: number) => (
+                      <li key={i}>
+                        <strong>{e.title || 'دورة غير معروفة'}</strong> 
+                        <span className="text-[#64748b] text-[13px] mr-2">
+                          (انضم في: {e.enrolled_at ? new Date(e.enrolled_at).toLocaleDateString('ar-EG') : 'غير محدد'})
+                        </span>
+                      </li>
                     ))}
                   </ul>
                 ) : (
@@ -1101,11 +1110,17 @@ export default function Admin() {
               </div>
 
               <div className="bg-[#ecfdf5] border border-[#a7f3d0] p-[15px] rounded-[10px]">
-                <h4 className="text-[#10b981] mb-2.5 font-bold"><i className="fas fa-check-circle ml-2"></i> المحاضرات المكتملة ({reportData.progress.length})</h4>
-                {reportData.progress.length > 0 ? (
+                <h4 className="text-[#10b981] mb-2.5 font-bold"><i className="fas fa-check-circle ml-2"></i> المحاضرات المكتملة ({reportData.progress?.length || 0})</h4>
+                {reportData.progress && reportData.progress.length > 0 ? (
                   <ul className="list-inside pr-[15px] text-[#1e293b]">
-                    {reportData.progress.map((p, i) => (
-                      <li key={i}>محاضرة: <strong>{p.lesson_title}</strong> <span className="text-[#64748b] text-[13px]">(من دورة: {p.course_title})</span></li>
+                    {reportData.progress.map((p: any, i: number) => (
+                      <li key={i}>
+                        محاضرة: <strong>{p.lesson_title || 'غير معروف'}</strong> 
+                        <span className="text-[#64748b] text-[13px] mr-2">
+                          (من دورة: {p.course_title || 'غير معروف'}) 
+                          {p.completed_at && ` - أُنجزت في: ${new Date(p.completed_at).toLocaleDateString('ar-EG')}`}
+                        </span>
+                      </li>
                     ))}
                   </ul>
                 ) : (
