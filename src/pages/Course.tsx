@@ -54,7 +54,7 @@ export default function Course() {
   const [expandedLesson, setExpandedLesson] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // نظام الجلسة الأحادية (Session Expiry)
+  // Session Expiry State
   const [sessionExpired, setSessionExpired] = useState(false);
 
   // Video Inline State
@@ -108,8 +108,8 @@ export default function Course() {
       if (user && token && courseId) {
         try {
           if (user.role !== 'admin' && user.role !== 'instructor') {
-            const enrolledIds: number[] = await apiCall('/api/my-enrollments', token);
-            if (!enrolledIds.includes(parseInt(courseId))) {
+            const enrolledIds = (await apiCall('/api/my-enrollments', token)) as number[];
+            if (!enrolledIds.includes(parseInt(courseId as string))) {
               toast.error('غير مصرح لك بمشاهدة المحتوى! يرجى الاشتراك في الكورس أولاً.');
               navigate('/courses');
               return;
@@ -159,8 +159,8 @@ export default function Course() {
   const fetchCourseDetails = useCallback(async () => {
     if (!token || !courseId) return;
     try {
-      const courses = await apiCall('/api/courses', token) as Course[];
-      const foundCourse = courses.find(c => c.id === parseInt(courseId));
+      const courses = (await apiCall('/api/courses', token)) as Course[];
+      const foundCourse = courses.find(c => c.id === parseInt(courseId as string));
       if (foundCourse) setCourse(foundCourse);
     } catch (error) {
       handleApiError(error);
@@ -170,12 +170,12 @@ export default function Course() {
   const fetchLessons = useCallback(async () => {
     if (!token || !courseId) return;
     try {
-      const lessonsData = await apiCall(`/api/courses/${courseId}/lessons`, token) as Lesson[];
+      const lessonsData = (await apiCall(`/api/courses/${courseId}/lessons`, token)) as Lesson[];
       
       const lessonsWithQuiz = await Promise.all(
         lessonsData.map(async (lesson) => {
           try {
-            const quizData = await apiCall(`/api/lessons/${lesson.id}/quiz`, token) as QuizQuestion[];
+            const quizData = (await apiCall(`/api/lessons/${lesson.id}/quiz`, token)) as QuizQuestion[];
             return { ...lesson, hasQuiz: quizData.length > 0, quizData };
           } catch {
             return { ...lesson, hasQuiz: false, quizData: [] };
@@ -283,11 +283,13 @@ export default function Course() {
 
   const silentSaveVideoProgress = () => {
     const { lesson, vIdx } = ytDataRef.current;
-    if (!lesson || !token) return;
+    if (!lesson || !token || !courseId) return;
     const videoKey = `${lesson.id}_${vIdx}`;
     
     apiCall('/api/progress/video', token, 'POST', { 
-      courseId: courseId, lessonId: lesson.id, videoKey: videoKey 
+      courseId: parseInt(courseId as string), 
+      lessonId: lesson.id, 
+      videoKey: videoKey 
     }).catch(e => console.log(e));
   };
 
@@ -723,7 +725,7 @@ export default function Course() {
                   <div className="p-5 flex flex-col gap-4 bg-[#fdfdfd] border-t border-border">
                     {videoUrls.map((vUrl, vIdx) => {
                       const isVideoCompleted = completedVideos.has(`${lesson.id}_${vIdx}`) || isCompleted;
-                      const isActiveVideo = ytDataRef.current.lesson?.id === lesson.id && ytDataRef.current.vIdx === vIdx && activeLessonId !== null;
+                      const isActiveVideo = activeLessonId === lesson.id && activeVideoIndex === vIdx;
                       
                       return (
                         <div 
