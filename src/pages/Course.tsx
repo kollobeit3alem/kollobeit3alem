@@ -11,6 +11,7 @@ declare global {
         elementId: string,
         options: {
           videoId: string;
+          host?: string; // أضفنا هذا السطر في تعريف النوع لتجنب خطأ TypeScript
           playerVars?: Record<string, any>;
           events?: {
             onReady?: (event: { target: YTPlayer }) => void;
@@ -237,7 +238,7 @@ export default function Course() {
     ytDataRef.current = { lesson, vIdx, vTotal };
     
     setActiveLessonId(lesson.id);
-    setActiveVideoIndex(vIdx); // هنا المتغير يتم استخدامه بشكل فعّال
+    setActiveVideoIndex(vIdx); 
     setPlaybackRate(1);
     
     isVideoEndingRef.current = false;
@@ -273,6 +274,7 @@ export default function Course() {
 
     playerRef.current = new window.YT.Player('player', {
       videoId,
+      host: 'https://www.youtube.com', // 💡 السطر الذي تم إضافته لحل المشكلة
       playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, modestbranding: 1, rel: 0, showinfo: 0, origin: window.location.origin },
       events: {
         onReady: (event) => { event.target.playVideo(); event.target.setPlaybackRate(1); },
