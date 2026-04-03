@@ -79,6 +79,10 @@ export default function CoursePage() {
   const videoIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Ref لمنع تشغيل دالة إنهاء الفيديو مرتين في نفس اللحظة
+  const isVideoEndingRef = useRef(false);
+  
   const courseId = searchParams.get('id');
 
   // Load saved progress from Database (Fallback to localStorage)
@@ -222,11 +226,11 @@ export default function CoursePage() {
     setActiveVideoIndex(vIdx);
     setActiveVideoTotal(vTotal);
     setPlaybackRate(1);
+    isVideoEndingRef.current = false; // إعادة ضبط حالة نهاية الفيديو
     setShowVideoModal(true);
     
     const videoId = extractVideoID(videoUrl);
     
-    // استخدام setTimeout لضمان أن الـ div الخاص بالمشغل تم إضافته للشاشة قبل مناداة اليوتيوب
     setTimeout(() => {
       if (!window.YT) {
         const tag = document.createElement('script');
@@ -244,7 +248,6 @@ export default function CoursePage() {
   };
 
   const initPlayer = (videoId: string) => {
-    // تدمير المشغل القديم تماماً لتفادي أي خطأ
     if (playerRef.current && typeof playerRef.current.destroy === 'function') {
       try {
         playerRef.current.destroy();
@@ -284,7 +287,15 @@ export default function CoursePage() {
       if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
       videoIntervalRef.current = setInterval(() => {
         if (playerRef.current) {
-          setCurrentTime(playerRef.current.getCurrentTime());
+          const current = playerRef.current.getCurrentTime();
+          const duration = playerRef.current.getDuration();
+          setCurrentTime(current);
+
+          // الحل الجذري: ننهي الفيديو يدوياً إذا تبقى أقل من نصف ثانية (تجنب مشكلة توقف الـ API عند السرعة 1x)
+          if (duration > 0 && current >= duration - 0.5) {
+            if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
+            handleVideoEnd();
+          }
         }
       }, 500);
     } else {
@@ -361,6 +372,10 @@ export default function CoursePage() {
   };
 
   const handleVideoEnd = async () => {
+    // نمنع تشغيل الدالة مرتين في نفس الوقت لو اليوتيوب بعت ENDED واحنا كنا مخلصينه يدوياً
+    if (isVideoEndingRef.current) return;
+    isVideoEndingRef.current = true;
+
     const lesson = lessons.find(l => l.id === activeLessonId);
     if (!lesson) return;
     
@@ -373,7 +388,7 @@ export default function CoursePage() {
       return newSet;
     });
 
-    // 2. إرسال التقدم لقاعدة البيانات في الخلفية
+    // 2. إرسال التقدم لقاعدة البيانات في الخلفية للحفظ الفوري
     if (token) {
       try {
         await apiCall('/api/progress/video', token, 'POST', { 
@@ -416,7 +431,6 @@ export default function CoursePage() {
       document.exitFullscreen().catch(() => {});
     }
     
-    // إيقاف وتدمير المشغل فور إغلاق النافذة
     if (playerRef.current) {
       try {
         playerRef.current.stopVideo();
@@ -433,7 +447,7 @@ export default function CoursePage() {
     setShowVideoModal(false);
   };
 
-  // Open exam
+  // Open exam with checking videos
   const openExam = (lesson: Lesson) => {
     if (completedLessons.has(lesson.id)) {
       toast.info('لقد اجتزت هذا الاختبار مسبقاً بنجاح!');
