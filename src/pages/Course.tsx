@@ -54,13 +54,12 @@ export default function Course() {
   const [expandedLesson, setExpandedLesson] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // نظام الجلسة الأحادية (Session Expiry)
+  // Session Expiry State
   const [sessionExpired, setSessionExpired] = useState(false);
 
   // Video Inline State
   const [activeLessonId, setActiveLessonId] = useState<number | null>(null);
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
-  const [activeVideoTotal, setActiveVideoTotal] = useState(1);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [videoDuration, setVideoDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -82,6 +81,13 @@ export default function Course() {
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const isVideoEndingRef = useRef(false);
+
+  // 💡 الخزنة الحية (Refs) لحل مشكلة تجميد المتغيرات (Stale Closure)
+  const ytDataRef = useRef<{ lesson: Lesson | null; vIdx: number; vTotal: number }>({
+    lesson: null,
+    vIdx: 0,
+    vTotal: 0
+  });
   
   const courseId = searchParams.get('id');
 
@@ -221,9 +227,11 @@ export default function Course() {
   };
 
   const openVideo = (lesson: Lesson, videoUrl: string, vIdx: number, vTotal: number) => {
+    // 💡 تخزين البيانات الحية في الخزنة
+    ytDataRef.current = { lesson, vIdx, vTotal };
+    
     setActiveLessonId(lesson.id);
     setActiveVideoIndex(vIdx);
-    setActiveVideoTotal(vTotal);
     setPlaybackRate(1);
     isVideoEndingRef.current = false;
     
@@ -274,8 +282,8 @@ export default function Course() {
           const duration = playerRef.current.getDuration();
           setCurrentTime(current);
 
-          // إتمام الفيديو إذا تبقى منه 10 ثواني أو أقل
-          if (duration > 0 && current >= duration - 10) {
+          // 💡 إتمام الفيديو إذا تبقى منه 10 ثواني أو أقل
+          if (duration > 0 && current > 0 && (duration - current <= 10)) {
             if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
             handleVideoEnd();
           }
@@ -339,41 +347,51 @@ export default function Course() {
     return `${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`;
   };
 
+  // 💡 هذه الدالة محمية تماماً وتقرأ البيانات من الخزنة الحية (Ref) لتجنب فقدان أي إشارات
   const handleVideoEnd = () => {
     if (isVideoEndingRef.current) return;
     isVideoEndingRef.current = true;
 
-    const lesson = lessons.find(l => l.id === activeLessonId);
+    const { lesson, vIdx, vTotal } = ytDataRef.current;
     if (!lesson) return;
     
-    const videoKey = `${activeLessonId}_${activeVideoIndex}`;
+    const videoKey = `${lesson.id}_${vIdx}`;
 
-    // Update UI immediately
+    // تحديث الواجهة فوراً برقم الفيديو المكتمل
     setCompletedVideos(prev => {
       const newSet = new Set(prev);
       newSet.add(videoKey);
       return newSet;
     });
 
-    // Save to DB in background
+    // الحفظ في قاعدة البيانات
     if (token) {
       apiCall('/api/progress/video', token, 'POST', { 
-        courseId: course?.id, lessonId: activeLessonId, videoKey: videoKey 
-      }).catch(e => handleApiError(e));
+        courseId: courseId, lessonId: lesson.id, videoKey: videoKey 
+      }).catch(e => console.log(e));
     }
 
-    if (activeVideoIndex < activeVideoTotal - 1) {
+    if (vIdx < vTotal - 1) {
       toast.success('تم إنهاء هذا الجزء بنجاح! يرجى تشغيل الجزء التالي من الشرح.');
-    } else if (!completedLessons.has(lesson.id)) {
-      if (lesson.hasQuiz) {
-        toast.success('ممتاز! لقد أكملت جميع الفيديوهات، يرجى فتح الامتحان لإتمام المحاضرة.');
-      } else {
-        toast.success('تهانينا! لقد أنهيت المحاضرة بنجاح.');
-        markLessonCompleted(lesson.id);
+      closeVideo();
+    } else {
+      // التحقق مما إذا كانت المحاضرة مكتملة مسبقاً بطريقة آمنة
+      let alreadyCompleted = false;
+      setCompletedLessons(prev => {
+        alreadyCompleted = prev.has(lesson.id);
+        return prev; 
+      });
+
+      if (!alreadyCompleted) {
+        if (lesson.hasQuiz) {
+          toast.success('ممتاز! لقد أكملت جميع الفيديوهات، يرجى فتح الامتحان لإتمام المحاضرة.');
+        } else {
+          toast.success('تهانينا! لقد أنهيت المحاضرة بنجاح.');
+          markLessonCompleted(lesson.id);
+        }
       }
+      closeVideo();
     }
-    
-    closeVideo();
   };
 
   const closeVideo = () => {
@@ -464,7 +482,6 @@ export default function Course() {
 
   const markLessonCompleted = async (lessonId: number) => {
     if (completedLessons.has(lessonId)) return;
-    if (!token) return;
     
     import('canvas-confetti').then(confetti => {
       const duration = 3000; const end = Date.now() + duration;
@@ -476,12 +493,18 @@ export default function Course() {
       frame();
     });
     
-    setCompletedLessons(prev => new Set(prev).add(lessonId));
-    
-    try {
-      await apiCall('/api/progress', token, 'POST', { lessonId });
-    } catch (error) {
-      handleApiError(error);
+    setCompletedLessons(prev => {
+      const newSet = new Set(prev);
+      newSet.add(lessonId);
+      return newSet;
+    });
+
+    if (token) {
+      try {
+        await apiCall('/api/progress', token, 'POST', { lessonId });
+      } catch (error) {
+        console.error('Failed to save progress:', error);
+      }
     }
   };
 
@@ -558,12 +581,12 @@ export default function Course() {
         </div>
       </div>
 
-      {/* Inline Video Player - يظهر تحت الكورس عند التشغيل */}
+      {/* Inline Video Player - يظهر تحت الكورس عند التشغيل بحجم متناسق */}
       {activeLessonId !== null && (
         <div id="video-player-section" className="mx-[5%] mb-10 flex justify-center animate-fade-in scroll-mt-6">
           <div ref={videoContainerRef} className={`bg-[#0f172a] rounded-2xl overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.2)] flex flex-col w-full max-w-[800px] border border-slate-700 ${isFullscreen ? '!max-w-none !h-full !rounded-none !border-none' : ''}`}>
             
-            {/* زر إغلاق الفيديو للعودة للغلاف */}
+            {/* زر إغلاق الفيديو */}
             {!isFullscreen && (
               <button 
                 onClick={closeVideo}
@@ -659,7 +682,9 @@ export default function Course() {
                   <div className="p-5 flex flex-col gap-4 bg-[#fdfdfd] border-t border-border">
                     {videoUrls.map((vUrl, vIdx) => {
                       const isVideoCompleted = completedVideos.has(`${lesson.id}_${vIdx}`) || isCompleted;
-                      const isActiveVideo = activeLessonId === lesson.id && activeVideoIndex === vIdx;
+                      
+                      // لمعرفة هل هذا الفيديو هو المفتوح حالياً أم لا باستخدام البيانات من الـ Ref
+                      const isActiveVideo = ytDataRef.current.lesson?.id === lesson.id && ytDataRef.current.vIdx === vIdx && activeLessonId !== null;
                       
                       return (
                         <div 
