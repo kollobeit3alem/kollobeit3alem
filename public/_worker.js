@@ -26,7 +26,7 @@ async function verifyAdmin(request, env) {
     const sessionData = JSON.parse(atob(token));
     if (sessionData.exp < Date.now()) return null;
     
-    // التعديل: التحقق من session_id بالإضافة للصلاحيات
+    // التحقق من session_id بالإضافة للصلاحيات
     const user = await env.DB.prepare("SELECT id, role, session_id FROM users WHERE id = ?").bind(sessionData.userId).first();
     
     if (!user) return null;
@@ -185,26 +185,48 @@ export default {
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // جلب تقرير شامل للطالب (فلترة للمعلم)
+        // جلب تقرير شامل للطالب (مفصول ومحصن لتجنب أخطاء قواعد البيانات)
         if (path.match(/^\/api\/admin\/reports\/\d+$/) && request.method === "GET") {
-          const userId = path.split("/")[4];
+          const studentId = parseInt(path.split("/")[4], 10);
           
-          let enrollmentsQuery = `SELECT c.title, e.enrolled_at FROM enrollments e JOIN courses c ON e.course_id = c.id WHERE e.user_id = ?`;
-          let progressQuery = `SELECT l.title as lesson_title, c.title as course_title, p.completed_at FROM student_progress p JOIN lessons l ON p.lesson_id = l.id JOIN courses c ON l.course_id = c.id WHERE p.user_id = ?`;
-          
-          let bindParams = [userId];
+          let enrollments = [];
+          let progress = [];
 
-          // إذا كان طالباً للتقرير معلماً، نضيف شرط الـ instructor_id
-          if (adminUser.role === 'instructor') {
-            enrollmentsQuery += ` AND c.instructor_id = ?`;
-            progressQuery += ` AND c.instructor_id = ?`;
-            bindParams.push(adminUser.id);
+          // 1. جلب الدورات المشترك بها بأمان
+          try {
+            if (adminUser.role === 'instructor') {
+              const eRes = await env.DB.prepare(
+                "SELECT c.title, e.* FROM enrollments e JOIN courses c ON e.course_id = c.id WHERE e.user_id = ? AND c.instructor_id = ?"
+              ).bind(studentId, adminUser.id).all();
+              enrollments = eRes.results;
+            } else {
+              const eRes = await env.DB.prepare(
+                "SELECT c.title, e.* FROM enrollments e JOIN courses c ON e.course_id = c.id WHERE e.user_id = ?"
+              ).bind(studentId).all();
+              enrollments = eRes.results;
+            }
+          } catch (e) {
+            console.error("Enrollments Fetch Error:", e);
+          }
+
+          // 2. جلب المحاضرات المكتملة بأمان
+          try {
+            if (adminUser.role === 'instructor') {
+              const pRes = await env.DB.prepare(
+                "SELECT l.title as lesson_title, c.title as course_title, p.* FROM student_progress p JOIN lessons l ON p.lesson_id = l.id JOIN courses c ON l.course_id = c.id WHERE p.user_id = ? AND c.instructor_id = ?"
+              ).bind(studentId, adminUser.id).all();
+              progress = pRes.results;
+            } else {
+              const pRes = await env.DB.prepare(
+                "SELECT l.title as lesson_title, c.title as course_title, p.* FROM student_progress p JOIN lessons l ON p.lesson_id = l.id JOIN courses c ON l.course_id = c.id WHERE p.user_id = ?"
+              ).bind(studentId).all();
+              progress = pRes.results;
+            }
+          } catch (e) {
+             console.error("Progress Fetch Error:", e);
           }
           
-          const enrollments = await env.DB.prepare(enrollmentsQuery).bind(...bindParams).all();
-          const progress = await env.DB.prepare(progressQuery).bind(...bindParams).all();
-          
-          return new Response(JSON.stringify({ enrollments: enrollments.results, progress: progress.results }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+          return new Response(JSON.stringify({ enrollments, progress }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
         // --- إدارة الكورسات (مع عزل المعلمين) ---
@@ -457,7 +479,7 @@ export default {
           });
         }
 
-        // جلب تقدم الطالب في كورس معين (المحاضرات والفيديوهات المكتملة لتعمل المزامنة بين الأجهزة)
+        // جلب تقدم الطالب في كورس معين
         if (path.match(/^\/api\/courses\/\d+\/progress$/) && request.method === "GET") {
           const courseId = path.split("/")[3];
           const authCheck = await verifyStudentSession(request, env);
@@ -465,7 +487,6 @@ export default {
           
           const userId = authCheck.userId;
 
-          // جلب المحاضرات المكتملة
           const completedLessonsQuery = await env.DB.prepare(`
             SELECT p.lesson_id 
             FROM student_progress p 
@@ -474,7 +495,6 @@ export default {
           `).bind(userId, courseId).all();
           const completedLessons = completedLessonsQuery.results.map(row => row.lesson_id);
 
-          // جلب الفيديوهات المكتملة (تم وضعها داخل try catch في حال لم يتم بناء الجدول بعد)
           let completedVideos = [];
           try {
             const completedVideosQuery = await env.DB.prepare(
@@ -482,7 +502,6 @@ export default {
             ).bind(userId, courseId).all();
             completedVideos = completedVideosQuery.results.map(row => row.video_key);
           } catch (e) {
-            // الجدول غير موجود بعد، لا بأس
           }
 
           return new Response(JSON.stringify({ completedLessons, completedVideos }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -576,7 +595,6 @@ export default {
           const lessonId = body.lessonId;
           const userId = authCheck.userId;
 
-          // التحقق مما إذا كان الطالب قد أكمل هذه المحاضرة مسبقاً لمنع التكرار
           const existingProgress = await env.DB.prepare(
             "SELECT id FROM student_progress WHERE user_id = ? AND lesson_id = ?"
           ).bind(userId, lessonId).first();
@@ -590,7 +608,7 @@ export default {
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // حفظ تقدم فيديو معين (تتبع الأجزاء)
+        // حفظ تقدم فيديو معين
         if (path === "/api/progress/video" && request.method === "POST") {
           const authCheck = await verifyStudentSession(request, env);
           if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -610,7 +628,6 @@ export default {
               ).bind(userId, courseId, lessonId, videoKey).run();
             }
           } catch (e) {
-             // يتم تجاهل الخطأ في حال لم يقم المستخدم بإنشاء جدول student_video_progress بعد
           }
 
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -623,7 +640,7 @@ export default {
       }
     }
 
-    // 3. عرض الملفات الثابتة إذا لم يكن الطلب للـ API
+    // 3. عرض الملفات الثابتة
     return env.ASSETS.fetch(request);
   }
 };
