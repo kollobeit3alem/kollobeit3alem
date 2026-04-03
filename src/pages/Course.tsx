@@ -82,7 +82,7 @@ export default function Course() {
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const isVideoEndingRef = useRef(false);
 
-  // 💡 الخزنة الحية (Refs) لحل مشكلة تجميد المتغيرات (Stale Closure)
+  // الخزنة الحية لمنع تجمد المتغيرات وقت انتهاء الفيديو
   const ytDataRef = useRef<{ lesson: Lesson | null; vIdx: number; vTotal: number }>({
     lesson: null,
     vIdx: 0,
@@ -91,7 +91,6 @@ export default function Course() {
   
   const courseId = searchParams.get('id');
 
-  // معالج الأخطاء للتحقق من الجلسة
   const handleApiError = useCallback((error: any) => {
     const errorMsg = error?.message || '';
     if (errorMsg.includes('جهاز آخر') || errorMsg.includes('Session') || errorMsg.includes('Unauthorized')) {
@@ -101,7 +100,6 @@ export default function Course() {
     }
   }, []);
 
-  // Load saved progress from Database (Fallback to localStorage)
   useEffect(() => {
     const loadProgress = async () => {
       if (user && token && courseId) {
@@ -146,7 +144,6 @@ export default function Course() {
     saveProgressLocally();
   }, [completedLessons, completedVideos, saveProgressLocally]);
 
-  // Fetch course details
   const fetchCourseDetails = useCallback(async () => {
     if (!token || !courseId) return;
     try {
@@ -158,7 +155,6 @@ export default function Course() {
     }
   }, [token, courseId, handleApiError]);
 
-  // Fetch lessons
   const fetchLessons = useCallback(async () => {
     if (!token || !courseId) return;
     try {
@@ -193,7 +189,6 @@ export default function Course() {
     }
   }, [isAuthenticated, courseId, navigate, fetchCourseDetails, fetchLessons, sessionExpired]);
 
-  // Listen to fullscreen changes
   useEffect(() => {
     const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -227,7 +222,6 @@ export default function Course() {
   };
 
   const openVideo = (lesson: Lesson, videoUrl: string, vIdx: number, vTotal: number) => {
-    // 💡 تخزين البيانات الحية في الخزنة
     ytDataRef.current = { lesson, vIdx, vTotal };
     
     setActiveLessonId(lesson.id);
@@ -235,7 +229,6 @@ export default function Course() {
     setPlaybackRate(1);
     isVideoEndingRef.current = false;
     
-    // الصعود للفيديو بشكل ناعم
     setTimeout(() => {
       document.getElementById('video-player-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 100);
@@ -282,7 +275,6 @@ export default function Course() {
           const duration = playerRef.current.getDuration();
           setCurrentTime(current);
 
-          // 💡 إتمام الفيديو إذا تبقى منه 10 ثواني أو أقل
           if (duration > 0 && current > 0 && (duration - current <= 10)) {
             if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
             handleVideoEnd();
@@ -347,7 +339,6 @@ export default function Course() {
     return `${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`;
   };
 
-  // 💡 هذه الدالة محمية تماماً وتقرأ البيانات من الخزنة الحية (Ref) لتجنب فقدان أي إشارات
   const handleVideoEnd = () => {
     if (isVideoEndingRef.current) return;
     isVideoEndingRef.current = true;
@@ -357,14 +348,12 @@ export default function Course() {
     
     const videoKey = `${lesson.id}_${vIdx}`;
 
-    // تحديث الواجهة فوراً برقم الفيديو المكتمل
     setCompletedVideos(prev => {
       const newSet = new Set(prev);
       newSet.add(videoKey);
       return newSet;
     });
 
-    // الحفظ في قاعدة البيانات
     if (token) {
       apiCall('/api/progress/video', token, 'POST', { 
         courseId: courseId, lessonId: lesson.id, videoKey: videoKey 
@@ -375,7 +364,6 @@ export default function Course() {
       toast.success('تم إنهاء هذا الجزء بنجاح! يرجى تشغيل الجزء التالي من الشرح.');
       closeVideo();
     } else {
-      // التحقق مما إذا كانت المحاضرة مكتملة مسبقاً بطريقة آمنة
       let alreadyCompleted = false;
       setCompletedLessons(prev => {
         alreadyCompleted = prev.has(lesson.id);
@@ -508,7 +496,6 @@ export default function Course() {
     }
   };
 
-  // تسجيل الخروج الإجباري عند انتهاء الجلسة
   const handleForceLogout = () => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_info');
@@ -682,9 +669,7 @@ export default function Course() {
                   <div className="p-5 flex flex-col gap-4 bg-[#fdfdfd] border-t border-border">
                     {videoUrls.map((vUrl, vIdx) => {
                       const isVideoCompleted = completedVideos.has(`${lesson.id}_${vIdx}`) || isCompleted;
-                      
-                      // لمعرفة هل هذا الفيديو هو المفتوح حالياً أم لا باستخدام البيانات من الـ Ref
-                      const isActiveVideo = ytDataRef.current.lesson?.id === lesson.id && ytDataRef.current.vIdx === vIdx && activeLessonId !== null;
+                      const isActiveVideo = activeLessonId === lesson.id && activeVideoIndex === vIdx;
                       
                       return (
                         <div 
