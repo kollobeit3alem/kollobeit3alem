@@ -23,7 +23,8 @@ function ProtectedRoute({ children, requireAdmin = false }: { children: React.Re
     return <Navigate to="/" replace />;
   }
 
-  if (requireAdmin && user?.role !== 'admin' && user?.role !== 'instructor') {
+  // التعديل هنا: السماح للمتابع (assistant) بالدخول لصفحة الإدارة وعدم طرده
+  if (requireAdmin && user?.role !== 'admin' && user?.role !== 'instructor' && user?.role !== 'assistant') {
     return <Navigate to="/courses" replace />;
   }
 
@@ -43,7 +44,8 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (isAuthenticated && user) {
-    if (user.role === 'admin' || user.role === 'instructor') {
+    // التعديل هنا: توجيه المتابع (assistant) من صفحة اللوجين إلى لوحة الإدارة مباشرة
+    if (user.role === 'admin' || user.role === 'instructor' || user.role === 'assistant') {
       return <Navigate to="/admin" replace />;
     }
     return <Navigate to="/courses" replace />;
