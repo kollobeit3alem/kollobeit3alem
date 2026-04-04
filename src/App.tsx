@@ -8,6 +8,7 @@ import Profile from '@/pages/Profile';
 import Admin from '@/pages/Admin';
 import Instructor from '@/pages/Instructor';
 import Assistant from '@/pages/Assistant';
+import Privacy from '@/pages/Privacy';
 
 // Protected Route Component (نظام الحماية الجديد)
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
@@ -69,6 +70,10 @@ function AppRoutes() {
           </PublicRoute>
         } 
       />
+
+      {/* مسار الخصوصية متاح للجميع ليتمكن بوت جوجل من الوصول إليه */}
+      <Route path="/privacy" element={<Privacy />} />
+
       <Route 
         path="/courses" 
         element={
