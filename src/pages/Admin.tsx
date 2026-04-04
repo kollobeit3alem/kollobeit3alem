@@ -884,13 +884,16 @@ export default function Admin() {
                               </>
                             )}
                             
-                            {/* إخفاء زر التقرير من حسابات المدير والمدرس */}
-                            {u.role !== 'admin' && u.role !== 'instructor' && (
+                          {/* إظهار زر التقرير للطلاب فقط */}
+                            {u.role === 'student' && (
                               <button 
                                 onClick={() => handleViewReport(u.id, u.name)}
                                 className="p-2.5 flex-1 border-none rounded-lg cursor-pointer font-bold transition-all text-center text-[14px] bg-[#e2e8f0] text-[#0f172a] hover:bg-[#cbd5e1]"
                                 title="عرض تقرير الطالب"
                               >
+                                <i className="fas fa-chart-pie"></i> التقرير
+                              </button>
+                            )}
                                 <i className="fas fa-chart-pie"></i> التقرير
                               </button>
                             )}
