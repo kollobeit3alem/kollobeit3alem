@@ -12,6 +12,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: 'auto',
       includeAssets: ['logo.png'],
       manifest: {
         name: 'منصة كله بيتعلم',
@@ -20,6 +21,7 @@ export default defineConfig({
         theme_color: '#015669',
         background_color: '#f4f7f9',
         display: 'standalone',
+        start_url: '/',
         dir: 'rtl',
         lang: 'ar',
         icons: [
