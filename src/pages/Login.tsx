@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -96,7 +96,7 @@ export default function Login() {
   }, [handleGoogleLogin]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#fdfbfb] to-[#ebedee] flex flex-col justify-between items-center">
+    <div className="min-h-screen bg-gradient-to-br from-[#fdfbfb] to-[#ebedee] flex flex-col justify-between items-center" dir="rtl">
       {/* Login Wrapper */}
       <div className="flex-1 flex justify-center items-center w-full p-5">
         <div className="bg-white rounded-[28px] shadow-[0_20px_40px_-10px_rgba(0,0,0,0.08)] w-full max-w-[450px] p-12 px-10 text-center flex flex-col items-center gap-5 border border-black/[0.03] border-t-[6px] border-t-primary relative overflow-hidden">
@@ -120,7 +120,7 @@ export default function Login() {
           </p>
           
           {/* Separator */}
-          <div className="w-full h-px bg-slate-200 my-4 relative">
+          <div className="w-full h-px bg-slate-200 my-4 relative z-[1]">
             <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-4 text-primary text-[13px] font-bold">
               ابدأ التعلم الآن
             </span>
@@ -131,6 +131,18 @@ export default function Login() {
             ref={googleButtonRef}
             className="w-full flex justify-center z-[1] mt-2"
           />
+
+          {/* رابط سياسة الخصوصية الجديد */}
+          <div className="mt-4 text-center z-[1] w-full">
+            <p className="text-[13px] text-slate-500">
+              بتسجيل دخولك، أنت توافق على{' '}
+              <Link to="/privacy" className="text-primary font-bold hover:underline">
+                سياسة الخصوصية
+              </Link>{' '}
+              الخاصة بالمنصة.
+            </p>
+          </div>
+
         </div>
       </div>
 
