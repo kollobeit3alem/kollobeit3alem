@@ -4,7 +4,7 @@ import { useAuth, apiCall } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { Course, Lesson, QuizQuestion, User, ActivationCode, StudentReport } from '@/types';
 
-type TabType = 'courses' | 'lessons' | 'quizzes' | 'users' | 'codes';
+type TabType = 'courses' | 'lessons' | 'quizzes' | 'users' | 'staff' | 'codes';
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -62,15 +62,33 @@ export default function Admin() {
     }
   }, [isAuthenticated, user, navigate]);
 
-  // Load initial data
+  // Load Initial Data (Courses)
   useEffect(() => {
-    if (token && user) {
-      if (!isAssistant) {
-        loadCourses();
-      }
-      loadUsers(1, '');
+    if (token && user && !isAssistant) {
+      loadCourses();
     }
   }, [token, user]);
+
+  // دالة جلب المستخدمين (ذكية تعتمد على نوع التبويبة)
+  const loadUsers = async (page: number, search: string, typeParam: string) => {
+    if (!token) return;
+    try {
+      const data = await apiCall(`/api/admin/users?page=${page}&limit=${usersLimit}&search=${encodeURIComponent(search)}&type=${typeParam}`, token) as any;
+      setUsers(data.users || []);
+      setUsersTotal(data.total || 0);
+      setUsersPage(data.page || 1);
+    } catch (error) {
+      console.error('Failed to load users:', error);
+    }
+  };
+
+  // مراقبة تغيير تبويبات المستخدمين (طلاب أو فريق عمل) لجلب البيانات فوراً
+  useEffect(() => {
+    if (token && (activeTab === 'users' || activeTab === 'staff')) {
+      setSearchQuery(''); // تفريغ البحث عند التبديل
+      loadUsers(1, '', activeTab === 'staff' ? 'staff' : 'students');
+    }
+  }, [activeTab, token]);
 
   const loadCourses = async () => {
     if (!token) return;
@@ -79,18 +97,6 @@ export default function Admin() {
       setCourses(data);
     } catch (error) {
       console.error('Failed to load courses:', error);
-    }
-  };
-
-  const loadUsers = async (page: number, search: string) => {
-    if (!token) return;
-    try {
-      const data = await apiCall(`/api/admin/users?page=${page}&limit=${usersLimit}&search=${encodeURIComponent(search)}`, token) as any;
-      setUsers(data.users || []);
-      setUsersTotal(data.total || 0);
-      setUsersPage(data.page || 1);
-    } catch (error) {
-      console.error('Failed to load users:', error);
     }
   };
 
@@ -290,11 +296,10 @@ export default function Admin() {
     e.preventDefault();
     setUsersPage(1);
     
-    // تنظيف نص البحث من أي مسافات زايدة عشان البحث يشتغل صح
     const cleanSearchQuery = searchQuery.trim();
     setSearchQuery(cleanSearchQuery);
     
-    loadUsers(1, cleanSearchQuery);
+    loadUsers(1, cleanSearchQuery, activeTab === 'staff' ? 'staff' : 'students');
   };
 
   const handleDeleteUser = async (id: number) => {
@@ -304,7 +309,7 @@ export default function Admin() {
     try {
       await apiCall(`/api/admin/users/${id}`, token, 'DELETE');
       toast.success('تم حذف المستخدم');
-      loadUsers(usersPage, searchQuery);
+      loadUsers(usersPage, searchQuery, activeTab === 'staff' ? 'staff' : 'students');
     } catch (error) {
       toast.error('فشل حذف المستخدم');
     }
@@ -336,10 +341,14 @@ export default function Admin() {
       
       const worksheet = XLSX.utils.json_to_sheet(worksheetData);
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "الطلاب");
-      XLSX.writeFile(workbook, "تقرير_الطلاب_كله_بيتعلم.xlsx");
+      
+      const sheetName = activeTab === 'staff' ? "فريق العمل" : "الطلاب";
+      const fileName = activeTab === 'staff' ? "تقرير_فريق_العمل.xlsx" : "تقرير_الطلاب.xlsx";
+
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+      XLSX.writeFile(workbook, fileName);
     }).catch(() => {
-      toast.error("حدث خطأ! يرجى التأكد من تسطيب مكتبة xlsx عبر الأمر: npm install xlsx");
+      toast.error("حدث خطأ أثناء تصدير الإكسيل.");
     });
   };
 
@@ -387,7 +396,7 @@ export default function Admin() {
           phone: editFormData.phone
         };
         await apiCall(`/api/admin/users/${editingId}`, token, 'PUT', payload);
-        loadUsers(usersPage, searchQuery);
+        loadUsers(usersPage, searchQuery, activeTab === 'staff' ? 'staff' : 'students');
       }
       toast.success('تم التحديث بنجاح!');
       setShowEditModal(false);
@@ -455,8 +464,18 @@ export default function Admin() {
             onClick={() => setActiveTab('users')}
             className={`${navBtnBaseStyles} ${activeTab === 'users' ? navBtnActiveStyles : ''}`}
           >
-            <i className="fas fa-users-cog text-xl w-6 text-center"></i> الطلاب والتقارير
+            <i className="fas fa-users text-xl w-6 text-center"></i> الطلاب والتقارير
           </button>
+
+          {/* الصلاحيات: ظهور فريق العمل للمدير فقط */}
+          {isAdmin && (
+            <button 
+              onClick={() => setActiveTab('staff')}
+              className={`${navBtnBaseStyles} ${activeTab === 'staff' ? navBtnActiveStyles : ''}`}
+            >
+              <i className="fas fa-user-tie text-xl w-6 text-center"></i> فريق العمل
+            </button>
+          )}
 
           {/* الصلاحيات: ظهور أكواد التفعيل للمدير فقط */}
           {isAdmin && (
@@ -802,16 +821,17 @@ export default function Admin() {
           </section>
         )}
 
-        {/* Users Tab */}
-        {activeTab === 'users' && (
+        {/* Users & Staff Tabs (دمجناهم في كود واحد ديناميكي) */}
+        {(activeTab === 'users' || activeTab === 'staff') && (
           <section className="animate-fade-in block">
             <h1 className="text-[28px] text-[#015669] mb-[30px] flex items-center gap-2.5">
-              <i className="fas fa-users-cog"></i> الطلاب والتقارير
+              <i className={activeTab === 'staff' ? "fas fa-user-tie" : "fas fa-users-cog"}></i> 
+              {activeTab === 'staff' ? 'إدارة فريق العمل' : 'الطلاب والتقارير'}
             </h1>
             
             <div className="bg-white p-[30px] rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.02)] overflow-x-auto">
               <h3 className="text-[#015669] mb-[25px] text-[20px] border-r-4 border-[#015669] pr-2.5">
-                <i className="fas fa-users"></i> قائمة المستخدمين
+                <i className="fas fa-list"></i> {activeTab === 'staff' ? 'قائمة العاملين' : 'قائمة الطلاب'}
               </h3>
 
               {/* شريط البحث وتصدير الإكسيل */}
@@ -845,7 +865,7 @@ export default function Admin() {
                 </thead>
                 <tbody>
                   {users.length === 0 ? (
-                    <tr><td colSpan={5} className="text-center p-[15px]">لا يوجد مستخدمين مسجلين.</td></tr>
+                    <tr><td colSpan={5} className="text-center p-[15px]">لا يوجد بيانات للعرض.</td></tr>
                   ) : (
                     users.map((u) => (
                       <tr key={u.id} className="hover:bg-[#f8fafc] transition-colors">
@@ -869,7 +889,7 @@ export default function Admin() {
                         </td>
                         <td className="p-[15px] border-b border-[#e2e8f0]">
                           <div className="flex gap-[5px]">
-                            {/* الصلاحيات: المدير فقط يمكنه التعديل والحذف للمستخدمين */}
+                            {/* الصلاحيات: المدير فقط يمكنه التعديل والحذف لأي شخص */}
                             {isAdmin && (
                               <>
                                 <button 
@@ -889,8 +909,8 @@ export default function Admin() {
                               </>
                             )}
                             
-                            {/* إظهار زر التقرير للطلاب فقط */}
-                            {u.role === 'student' && (
+                            {/* إظهار زر التقرير للطلاب فقط وفي تبويبة الطلاب فقط */}
+                            {u.role === 'student' && activeTab === 'users' && (
                               <button 
                                 onClick={() => handleViewReport(u.id, u.name)}
                                 className="p-2.5 flex-1 border-none rounded-lg cursor-pointer font-bold transition-all text-center text-[14px] bg-[#e2e8f0] text-[#0f172a] hover:bg-[#cbd5e1]"
@@ -910,11 +930,11 @@ export default function Admin() {
               {/* Pagination Controls */}
               <div className="flex justify-between items-center mt-5">
                 <div className="text-[#64748b] text-[14px] font-bold">
-                  إجمالي: {usersTotal} طالب
+                  إجمالي: {usersTotal}
                 </div>
                 <div className="flex gap-2.5 items-center">
                   <button
-                    onClick={() => loadUsers(usersPage - 1, searchQuery)}
+                    onClick={() => loadUsers(usersPage - 1, searchQuery, activeTab === 'staff' ? 'staff' : 'students')}
                     disabled={usersPage <= 1}
                     className="bg-white border border-[#e2e8f0] text-[#015669] py-2 px-4 rounded-lg font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#f4f7f9] transition-all"
                   >
@@ -924,7 +944,7 @@ export default function Admin() {
                     صفحة {usersPage} من {Math.ceil(usersTotal / usersLimit) || 1}
                   </div>
                   <button
-                    onClick={() => loadUsers(usersPage + 1, searchQuery)}
+                    onClick={() => loadUsers(usersPage + 1, searchQuery, activeTab === 'staff' ? 'staff' : 'students')}
                     disabled={usersPage * usersLimit >= usersTotal}
                     className="bg-white border border-[#e2e8f0] text-[#015669] py-2 px-4 rounded-lg font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#f4f7f9] transition-all"
                   >
@@ -1207,7 +1227,7 @@ export default function Admin() {
             </div>
             <div className="leading-[1.8]">
               
-              {/* تبويبة الدورات المشترك بها (محمية ومطورة) */}
+              {/* تبويبة الدورات المشترك بها */}
               <div className="bg-[#f4f7f9] p-[15px] rounded-[10px] mb-5 border border-[#e2e8f0]">
                 <h4 className="text-[#015669] mb-2.5 font-bold"><i className="fas fa-book-open ml-2"></i> الدورات المشترك بها ({reportData.enrollments?.length || 0})</h4>
                 
