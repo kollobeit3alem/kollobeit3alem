@@ -19,6 +19,12 @@ export default function Admin() {
   const [codes, setCodes] = useState<ActivationCode[]>([]);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   
+  // Pagination & Search States
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersTotal, setUsersTotal] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const usersLimit = 50;
+
   // Form handling states
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [selectedLessonId, setSelectedLessonId] = useState('');
@@ -38,24 +44,31 @@ export default function Admin() {
   const [reportUserName, setReportUserName] = useState('');
 
   const isAdmin = user?.role === 'admin';
+  const isInstructor = user?.role === 'instructor';
+  const isAssistant = user?.role === 'assistant';
 
-  // Redirect if not authenticated or not admin/instructor
+  // Redirect if not authenticated or not authorized
   useEffect(() => {
     if (!isAuthenticated || !user) {
       navigate('/');
       return;
     }
-    if (user.role !== 'admin' && user.role !== 'instructor') {
+    if (!isAdmin && !isInstructor && !isAssistant) {
       toast.error('غير مصرح لك بالدخول!');
       navigate('/courses');
+    } else if (isAssistant) {
+      // توجيه المتابع فوراً لتبويبة الطلاب
+      setActiveTab('users');
     }
   }, [isAuthenticated, user, navigate]);
 
   // Load initial data
   useEffect(() => {
     if (token && user) {
-      loadCourses();
-      loadUsers();
+      if (!isAssistant) {
+        loadCourses();
+      }
+      loadUsers(1, '');
     }
   }, [token, user]);
 
@@ -69,11 +82,13 @@ export default function Admin() {
     }
   };
 
-  const loadUsers = async () => {
+  const loadUsers = async (page: number, search: string) => {
     if (!token) return;
     try {
-      const data = await apiCall('/api/admin/users', token) as User[];
-      setUsers(data);
+      const data = await apiCall(`/api/admin/users?page=${page}&limit=${usersLimit}&search=${encodeURIComponent(search)}`, token) as any;
+      setUsers(data.users || []);
+      setUsersTotal(data.total || 0);
+      setUsersPage(data.page || 1);
     } catch (error) {
       console.error('Failed to load users:', error);
     }
@@ -271,6 +286,12 @@ export default function Admin() {
   };
 
   // User handlers
+  const handleSearchUsers = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setUsersPage(1);
+    loadUsers(1, searchQuery);
+  };
+
   const handleDeleteUser = async (id: number) => {
     if (!confirm('تنبيه هام! سيتم حذف هذا المستخدم وكل سجلاته نهائياً. هل أنت متأكد؟')) return;
     if (!token) return;
@@ -278,7 +299,7 @@ export default function Admin() {
     try {
       await apiCall(`/api/admin/users/${id}`, token, 'DELETE');
       toast.success('تم حذف المستخدم');
-      loadUsers();
+      loadUsers(usersPage, searchQuery);
     } catch (error) {
       toast.error('فشل حذف المستخدم');
     }
@@ -295,6 +316,26 @@ export default function Admin() {
     } catch (error) {
       toast.error('فشل جلب تقرير الطالب، تأكد من صحة قاعدة البيانات.');
     }
+  };
+
+  // Export Excel Data
+  const handleExportExcel = () => {
+    import('xlsx').then(XLSX => {
+      const worksheetData = users.map(u => ({
+        'الاسم': u.name,
+        'البريد الإلكتروني': u.email,
+        'رقم الهاتف': u.phone || 'غير مسجل',
+        'الرتبة': u.role === 'admin' ? 'مدير' : u.role === 'instructor' ? 'مدرس' : u.role === 'assistant' ? 'متابع' : 'طالب',
+        'تاريخ الانضمام': u.created_at ? new Date(u.created_at).toLocaleDateString('ar-EG') : 'غير مسجل'
+      }));
+      
+      const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "الطلاب");
+      XLSX.writeFile(workbook, "تقرير_الطلاب_كله_بيتعلم.xlsx");
+    }).catch(() => {
+      toast.error("حدث خطأ! يرجى التأكد من تسطيب مكتبة xlsx عبر الأمر: npm install xlsx");
+    });
   };
 
   // Edit modal handlers
@@ -337,10 +378,11 @@ export default function Admin() {
       } else if (editingType === 'user') {
         payload = {
           name: editFormData.name,
-          role: editFormData.role
+          role: editFormData.role,
+          phone: editFormData.phone
         };
         await apiCall(`/api/admin/users/${editingId}`, token, 'PUT', payload);
-        loadUsers();
+        loadUsers(usersPage, searchQuery);
       }
       toast.success('تم التحديث بنجاح!');
       setShowEditModal(false);
@@ -380,24 +422,29 @@ export default function Admin() {
         </div>
         
         <nav className="flex flex-col gap-2.5 flex-1">
-          <button 
-            onClick={() => setActiveTab('courses')}
-            className={`${navBtnBaseStyles} ${activeTab === 'courses' ? navBtnActiveStyles : ''}`}
-          >
-            <i className="fas fa-layer-group text-xl w-6 text-center"></i> إدارة الدورات
-          </button>
-          <button 
-            onClick={() => setActiveTab('lessons')}
-            className={`${navBtnBaseStyles} ${activeTab === 'lessons' ? navBtnActiveStyles : ''}`}
-          >
-            <i className="fas fa-video text-xl w-6 text-center"></i> إدارة المحاضرات
-          </button>
-          <button 
-            onClick={() => setActiveTab('quizzes')}
-            className={`${navBtnBaseStyles} ${activeTab === 'quizzes' ? navBtnActiveStyles : ''}`}
-          >
-            <i className="fas fa-spell-check text-xl w-6 text-center"></i> الامتحانات
-          </button>
+          {/* إخفاء القوائم عن المتابع Assistant */}
+          {!isAssistant && (
+            <>
+              <button 
+                onClick={() => setActiveTab('courses')}
+                className={`${navBtnBaseStyles} ${activeTab === 'courses' ? navBtnActiveStyles : ''}`}
+              >
+                <i className="fas fa-layer-group text-xl w-6 text-center"></i> إدارة الدورات
+              </button>
+              <button 
+                onClick={() => setActiveTab('lessons')}
+                className={`${navBtnBaseStyles} ${activeTab === 'lessons' ? navBtnActiveStyles : ''}`}
+              >
+                <i className="fas fa-video text-xl w-6 text-center"></i> إدارة المحاضرات
+              </button>
+              <button 
+                onClick={() => setActiveTab('quizzes')}
+                className={`${navBtnBaseStyles} ${activeTab === 'quizzes' ? navBtnActiveStyles : ''}`}
+              >
+                <i className="fas fa-spell-check text-xl w-6 text-center"></i> الامتحانات
+              </button>
+            </>
+          )}
           
           <button 
             onClick={() => setActiveTab('users')}
@@ -442,7 +489,7 @@ export default function Admin() {
         </div>
 
         {/* Courses Tab */}
-        {activeTab === 'courses' && (
+        {activeTab === 'courses' && !isAssistant && (
           <section className="animate-fade-in block">
             <h1 className="text-[28px] text-[#015669] mb-[30px] flex items-center gap-2.5">
               <i className="fas fa-layer-group"></i> إدارة الدورات التدريبية
@@ -544,7 +591,7 @@ export default function Admin() {
         )}
 
         {/* Lessons Tab */}
-        {activeTab === 'lessons' && (
+        {activeTab === 'lessons' && !isAssistant && (
           <section className="animate-fade-in block">
             <h1 className="text-[28px] text-[#015669] mb-[30px] flex items-center gap-2.5">
               <i className="fas fa-video"></i> إدارة المحاضرات
@@ -632,7 +679,7 @@ export default function Admin() {
         )}
 
         {/* Quizzes Tab */}
-        {activeTab === 'quizzes' && (
+        {activeTab === 'quizzes' && !isAssistant && (
           <section className="animate-fade-in block">
             <h1 className="text-[28px] text-[#015669] mb-[30px] flex items-center gap-2.5">
               <i className="fas fa-spell-check"></i> بناء الامتحانات
@@ -761,28 +808,56 @@ export default function Admin() {
               <h3 className="text-[#015669] mb-[25px] text-[20px] border-r-4 border-[#015669] pr-2.5">
                 <i className="fas fa-users"></i> قائمة المستخدمين
               </h3>
+
+              {/* شريط البحث وتصدير الإكسيل */}
+              <div className="flex flex-col md:flex-row justify-between items-center mb-5 gap-4">
+                <form onSubmit={handleSearchUsers} className="flex gap-2 w-full md:w-auto">
+                  <input
+                    type="text"
+                    placeholder="ابحث بالاسم، الإيميل، أو التليفون..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className={`${inputStyles} !py-2.5 !mb-0 w-full md:w-[300px]`}
+                  />
+                  <button type="submit" className="bg-[#015669] text-white px-5 rounded-xl font-bold cursor-pointer transition-all hover:bg-[#014150]">
+                    <i className="fas fa-search"></i> بحث
+                  </button>
+                </form>
+                <button onClick={handleExportExcel} className="bg-[#10b981] text-white py-2.5 px-5 rounded-xl font-bold cursor-pointer flex items-center gap-2 hover:bg-[#059669] transition-all w-full md:w-auto justify-center">
+                  <i className="fas fa-file-excel"></i> تصدير إكسيل
+                </button>
+              </div>
+
               <table className="w-full border-collapse mt-2.5">
                 <thead>
                   <tr>
                     <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">الاسم</th>
                     <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">البريد الإلكتروني</th>
+                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">رقم الهاتف</th>
                     <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">الرتبة</th>
                     <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">إجراءات</th>
                   </tr>
                 </thead>
                 <tbody>
                   {users.length === 0 ? (
-                    <tr><td colSpan={4} className="text-center p-[15px]">لا يوجد مستخدمين مسجلين.</td></tr>
+                    <tr><td colSpan={5} className="text-center p-[15px]">لا يوجد مستخدمين مسجلين.</td></tr>
                   ) : (
                     users.map((u) => (
                       <tr key={u.id} className="hover:bg-[#f8fafc] transition-colors">
                         <td className="p-[15px] border-b border-[#e2e8f0]"><strong>{u.name}</strong></td>
                         <td className="p-[15px] border-b border-[#e2e8f0] text-[#64748b]">{u.email}</td>
                         <td className="p-[15px] border-b border-[#e2e8f0]">
+                          <span className="font-mono text-[#015669] bg-[#f4f7f9] px-2 py-1 rounded-md text-[14px]">
+                            {u.phone || 'غير مسجل'}
+                          </span>
+                        </td>
+                        <td className="p-[15px] border-b border-[#e2e8f0]">
                           {u.role === 'admin' ? (
                             <span className="px-3 py-1.5 rounded-full text-[13px] font-bold bg-[#fffbeb] text-[#f59e0b]">مدير</span>
                           ) : u.role === 'instructor' ? (
                             <span className="px-3 py-1.5 rounded-full text-[13px] font-bold bg-[#ecfdf5] text-[#10b981]">مدرس</span>
+                          ) : u.role === 'assistant' ? (
+                            <span className="px-3 py-1.5 rounded-full text-[13px] font-bold bg-[#e0f2fe] text-[#0284c7]">متابع</span>
                           ) : (
                             'طالب'
                           )}
@@ -826,6 +901,32 @@ export default function Admin() {
                   )}
                 </tbody>
               </table>
+
+              {/* Pagination Controls */}
+              <div className="flex justify-between items-center mt-5">
+                <div className="text-[#64748b] text-[14px] font-bold">
+                  إجمالي: {usersTotal} طالب
+                </div>
+                <div className="flex gap-2.5 items-center">
+                  <button
+                    onClick={() => loadUsers(usersPage - 1, searchQuery)}
+                    disabled={usersPage <= 1}
+                    className="bg-white border border-[#e2e8f0] text-[#015669] py-2 px-4 rounded-lg font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#f4f7f9] transition-all"
+                  >
+                    <i className="fas fa-chevron-right ml-1"></i> السابق
+                  </button>
+                  <div className="bg-[#f4f7f9] border border-[#e2e8f0] text-[#1e293b] py-2 px-4 rounded-lg font-bold">
+                    صفحة {usersPage} من {Math.ceil(usersTotal / usersLimit) || 1}
+                  </div>
+                  <button
+                    onClick={() => loadUsers(usersPage + 1, searchQuery)}
+                    disabled={usersPage * usersLimit >= usersTotal}
+                    className="bg-white border border-[#e2e8f0] text-[#015669] py-2 px-4 rounded-lg font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#f4f7f9] transition-all"
+                  >
+                    التالي <i className="fas fa-chevron-left mr-1"></i>
+                  </button>
+                </div>
+              </div>
             </div>
           </section>
         )}
@@ -1052,6 +1153,15 @@ export default function Admin() {
                     />
                   </div>
                   <div>
+                    <label className="block mb-2 font-bold text-[#1e293b]">رقم الهاتف</label>
+                    <input 
+                      type="tel" 
+                      value={(editFormData.phone as string) || ''} 
+                      onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
+                      className={inputStyles} 
+                    />
+                  </div>
+                  <div>
                     <label className="block mb-2 font-bold text-[#1e293b]">الرتبة والصلاحية</label>
                     <select 
                       value={(editFormData.role as string) || 'student'} 
@@ -1060,6 +1170,7 @@ export default function Admin() {
                       className={inputStyles}
                     >
                       <option value="student">طالب</option>
+                      <option value="assistant">متابع</option>
                       <option value="instructor">مدرس</option>
                       <option value="admin">مدير</option>
                     </select>
