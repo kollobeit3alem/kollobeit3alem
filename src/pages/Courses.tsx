@@ -10,9 +10,16 @@ export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Modal States
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [activationCode, setActivationCode] = useState('');
+  
+  // Phone Modal States
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [phoneInput, setPhoneInput] = useState('');
+  const [isSavingPhone, setIsSavingPhone] = useState(false);
   
   // حالة لمنع الضغط المزدوج أثناء التسجيل
   const [isEnrolling, setIsEnrolling] = useState(false);
@@ -23,6 +30,13 @@ export default function Courses() {
       navigate('/');
     }
   }, [isAuthenticated, user, navigate]);
+
+  // إظهار مودال التليفون إذا كان المستخدم لا يملك رقم هاتف
+  useEffect(() => {
+    if (user && !user.phone) {
+      setShowPhoneModal(true);
+    }
+  }, [user]);
 
   // Fetch enrollments
   const fetchEnrollments = useCallback(async () => {
@@ -93,6 +107,31 @@ export default function Courses() {
     
     await handleEnroll(selectedCourse.id, activationCode.trim().toUpperCase());
     closePaymentModal();
+  };
+
+  const handleSavePhone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    
+    setIsSavingPhone(true);
+    try {
+      // إرسال الرقم للسيرفر
+      await apiCall('/api/my-profile', token, 'PUT', { phone: phoneInput });
+      
+      toast.success('تم حفظ رقم الواتساب بنجاح! شكراً لك.');
+      setShowPhoneModal(false);
+      
+      // تحديث بيانات المستخدم في المتصفح
+      const updatedUser = { ...user, phone: phoneInput };
+      localStorage.setItem('user_info', JSON.stringify(updatedUser));
+      
+      // عمل تحديث بسيط للصفحة لتطبيق البيانات الجديدة في الـ Context
+      setTimeout(() => window.location.reload(), 1500); 
+    } catch (error) {
+      toast.error('حدث خطأ أثناء الحفظ، يرجى المحاولة لاحقاً.');
+    } finally {
+      setIsSavingPhone(false);
+    }
   };
 
   const handleLogout = () => {
@@ -274,6 +313,47 @@ export default function Courses() {
                 </button>
               </form>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Phone Number Modal (Soft Gate) */}
+      {showPhoneModal && (
+        <div className="fixed top-0 left-0 w-full h-full bg-slate-900/60 flex justify-center items-center z-[9999] backdrop-blur-sm px-4">
+          <div className="bg-white p-8 rounded-[24px] w-full max-w-[420px] text-center shadow-[0_20px_60px_rgba(0,0,0,0.2)] animate-fade-in border border-border relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-2 bg-primary"></div>
+            
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-5 text-primary text-[32px]">
+              <i className="fab fa-whatsapp"></i>
+            </div>
+            
+            <h2 className="text-[24px] text-slate-800 font-bold mb-3">خطوة أخيرة صغيرة!</h2>
+            <p className="text-text-muted mb-8 text-[15px] leading-relaxed px-2">
+              عشان نقدر نتواصل معاك ونبعتلك تحديثات الكورسات، يرجى إدخال رقم الواتساب الخاص بك لاستكمال التسجيل.
+            </p>
+            
+            <form onSubmit={handleSavePhone} className="flex flex-col gap-4">
+              <input
+                type="tel"
+                value={phoneInput}
+                onChange={(e) => setPhoneInput(e.target.value)}
+                placeholder="مثال: 01012345678"
+                required
+                pattern="[0-9]{11}"
+                title="برجاء إدخال رقم هاتف صحيح مكون من 11 رقم"
+                className="w-full p-4 border-2 border-slate-200 rounded-xl text-center text-lg font-bold text-slate-800 focus:border-primary focus:outline-none transition-colors"
+                dir="ltr"
+                disabled={isSavingPhone}
+              />
+              <button
+                type="submit"
+                disabled={isSavingPhone || phoneInput.length < 10}
+                className="bg-primary text-white border-none py-4 px-8 rounded-xl font-bold text-lg cursor-pointer w-full hover:bg-primary/90 transition-all shadow-[0_5px_15px_rgba(1,86,105,0.2)] hover:-translate-y-0.5 mt-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isSavingPhone ? <i className="fas fa-circle-notch fa-spin"></i> : <i className="fas fa-check-circle"></i>}
+                {isSavingPhone ? 'جاري الحفظ...' : 'حفظ والمتابعة'}
+              </button>
+            </form>
           </div>
         </div>
       )}
