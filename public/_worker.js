@@ -36,8 +36,7 @@ async function verifyAdmin(request, env) {
       return null; // التوكن غير صالح لأن الجلسة تغيرت
     }
     
-    // السماح للمدير، المعلم، والمتابع (المساعد) بالدخول للوحة
-    if (user.role === 'admin' || user.role === 'instructor' || user.role === 'assistant') {
+    if (user.role === 'admin' || user.role === 'instructor') {
       return user;
     }
     return null;
@@ -71,37 +70,20 @@ export default {
         }
       }
 
-      // --- تطبيق القيود الصارمة على المعلم (instructor) والمتابع (assistant) ---
-      if (adminUser.role === 'instructor' || adminUser.role === 'assistant') {
-        const isAssistant = adminUser.role === 'assistant';
-        const isInstructor = adminUser.role === 'instructor';
+      // --- تطبيق القيود الصارمة على المعلم (Instructor Constraints) ---
+      if (adminUser.role === 'instructor') {
+        const restrictedPaths = [
+          "/api/admin/codes",
+          "/api/admin/users/role"
+        ];
         
-        let isRestricted = false;
-
-        if (isAssistant) {
-          // المتابع (assistant) مسموح له فقط بمسارات القراءة (GET) للطلاب والتقارير
-          const isAllowedPath = (path.startsWith("/api/admin/users") || path.startsWith("/api/admin/reports")) && request.method === "GET";
-          if (!isAllowedPath) {
-            isRestricted = true;
-          }
-        } else if (isInstructor) {
-          // مسارات ممنوعة تماماً على المعلم
-          const restrictedPaths = [
-            "/api/admin/codes",
-            "/api/admin/users/role"
-          ];
-          if (restrictedPaths.some(rp => path.startsWith(rp))) {
-            isRestricted = true;
-          }
-          // منع المعلم من حذف أو تعديل المستخدمين
-          const isUserModify = path.match(/^\/api\/admin\/users\/\d+$/) && (request.method === "DELETE" || request.method === "PUT");
-          if (isUserModify) {
-            isRestricted = true;
-          }
-        }
+        const isRestricted = restrictedPaths.some(rp => path.startsWith(rp));
         
-        if (isRestricted) {
-          return new Response(JSON.stringify({ error: "Access Denied: غير مصرح لك بهذا الإجراء" }), { 
+        // منع المعلم من حذف أو تعديل المستخدمين (يسمح له فقط بطلب GET للرؤية)
+        const isUserModify = path.match(/^\/api\/admin\/users\/\d+$/) && (request.method === "DELETE" || request.method === "PUT");
+        
+        if (isRestricted || isUserModify) {
+          return new Response(JSON.stringify({ error: "Access Denied: هذا الإجراء مخصص للمدير فقط" }), { 
             status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } 
           });
         }
@@ -168,56 +150,24 @@ export default {
         // مسارات لوحة الإدارة (Admin API)
         // ==========================================
 
-        // جلب المستخدمين مع نظام البحث والصفحات (Pagination & Search)
+        // جلب المستخدمين (المدير يرى الكل، المعلم يرى طلابه فقط)
         if (path === "/api/admin/users" && request.method === "GET") {
-          const page = parseInt(url.searchParams.get("page")) || 1;
-          const limit = parseInt(url.searchParams.get("limit")) || 50;
-          const search = url.searchParams.get("search") || "";
-          const offset = (page - 1) * limit;
-
-          let query = "";
-          let countQuery = "";
-          let params = [];
-          let countParams = [];
-
           if (adminUser.role === 'instructor') {
-            // المعلم يرى طلابه فقط
-            let baseWhere = `FROM users u JOIN enrollments e ON u.id = e.user_id JOIN courses c ON e.course_id = c.id WHERE c.instructor_id = ?`;
-            params.push(adminUser.id);
-            countParams.push(adminUser.id);
-
-            if (search) {
-              baseWhere += ` AND (u.name LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)`;
-              params.push(`%${search}%`, `%${search}%`, `%${search}%`);
-              countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
-            }
-
-            query = `SELECT DISTINCT u.id, u.name, u.email, u.phone, u.role, u.created_at ${baseWhere} ORDER BY u.created_at DESC LIMIT ? OFFSET ?`;
-            countQuery = `SELECT COUNT(DISTINCT u.id) as total ${baseWhere}`;
-            params.push(limit, offset);
+            // جلب الطلاب المشتركين في دورات هذا المعلم فقط (بشكل فريد DISTINCT لمنع التكرار)
+            const users = await env.DB.prepare(`
+              SELECT DISTINCT u.id, u.name, u.email, u.role, u.created_at 
+              FROM users u
+              JOIN enrollments e ON u.id = e.user_id
+              JOIN courses c ON e.course_id = c.id
+              WHERE c.instructor_id = ?
+              ORDER BY u.created_at DESC
+            `).bind(adminUser.id).all();
+            return new Response(JSON.stringify(users.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
           } else {
-            // المدير والمتابع يرى جميع المستخدمين
-            let baseWhere = `FROM users`;
-            if (search) {
-              baseWhere += ` WHERE name LIKE ? OR email LIKE ? OR phone LIKE ?`;
-              params.push(`%${search}%`, `%${search}%`, `%${search}%`);
-              countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
-            }
-            
-            query = `SELECT id, name, email, phone, role, created_at ${baseWhere} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-            countQuery = `SELECT COUNT(*) as total ${baseWhere}`;
-            params.push(limit, offset);
+            // المدير يرى الكل
+            const users = await env.DB.prepare("SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC").all();
+            return new Response(JSON.stringify(users.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
           }
-
-          const usersList = await env.DB.prepare(query).bind(...params).all();
-          const countRes = await env.DB.prepare(countQuery).bind(...countParams).first();
-
-          return new Response(JSON.stringify({
-            users: usersList.results,
-            total: countRes.total,
-            page: page,
-            limit: limit
-          }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
         // حذف مستخدم (للمدير فقط، ومحمية بالأعلى)
@@ -235,13 +185,14 @@ export default {
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // جلب تقرير شامل للطالب
+        // جلب تقرير شامل للطالب (مفصول ومحصن لتجنب أخطاء قواعد البيانات)
         if (path.match(/^\/api\/admin\/reports\/\d+$/) && request.method === "GET") {
           const studentId = parseInt(path.split("/")[4], 10);
           
           let enrollments = [];
           let progress = [];
 
+          // 1. جلب الدورات المشترك بها بأمان
           try {
             if (adminUser.role === 'instructor') {
               const eRes = await env.DB.prepare(
@@ -258,6 +209,7 @@ export default {
             console.error("Enrollments Fetch Error:", e);
           }
 
+          // 2. جلب المحاضرات المكتملة بأمان
           try {
             if (adminUser.role === 'instructor') {
               const pRes = await env.DB.prepare(
@@ -277,7 +229,7 @@ export default {
           return new Response(JSON.stringify({ enrollments, progress }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // --- إدارة الكورسات ---
+        // --- إدارة الكورسات (مع عزل المعلمين) ---
 
         // إضافة دورة
         if (path === "/api/admin/courses" && request.method === "POST") {
@@ -285,6 +237,7 @@ export default {
           const isFree = body.is_free !== undefined ? body.is_free : 1;
           const price = body.price || 0;
           
+          // نربط الكورس بالـ ID الخاص بمن قام بإنشائه
           await env.DB.prepare(
             "INSERT INTO courses (title, description, image_url, instructor_contact, is_free, price, instructor_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
           ).bind(body.title, body.description, body.image_url, body.instructor_contact || "", isFree, price, adminUser.id).run();
@@ -295,6 +248,7 @@ export default {
         if (path.match(/^\/api\/admin\/courses\/\d+$/) && request.method === "DELETE") {
           const courseId = path.split("/")[4];
           
+          // حماية: إذا كان معلم، نمنعه من حذف كورسات غيره
           if (adminUser.role === 'instructor') {
             const check = await env.DB.prepare("SELECT instructor_id FROM courses WHERE id = ?").bind(courseId).first();
             if (!check || check.instructor_id !== adminUser.id) return new Response(JSON.stringify({ error: "Access Denied" }), { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -323,7 +277,7 @@ export default {
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // --- إدارة الأكواد ---
+        // --- إدارة الأكواد (للمدير فقط) ---
         if (path === "/api/admin/codes" && request.method === "POST") {
           const body = await request.json();
           const course_id = body.course_id;
@@ -344,7 +298,9 @@ export default {
           return new Response(JSON.stringify(codes.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // --- إدارة المحاضرات ---
+        // --- إدارة المحاضرات (مع حماية ملكية المعلم) ---
+
+        // إضافة محاضرة
         if (path === "/api/admin/lessons" && request.method === "POST") {
           const body = await request.json();
           
@@ -359,6 +315,7 @@ export default {
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
+        // حذف محاضرة
         if (path.match(/^\/api\/admin\/lessons\/\d+$/) && request.method === "DELETE") {
           const lessonId = path.split("/")[4];
           
@@ -372,6 +329,7 @@ export default {
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
+        // تعديل محاضرة
         if (path.match(/^\/api\/admin\/lessons\/\d+$/) && request.method === "PUT") {
           const lessonId = path.split("/")[4];
           
@@ -388,6 +346,7 @@ export default {
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
+        // قفل/فتح محاضرة
         if (path.match(/^\/api\/admin\/lessons\/\d+\/lock$/) && request.method === "PUT") {
           const lessonId = path.split("/")[4];
           const body = await request.json();
@@ -397,7 +356,7 @@ export default {
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // --- إدارة الامتحانات ---
+        // إضافة امتحان
         if (path === "/api/admin/quizzes" && request.method === "POST") {
           const body = await request.json();
           
@@ -413,9 +372,11 @@ export default {
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
+        // --- مسار حذف الأسئلة ---
         if (path.match(/^\/api\/admin\/quizzes\/\d+$/) && request.method === "DELETE") {
           const quizId = path.split("/")[4];
           
+          // حماية ملكية المعلم: التأكد من أن السؤال تابع لدورة تخص المعلم
           if (adminUser.role === 'instructor') {
             const quiz = await env.DB.prepare("SELECT lesson_id FROM quizzes WHERE id = ?").bind(quizId).first();
             if (quiz) {
@@ -431,6 +392,7 @@ export default {
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
+        // تعديل رتبة مستخدم 
         if (path === "/api/admin/users/role" && request.method === "PUT") {
           const body = await request.json();
           const result = await env.DB.prepare("UPDATE users SET role = ? WHERE email = ?").bind(body.role, body.email).run();
@@ -444,6 +406,7 @@ export default {
         // مسارات الطلاب العامة (والمنصة بشكل عام)
         // ==========================================
 
+        // تحديث هذه الدالة لترجع رتبة المستخدم (Role) لاستخدامها في جدار الحماية
         async function verifyStudentSession(request, env) {
             const authHeader = request.headers.get("Authorization");
             if (!authHeader) return { error: "Unauthorized", status: 401 };
@@ -466,6 +429,7 @@ export default {
             }
         }
 
+        // جلب الكورسات (ديناميكية: المدير يرى الكل، المعلم يرى كورساته فقط، الطالب يرى الكل)
         if (path === "/api/courses" && request.method === "GET") {
           let isInstructor = false;
           let instId = null;
@@ -493,12 +457,15 @@ export default {
           return new Response(JSON.stringify(courses.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
+        // 💡 جدار الحماية للمحاضرات (يمنع المتطفلين من سحب الفيديوهات)
         if (path.match(/^\/api\/courses\/\d+\/lessons$/) && request.method === "GET") {
           const courseId = path.split("/")[3];
           
+          // 1. التوثيق
           const authCheck = await verifyStudentSession(request, env);
           if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
 
+          // 2. جدار الاشتراك: منع من ليس لديه اشتراك رسمي (مع إعفاء المدير والمعلم المالك)
           if (authCheck.role === 'student') {
             const isEnrolled = await env.DB.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").bind(authCheck.userId, courseId).first();
             if (!isEnrolled) {
@@ -511,21 +478,26 @@ export default {
             }
           }
 
+          // 3. إرسال الدروس فقط لمن يملك الصلاحية
           const lessons = await env.DB.prepare(
             "SELECT * FROM lessons WHERE course_id = ? ORDER BY order_num ASC"
           ).bind(courseId).all();
           return new Response(JSON.stringify(lessons.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
+        // 💡 جدار الحماية للامتحانات
         if (path.match(/^\/api\/lessons\/\d+\/quiz$/) && request.method === "GET") {
           const lessonId = path.split("/")[3];
           
+          // 1. التوثيق
           const authCheck = await verifyStudentSession(request, env);
           if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
 
+          // جلب الكورس الخاص بالدرس
           const lesson = await env.DB.prepare("SELECT course_id FROM lessons WHERE id = ?").bind(lessonId).first();
           if (!lesson) return new Response(JSON.stringify([]), { headers: { "Content-Type": "application/json", ...corsHeaders } });
 
+          // 2. جدار الاشتراك
           if (authCheck.role === 'student') {
             const isEnrolled = await env.DB.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").bind(authCheck.userId, lesson.course_id).first();
             if (!isEnrolled) {
@@ -547,6 +519,7 @@ export default {
           });
         }
 
+        // جلب تقدم الطالب في كورس معين
         if (path.match(/^\/api\/courses\/\d+\/progress$/) && request.method === "GET") {
           const courseId = path.split("/")[3];
           const authCheck = await verifyStudentSession(request, env);
@@ -574,6 +547,7 @@ export default {
           return new Response(JSON.stringify({ completedLessons, completedVideos }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
+        // جلب معرفات الكورسات التي اشترك فيها الطالب
         if (path === "/api/my-enrollments" && request.method === "GET") {
           const authCheck = await verifyStudentSession(request, env);
           if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -584,6 +558,7 @@ export default {
           return new Response(JSON.stringify(enrolledCourseIds), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
+        // جلب بيانات لوحة تحكم الطالب (Profile Dashboard)
         if (path === "/api/my-dashboard" && request.method === "GET") {
           const authCheck = await verifyStudentSession(request, env);
           if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -612,6 +587,7 @@ export default {
           }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
+        // الاشتراك في كورس
         if (path === "/api/enroll" && request.method === "POST") {
           const authCheck = await verifyStudentSession(request, env);
           if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -650,6 +626,7 @@ export default {
           }
         }
 
+        // حفظ تقدم الطالب (إنهاء المحاضرة بالكامل)
         if (path === "/api/progress" && request.method === "POST") {
           const authCheck = await verifyStudentSession(request, env);
           if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -671,6 +648,7 @@ export default {
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
+        // حفظ تقدم فيديو معين
         if (path === "/api/progress/video" && request.method === "POST") {
           const authCheck = await verifyStudentSession(request, env);
           if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -702,6 +680,7 @@ export default {
       }
     }
 
+    // 3. عرض الملفات الثابتة
     return env.ASSETS.fetch(request);
   }
 };
