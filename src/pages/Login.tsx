@@ -38,12 +38,11 @@ export default function Login() {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && user) {
-      // التوجيه: المدير، المدرس، أو المتابع يذهبون للوحة الإدارة. الطالب يذهب للكورسات.
-      if (user.role === 'admin' || user.role === 'instructor' || user.role === 'assistant') {
-        navigate('/admin');
-      } else {
-        navigate('/courses');
-      }
+      // توجيه كل رتبة إلى صفحتها المستقلة
+      if (user.role === 'admin') navigate('/admin');
+      else if (user.role === 'instructor') navigate('/instructor');
+      else if (user.role === 'assistant') navigate('/assistant');
+      else navigate('/courses');
     }
   }, [isAuthenticated, user, navigate]);
 
