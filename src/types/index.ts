@@ -4,7 +4,8 @@ export interface User {
   name: string;
   email: string;
   avatar_url?: string;
-  role: 'student' | 'instructor' | 'admin';
+  phone?: string;
+  role: 'student' | 'instructor' | 'admin' | 'assistant';
   created_at?: string;
   session_id?: string;
 }
