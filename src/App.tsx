@@ -6,9 +6,11 @@ import Courses from '@/pages/Courses';
 import Course from '@/pages/Course';
 import Profile from '@/pages/Profile';
 import Admin from '@/pages/Admin';
+import Instructor from '@/pages/Instructor';
+import Assistant from '@/pages/Assistant';
 
-// Protected Route Component
-function ProtectedRoute({ children, requireAdmin = false }: { children: React.ReactNode; requireAdmin?: boolean }) {
+// Protected Route Component (نظام الحماية الجديد)
+function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
   const { isAuthenticated, user, isLoading } = useAuth();
 
   if (isLoading) {
@@ -19,19 +21,22 @@ function ProtectedRoute({ children, requireAdmin = false }: { children: React.Re
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !user) {
     return <Navigate to="/" replace />;
   }
 
-  // التعديل هنا: السماح للمتابع (assistant) بالدخول لصفحة الإدارة وعدم طرده
-  if (requireAdmin && user?.role !== 'admin' && user?.role !== 'instructor' && user?.role !== 'assistant') {
+  // إذا كانت الصفحة محددة لرتب معينة والمستخدم ليس منهم، يتم توجيهه لصفحته الصحيحة
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    if (user.role === 'admin') return <Navigate to="/admin" replace />;
+    if (user.role === 'instructor') return <Navigate to="/instructor" replace />;
+    if (user.role === 'assistant') return <Navigate to="/assistant" replace />;
     return <Navigate to="/courses" replace />;
   }
 
   return <>{children}</>;
 }
 
-// Public Route Component (redirects if authenticated)
+// Public Route Component (توجيه المستخدمين المسجلين لصفحاتهم)
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, isLoading } = useAuth();
 
@@ -44,10 +49,9 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (isAuthenticated && user) {
-    // التعديل هنا: توجيه المتابع (assistant) من صفحة اللوجين إلى لوحة الإدارة مباشرة
-    if (user.role === 'admin' || user.role === 'instructor' || user.role === 'assistant') {
-      return <Navigate to="/admin" replace />;
-    }
+    if (user.role === 'admin') return <Navigate to="/admin" replace />;
+    if (user.role === 'instructor') return <Navigate to="/instructor" replace />;
+    if (user.role === 'assistant') return <Navigate to="/assistant" replace />;
     return <Navigate to="/courses" replace />;
   }
 
@@ -89,14 +93,37 @@ function AppRoutes() {
           </ProtectedRoute>
         } 
       />
+      
+      {/* مسار المدير العام فقط */}
       <Route 
         path="/admin" 
         element={
-          <ProtectedRoute requireAdmin>
+          <ProtectedRoute allowedRoles={['admin']}>
             <Admin />
           </ProtectedRoute>
         } 
       />
+
+      {/* مسار المدرس فقط */}
+      <Route 
+        path="/instructor" 
+        element={
+          <ProtectedRoute allowedRoles={['instructor']}>
+            <Instructor />
+          </ProtectedRoute>
+        } 
+      />
+
+      {/* مسار المتابع فقط */}
+      <Route 
+        path="/assistant" 
+        element={
+          <ProtectedRoute allowedRoles={['assistant']}>
+            <Assistant />
+          </ProtectedRoute>
+        } 
+      />
+
       {/* Catch all - redirect to home */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
