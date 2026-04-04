@@ -36,7 +36,8 @@ async function verifyAdmin(request, env) {
       return null; // التوكن غير صالح لأن الجلسة تغيرت
     }
     
-    if (user.role === 'admin' || user.role === 'instructor') {
+    // السماح للمدير، المعلم، والمتابع (المساعد) بالدخول للوحة
+    if (user.role === 'admin' || user.role === 'instructor' || user.role === 'assistant') {
       return user;
     }
     return null;
@@ -70,20 +71,37 @@ export default {
         }
       }
 
-      // --- تطبيق القيود الصارمة على المعلم (Instructor Constraints) ---
-      if (adminUser.role === 'instructor') {
-        const restrictedPaths = [
-          "/api/admin/codes",
-          "/api/admin/users/role"
-        ];
+      // --- تطبيق القيود الصارمة على المعلم (instructor) والمتابع (assistant) ---
+      if (adminUser.role === 'instructor' || adminUser.role === 'assistant') {
+        const isAssistant = adminUser.role === 'assistant';
+        const isInstructor = adminUser.role === 'instructor';
         
-        const isRestricted = restrictedPaths.some(rp => path.startsWith(rp));
+        let isRestricted = false;
+
+        if (isAssistant) {
+          // المتابع (assistant) مسموح له فقط بمسارات القراءة (GET) للطلاب والتقارير
+          const isAllowedPath = (path.startsWith("/api/admin/users") || path.startsWith("/api/admin/reports")) && request.method === "GET";
+          if (!isAllowedPath) {
+            isRestricted = true;
+          }
+        } else if (isInstructor) {
+          // مسارات ممنوعة تماماً على المعلم
+          const restrictedPaths = [
+            "/api/admin/codes",
+            "/api/admin/users/role"
+          ];
+          if (restrictedPaths.some(rp => path.startsWith(rp))) {
+            isRestricted = true;
+          }
+          // منع المعلم من حذف أو تعديل المستخدمين
+          const isUserModify = path.match(/^\/api\/admin\/users\/\d+$/) && (request.method === "DELETE" || request.method === "PUT");
+          if (isUserModify) {
+            isRestricted = true;
+          }
+        }
         
-        // منع المعلم من حذف أو تعديل المستخدمين (يسمح له فقط بطلب GET للرؤية)
-        const isUserModify = path.match(/^\/api\/admin\/users\/\d+$/) && (request.method === "DELETE" || request.method === "PUT");
-        
-        if (isRestricted || isUserModify) {
-          return new Response(JSON.stringify({ error: "Access Denied: هذا الإجراء مخصص للمدير فقط" }), { 
+        if (isRestricted) {
+          return new Response(JSON.stringify({ error: "Access Denied: غير مصرح لك بهذا الإجراء" }), { 
             status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } 
           });
         }
@@ -150,24 +168,56 @@ export default {
         // مسارات لوحة الإدارة (Admin API)
         // ==========================================
 
-        // جلب المستخدمين (المدير يرى الكل، المعلم يرى طلابه فقط)
+        // جلب المستخدمين مع نظام البحث والصفحات (Pagination & Search & Phone)
         if (path === "/api/admin/users" && request.method === "GET") {
+          const page = parseInt(url.searchParams.get("page")) || 1;
+          const limit = parseInt(url.searchParams.get("limit")) || 50;
+          const search = url.searchParams.get("search") || "";
+          const offset = (page - 1) * limit;
+
+          let query = "";
+          let countQuery = "";
+          let params = [];
+          let countParams = [];
+
           if (adminUser.role === 'instructor') {
-            // جلب الطلاب المشتركين في دورات هذا المعلم فقط (بشكل فريد DISTINCT لمنع التكرار)
-            const users = await env.DB.prepare(`
-              SELECT DISTINCT u.id, u.name, u.email, u.role, u.created_at 
-              FROM users u
-              JOIN enrollments e ON u.id = e.user_id
-              JOIN courses c ON e.course_id = c.id
-              WHERE c.instructor_id = ?
-              ORDER BY u.created_at DESC
-            `).bind(adminUser.id).all();
-            return new Response(JSON.stringify(users.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+            // المعلم يرى طلابه فقط
+            let baseWhere = `FROM users u JOIN enrollments e ON u.id = e.user_id JOIN courses c ON e.course_id = c.id WHERE c.instructor_id = ?`;
+            params.push(adminUser.id);
+            countParams.push(adminUser.id);
+
+            if (search) {
+              baseWhere += ` AND (u.name LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)`;
+              params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+              countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+            }
+
+            query = `SELECT DISTINCT u.id, u.name, u.email, u.phone, u.role, u.created_at ${baseWhere} ORDER BY u.created_at DESC LIMIT ? OFFSET ?`;
+            countQuery = `SELECT COUNT(DISTINCT u.id) as total ${baseWhere}`;
+            params.push(limit, offset);
           } else {
-            // المدير يرى الكل
-            const users = await env.DB.prepare("SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC").all();
-            return new Response(JSON.stringify(users.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+            // المدير والمتابع يرى جميع المستخدمين
+            let baseWhere = `FROM users`;
+            if (search) {
+              baseWhere += ` WHERE name LIKE ? OR email LIKE ? OR phone LIKE ?`;
+              params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+              countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+            }
+            
+            query = `SELECT id, name, email, phone, role, created_at ${baseWhere} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+            countQuery = `SELECT COUNT(*) as total ${baseWhere}`;
+            params.push(limit, offset);
           }
+
+          const usersList = await env.DB.prepare(query).bind(...params).all();
+          const countRes = await env.DB.prepare(countQuery).bind(...countParams).first();
+
+          return new Response(JSON.stringify({
+            users: usersList.results,
+            total: countRes.total,
+            page: page,
+            limit: limit
+          }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
         // حذف مستخدم (للمدير فقط، ومحمية بالأعلى)
@@ -177,11 +227,12 @@ export default {
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
-        // تعديل بيانات مستخدم (للمدير فقط، ومحمية بالأعلى)
+        // تعديل بيانات مستخدم (للمدير فقط، ومحمية بالأعلى، وتم إضافة تحديث التليفون)
         if (path.match(/^\/api\/admin\/users\/\d+$/) && request.method === "PUT") {
           const userId = path.split("/")[4];
           const body = await request.json();
-          await env.DB.prepare("UPDATE users SET name = ?, role = ? WHERE id = ?").bind(body.name, body.role, userId).run();
+          await env.DB.prepare("UPDATE users SET name = ?, role = ?, phone = ? WHERE id = ?")
+                .bind(body.name, body.role, body.phone || null, userId).run();
           return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
@@ -427,6 +478,18 @@ export default {
             } catch (e) {
                 return { error: "Invalid Token", status: 401 };
             }
+        }
+
+        // مسار تحديث الملف الشخصي (إضافة رقم التليفون للطلاب)
+        if (path === "/api/my-profile" && request.method === "PUT") {
+          const authCheck = await verifyStudentSession(request, env);
+          if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
+          
+          const body = await request.json();
+          if (body.phone !== undefined) {
+            await env.DB.prepare("UPDATE users SET phone = ? WHERE id = ?").bind(body.phone, authCheck.userId).run();
+          }
+          return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
         }
 
         // جلب الكورسات (ديناميكية: المدير يرى الكل، المعلم يرى كورساته فقط، الطالب يرى الكل)
