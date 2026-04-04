@@ -168,11 +168,12 @@ export default {
         // مسارات لوحة الإدارة (Admin API)
         // ==========================================
 
-        // جلب المستخدمين مع نظام البحث والصفحات (Pagination & Search & Phone)
+        // جلب المستخدمين مع نظام البحث والصفحات وفلترة (الطلاب / فريق العمل)
         if (path === "/api/admin/users" && request.method === "GET") {
           const page = parseInt(url.searchParams.get("page")) || 1;
           const limit = parseInt(url.searchParams.get("limit")) || 50;
           const search = url.searchParams.get("search") || "";
+          const type = url.searchParams.get("type") || "all"; // 'students' | 'staff' | 'all'
           const offset = (page - 1) * limit;
 
           let query = "";
@@ -182,7 +183,7 @@ export default {
 
           if (adminUser.role === 'instructor') {
             // المعلم يرى طلابه فقط
-            let baseWhere = `FROM users u JOIN enrollments e ON u.id = e.user_id JOIN courses c ON e.course_id = c.id WHERE c.instructor_id = ?`;
+            let baseWhere = `FROM users u JOIN enrollments e ON u.id = e.user_id JOIN courses c ON e.course_id = c.id WHERE c.instructor_id = ? AND u.role = 'student'`;
             params.push(adminUser.id);
             countParams.push(adminUser.id);
 
@@ -196,12 +197,24 @@ export default {
             countQuery = `SELECT COUNT(DISTINCT u.id) as total ${baseWhere}`;
             params.push(limit, offset);
           } else {
-            // المدير والمتابع يرى جميع المستخدمين
+            // المدير والمتابع
             let baseWhere = `FROM users`;
+            let whereClauses = [];
+
+            if (type === 'students') {
+              whereClauses.push(`role = 'student'`);
+            } else if (type === 'staff') {
+              whereClauses.push(`role IN ('admin', 'instructor', 'assistant')`);
+            }
+
             if (search) {
-              baseWhere += ` WHERE name LIKE ? OR email LIKE ? OR phone LIKE ?`;
+              whereClauses.push(`(name LIKE ? OR email LIKE ? OR phone LIKE ?)`);
               params.push(`%${search}%`, `%${search}%`, `%${search}%`);
               countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+            }
+            
+            if (whereClauses.length > 0) {
+              baseWhere += ` WHERE ` + whereClauses.join(' AND ');
             }
             
             query = `SELECT id, name, email, phone, role, created_at ${baseWhere} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
