@@ -38,7 +38,8 @@ export default function Login() {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && user) {
-      if (user.role === 'admin' || user.role === 'instructor') {
+      // التعديل تم هنا: إضافة رتبة المتابع (assistant) ليتم توجيهه للوحة الإدارة
+      if (user.role === 'admin' || user.role === 'instructor' || user.role === 'assistant') {
         navigate('/admin');
       } else {
         navigate('/courses');
