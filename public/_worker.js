@@ -84,13 +84,14 @@ export default {
         if (path.startsWith("/api/auth/")) {
           apiResponse = await handleAuthRoutes(request, env, path, url);
         }
-        // ب. مسارات عرض المحتوى التعليمي (الكورسات، الدروس، الامتحانات)
+        // ب. مسارات تفاعل الطالب (ملفه الشخصي، حفظ التقدم، الاشتراك)
+        // 💡 التعديل هنا: وضعنا هذا الشرط قبل الكورسات ليلتقط مسار "التقدم" بشكل صحيح
+        else if (path.startsWith("/api/my-") || path.startsWith("/api/enroll") || path.startsWith("/api/progress") || path.match(/^\/api\/courses\/\d+\/progress$/)) {
+          apiResponse = await handleStudentRoutes(request, env, path, url);
+        }
+        // ج. مسارات عرض المحتوى التعليمي (الكورسات، الدروس، الامتحانات)
         else if (path === "/api/courses" || path.startsWith("/api/courses/") || path.startsWith("/api/lessons/")) {
           apiResponse = await handleCourseRoutes(request, env, path, url);
-        }
-        // ج. مسارات تفاعل الطالب (ملفه الشخصي، حفظ التقدم، الاشتراك)
-        else if (path.startsWith("/api/my-") || path.startsWith("/api/enroll") || path.startsWith("/api/progress")) {
-          apiResponse = await handleStudentRoutes(request, env, path, url);
         }
 
         // إرجاع الرد إذا تم معالجته
