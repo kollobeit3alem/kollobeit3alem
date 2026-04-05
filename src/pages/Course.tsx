@@ -495,20 +495,45 @@ export default function Course() {
   const nextQuestion = () => { if (currentQIndex < quizQuestions.length - 1) setCurrentQIndex(prev => prev + 1); };
   const prevQuestion = () => { if (currentQIndex > 0) setCurrentQIndex(prev => prev - 1); };
 
-  const submitExam = () => {
+  // التعديل الرئيسي هنا: جعل الدالة async لحفظ النتيجة في الباك إند
+  const submitExam = async () => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
     
     let score = 0;
+    const formattedAnswers = [];
+
+    // تجميع الإجابات وحساب الدرجة
     for (let i = 0; i < quizQuestions.length; i++) {
-      if (userAnswers[i] === quizQuestions[i].correct_option) score++;
+      const isCorrect = userAnswers[i] === quizQuestions[i].correct_option;
+      if (isCorrect) score++;
+
+      formattedAnswers.push({
+        question_id: quizQuestions[i].id,
+        chosen_option: userAnswers[i] || null,
+        is_correct: isCorrect,
+        correct_option: quizQuestions[i].correct_option
+      });
     }
     
     const percentage = Math.round((score / quizQuestions.length) * 100);
     setExamScore(percentage);
     setExamFinished(true);
+
+    // إرسال النتيجة والتفاصيل للسيرفر
+    if (token && activeExamLesson) {
+      try {
+        await apiCall('/api/progress/quiz', token, 'POST', {
+          lessonId: activeExamLesson.id,
+          score: percentage,
+          answers: formattedAnswers
+        });
+      } catch (error) {
+        console.error('Failed to save quiz progress:', error);
+      }
+    }
     
     if (percentage >= 50 && activeExamLesson) {
       markLessonCompleted(activeExamLesson.id);
