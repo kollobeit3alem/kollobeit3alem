@@ -274,13 +274,10 @@ export default function Assistant() {
                 <i className="fas fa-times"></i>
               </button>
             </div>
-            
             <div className="leading-[1.8]">
               
-              {/* تبويبة الدورات المشترك بها */}
               <div className="bg-[#f4f7f9] p-[15px] rounded-[10px] mb-5 border border-[#e2e8f0]">
                 <h4 className="text-[#015669] mb-2.5 font-bold"><i className="fas fa-book-open ml-2"></i> الدورات المشترك بها ({reportData.enrollments?.length || 0})</h4>
-                
                 {reportData.enrollments && reportData.enrollments.length > 0 ? (
                   <ul className="list-inside pr-[15px] text-[#1e293b]">
                     {reportData.enrollments.map((e: any, i: number) => (
@@ -297,7 +294,6 @@ export default function Assistant() {
                 )}
               </div>
 
-              {/* تبويبة المحاضرات المكتملة */}
               <div className="bg-[#ecfdf5] border border-[#a7f3d0] p-[15px] rounded-[10px] mb-5">
                 <h4 className="text-[#10b981] mb-2.5 font-bold"><i className="fas fa-check-circle ml-2"></i> المحاضرات المكتملة ({reportData.progress?.length || 0})</h4>
                 {reportData.progress && reportData.progress.length > 0 ? (
