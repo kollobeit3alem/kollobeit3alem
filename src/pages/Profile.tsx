@@ -22,12 +22,18 @@ interface AnswerDetail {
   correct_option: string;
 }
 
+// التعديل هنا: إضافة نوع للتبويبات
+type TabType = 'courses' | 'quizzes';
+
 export default function Profile() {
   const navigate = useNavigate();
   const { user, token, isAuthenticated, logout } = useAuth();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [quizAttempts, setQuizAttempts] = useState<QuizAttempt[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // التعديل هنا: حالة التبويب النشط
+  const [activeTab, setActiveTab] = useState<TabType>('courses');
   
   // حالة نافذة تفاصيل الامتحان
   const [selectedAttempt, setSelectedAttempt] = useState<QuizAttempt | null>(null);
@@ -170,7 +176,7 @@ export default function Profile() {
         </div>
       </section>
 
-      {/* Stats Cards - التعديل الجذري هنا لإضافة بطاقة المحفظة */}
+      {/* Stats Cards - المحفظة والإحصائيات */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 -mt-8 px-[5%] relative z-10">
         
         {/* بطاقة المحفظة */}
@@ -234,143 +240,163 @@ export default function Profile() {
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 py-12 px-[5%]">
+      <main className="flex-1 py-12 px-[5%] flex flex-col items-center">
         
-        {/* مساحة التعلم (الكورسات) */}
-        <div className="mb-14">
-          <h2 className="text-[26px] text-text-main mb-8 flex items-center gap-2.5">
-            <i className="fas fa-laptop-code text-primary"></i> مساحة التعلم الخاصة بي
-          </h2>
-          
-          {isLoading ? (
-            <div className="text-center py-12 text-text-muted">
-              <div className="w-[50px] h-[50px] border-[5px] border-primary/20 border-t-primary rounded-full animate-spin-slow mx-auto mb-4" />
-              <h3>جاري تحميل دوراتك...</h3>
-            </div>
-          ) : !dashboardData?.enrolledCourses?.length ? (
-            <div className="text-center py-12 bg-white rounded-[20px] border border-border">
-              <i className="fas fa-folder-open text-[50px] text-slate-300 mb-5"></i>
-              <h3 className="text-text-muted mb-4">لم تشترك في أي دورة حتى الآن.</h3>
-              <Link to="/courses" className="bg-primary/10 text-primary no-underline py-2.5 px-8 rounded-xl font-bold transition-all hover:bg-primary hover:text-white inline-flex items-center gap-2">
-                تصفح الدورات المتاحة
-              </Link>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {dashboardData.enrolledCourses.map((course: EnrolledCourseWithProgress) => {
-                const progressPercent = course.total_lessons > 0 
-                  ? Math.round((course.completed_lessons / course.total_lessons) * 100) 
-                  : 0;
-                const isCompleted = progressPercent === 100 && course.total_lessons > 0;
-                
-                return (
-                  <div 
-                    key={course.id}
-                    className="bg-white rounded-[20px] overflow-hidden shadow-card border border-black/[0.03] transition-all duration-300 flex flex-col hover:-translate-y-2.5 hover:shadow-card-hover hover:border-primary"
-                  >
-                    <div className="relative w-full h-[180px] bg-slate-200">
-                      <img 
-                        src={course.image_url || 'https://via.placeholder.com/600x400/015669/FFFFFF?text=دورة'} 
-                        alt={course.title}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="p-6 flex-1 flex flex-col">
-                      <h3 className="text-lg font-bold text-primary mb-4 leading-snug">{course.title}</h3>
-                      
-                      <div className="mb-5 flex-1">
-                        <div className="flex justify-between text-sm text-text-muted mb-2 font-bold">
-                          <span>مستوى الإنجاز</span>
-                          <span style={{ color: isCompleted ? '#10b981' : '#015669' }}>{progressPercent}%</span>
-                        </div>
-                        <div className="w-full h-2.5 bg-border rounded-md overflow-hidden">
-                          <div 
-                            className="h-full bg-success rounded-md transition-all duration-1000"
-                            style={{ width: `${progressPercent}%` }}
-                          />
-                        </div>
-                        <div className="text-xs text-text-muted mt-1.5">
-                          أكملت {course.completed_lessons} من أصل {course.total_lessons} محاضرات
-                        </div>
-                      </div>
-
-                      <Link 
-                        to={`/course?id=${course.id}`}
-                        className={`py-3 rounded-xl font-bold text-[15px] transition-all flex justify-center items-center gap-2 no-underline ${
-                          isCompleted 
-                            ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-500 hover:text-white' 
-                            : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'
-                        }`}
-                      >
-                        {isCompleted ? (
-                          <>مراجعة الدورة <i className="fas fa-check-circle"></i></>
-                        ) : (
-                          <>متابعة التعلم <i className="fas fa-play-circle"></i></>
-                        )}
-                      </Link>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+        {/* التعديل هنا: نظام التبويبات (Tabs) الجديد */}
+        <div className="flex gap-2 bg-white p-1.5 rounded-2xl shadow-sm border border-slate-200 mb-10 w-full max-w-[500px] overflow-hidden">
+          <button 
+            onClick={() => setActiveTab('courses')}
+            className={`flex-1 py-3 px-4 font-bold text-[15px] rounded-xl transition-all flex items-center justify-center gap-2 ${activeTab === 'courses' ? 'bg-primary text-white shadow-md' : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-primary'}`}
+          >
+            <i className="fas fa-laptop-code"></i> الكورسات والتقدم
+          </button>
+          <button 
+            onClick={() => setActiveTab('quizzes')}
+            className={`flex-1 py-3 px-4 font-bold text-[15px] rounded-xl transition-all flex items-center justify-center gap-2 ${activeTab === 'quizzes' ? 'bg-primary text-white shadow-md' : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-primary'}`}
+          >
+            <i className="fas fa-clipboard-list"></i> سجل الامتحانات
+          </button>
         </div>
 
-        {/* سجل الامتحانات */}
-        <div>
-          <h2 className="text-[26px] text-text-main mb-6 flex items-center gap-2.5">
-            <i className="fas fa-clipboard-list text-primary"></i> سجل الامتحانات
-          </h2>
+        <div className="w-full animate-fade-in">
+          {/* تبويب الكورسات */}
+          {activeTab === 'courses' && (
+            <div>
+              {isLoading ? (
+                <div className="text-center py-12 text-text-muted">
+                  <div className="w-[50px] h-[50px] border-[5px] border-primary/20 border-t-primary rounded-full animate-spin-slow mx-auto mb-4" />
+                  <h3>جاري تحميل دوراتك...</h3>
+                </div>
+              ) : !dashboardData?.enrolledCourses?.length ? (
+                <div className="text-center py-16 bg-white rounded-[20px] border border-border shadow-sm">
+                  <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-5">
+                    <i className="fas fa-folder-open text-[40px] text-slate-300"></i>
+                  </div>
+                  <h3 className="text-text-main text-xl mb-3 font-bold">لم تشترك في أي دورة حتى الآن</h3>
+                  <p className="text-text-muted mb-6">اكتشف الدورات المتاحة وابدأ رحلة التعلم الآن.</p>
+                  <Link to="/courses" className="bg-primary/10 text-primary no-underline py-3 px-8 rounded-xl font-bold transition-all hover:bg-primary hover:text-white inline-flex items-center gap-2">
+                    تصفح الدورات المتاحة <i className="fas fa-arrow-left"></i>
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {dashboardData.enrolledCourses.map((course: EnrolledCourseWithProgress) => {
+                    const progressPercent = course.total_lessons > 0 
+                      ? Math.round((course.completed_lessons / course.total_lessons) * 100) 
+                      : 0;
+                    const isCompleted = progressPercent === 100 && course.total_lessons > 0;
+                    
+                    return (
+                      <div 
+                        key={course.id}
+                        className="bg-white rounded-[20px] overflow-hidden shadow-card border border-black/[0.03] transition-all duration-300 flex flex-col hover:-translate-y-2.5 hover:shadow-card-hover hover:border-primary"
+                      >
+                        <div className="relative w-full h-[180px] bg-slate-200">
+                          <img 
+                            src={course.image_url || 'https://via.placeholder.com/600x400/015669/FFFFFF?text=دورة'} 
+                            alt={course.title}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="p-6 flex-1 flex flex-col">
+                          <h3 className="text-lg font-bold text-primary mb-4 leading-snug">{course.title}</h3>
+                          
+                          <div className="mb-5 flex-1">
+                            <div className="flex justify-between text-sm text-text-muted mb-2 font-bold">
+                              <span>مستوى الإنجاز</span>
+                              <span style={{ color: isCompleted ? '#10b981' : '#015669' }}>{progressPercent}%</span>
+                            </div>
+                            <div className="w-full h-2.5 bg-border rounded-md overflow-hidden">
+                              <div 
+                                className="h-full bg-success rounded-md transition-all duration-1000"
+                                style={{ width: `${progressPercent}%` }}
+                              />
+                            </div>
+                            <div className="text-xs text-text-muted mt-1.5">
+                              أكملت {course.completed_lessons} من أصل {course.total_lessons} محاضرات
+                            </div>
+                          </div>
 
-          {isLoading ? (
-            <div className="text-center py-8 text-text-muted">
-              <i className="fas fa-circle-notch fa-spin text-3xl mb-3 block text-primary/50"></i>
-              <p>جاري تحميل السجل...</p>
-            </div>
-          ) : quizAttempts.length === 0 ? (
-            <div className="bg-white p-8 rounded-[20px] border border-border text-center text-text-muted shadow-sm">
-              <i className="fas fa-folder-open text-4xl mb-3 text-slate-300"></i>
-              <p>لم تقم بأداء أي امتحانات حتى الآن.</p>
-            </div>
-          ) : (
-            <div className="bg-white rounded-[20px] border border-border shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-right border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-border text-text-main">
-                      <th className="p-4 font-bold">الدورة</th>
-                      <th className="p-4 font-bold">المحاضرة</th>
-                      <th className="p-4 font-bold">تاريخ المحاولة</th>
-                      <th className="p-4 font-bold text-center">الدرجة</th>
-                      <th className="p-4 font-bold text-center">إجراءات</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {quizAttempts.map((attempt) => (
-                      <tr key={attempt.id} className="border-b border-border hover:bg-slate-50/50 transition-colors">
-                        <td className="p-4 font-bold text-primary">{attempt.course_title}</td>
-                        <td className="p-4 text-text-main">{attempt.lesson_title}</td>
-                        <td className="p-4 text-text-muted text-sm" dir="ltr">
-                          {new Date(attempt.attempted_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' })}
-                        </td>
-                        <td className="p-4 text-center">
-                          <span className={`inline-block px-3 py-1 rounded-lg font-bold text-sm ${attempt.score >= 50 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
-                            {attempt.score}%
-                          </span>
-                        </td>
-                        <td className="p-4 text-center">
-                          <button 
-                            onClick={() => setSelectedAttempt(attempt)}
-                            className="bg-primary/10 text-primary border-none py-2 px-4 rounded-lg font-bold text-sm cursor-pointer hover:bg-primary hover:text-white transition-all"
+                          <Link 
+                            to={`/course?id=${course.id}`}
+                            className={`py-3 rounded-xl font-bold text-[15px] transition-all flex justify-center items-center gap-2 no-underline ${
+                              isCompleted 
+                                ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-500 hover:text-white' 
+                                : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'
+                            }`}
                           >
-                            <i className="fas fa-eye"></i> التفاصيل
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                            {isCompleted ? (
+                              <>مراجعة الدورة <i className="fas fa-check-circle"></i></>
+                            ) : (
+                              <>متابعة التعلم <i className="fas fa-play-circle"></i></>
+                            )}
+                          </Link>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* تبويب سجل الامتحانات */}
+          {activeTab === 'quizzes' && (
+            <div>
+              {isLoading ? (
+                <div className="text-center py-12 text-text-muted">
+                  <div className="w-[50px] h-[50px] border-[5px] border-primary/20 border-t-primary rounded-full animate-spin-slow mx-auto mb-4" />
+                  <p>جاري تحميل السجل...</p>
+                </div>
+              ) : quizAttempts.length === 0 ? (
+                <div className="text-center py-16 bg-white rounded-[20px] border border-border shadow-sm">
+                  <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-5">
+                    <i className="fas fa-clipboard-check text-[40px] text-slate-300"></i>
+                  </div>
+                  <h3 className="text-text-main text-xl mb-3 font-bold">لا يوجد امتحانات مسجلة</h3>
+                  <p className="text-text-muted mb-0">لم تقم بأداء أي امتحانات حتى الآن. ستظهر نتائجك هنا فور الانتهاء منها.</p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-[20px] border border-border shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-right border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-border text-text-main">
+                          <th className="p-4 font-bold">الدورة</th>
+                          <th className="p-4 font-bold">المحاضرة</th>
+                          <th className="p-4 font-bold">تاريخ المحاولة</th>
+                          <th className="p-4 font-bold text-center">الدرجة</th>
+                          <th className="p-4 font-bold text-center">إجراءات</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {quizAttempts.map((attempt) => (
+                          <tr key={attempt.id} className="border-b border-border hover:bg-slate-50/50 transition-colors">
+                            <td className="p-4 font-bold text-primary">{attempt.course_title}</td>
+                            <td className="p-4 text-text-main">{attempt.lesson_title}</td>
+                            <td className="p-4 text-text-muted text-sm" dir="ltr">
+                              {new Date(attempt.attempted_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' })}
+                            </td>
+                            <td className="p-4 text-center">
+                              <span className={`inline-block px-3 py-1 rounded-lg font-bold text-sm ${attempt.score >= 50 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>
+                                {attempt.score}%
+                              </span>
+                            </td>
+                            <td className="p-4 text-center">
+                              <button 
+                                onClick={() => setSelectedAttempt(attempt)}
+                                className="bg-primary/10 text-primary border-none py-2 px-4 rounded-lg font-bold text-sm cursor-pointer hover:bg-primary hover:text-white transition-all"
+                              >
+                                <i className="fas fa-eye"></i> التفاصيل
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
