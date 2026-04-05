@@ -15,6 +15,30 @@ export async function handleStudentRoutes(request, env, path, url) {
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
+  // جلب سجل امتحانات الطالب (للعرض في صفحة البروفايل)
+  if (path === "/api/my-quizzes" && request.method === "GET") {
+    const authCheck = await verifyStudentSession(request, env);
+    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
+
+    const userId = authCheck.userId;
+
+    try {
+      const query = `
+        SELECT q.id, q.score, q.answers_json, q.attempted_at, l.title as lesson_title, c.title as course_title
+        FROM quiz_attempts q
+        JOIN lessons l ON q.lesson_id = l.id
+        JOIN courses c ON l.course_id = c.id
+        WHERE q.user_id = ?
+        ORDER BY q.attempted_at DESC
+      `;
+      const attempts = await env.DB.prepare(query).bind(userId).all();
+      
+      return new Response(JSON.stringify(attempts.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    } catch (e) {
+      return new Response(JSON.stringify({ error: "فشل جلب سجل الامتحانات" }), { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }
+  }
+
   // جلب تقدم الطالب في كورس معين
   if (path.match(/^\/api\/courses\/\d+\/progress$/) && request.method === "GET") {
     const courseId = path.split("/")[3];
@@ -167,6 +191,26 @@ export async function handleStudentRoutes(request, env, path, url) {
     }
 
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+  }
+
+  // حفظ نتيجة امتحان الطالب
+  if (path === "/api/progress/quiz" && request.method === "POST") {
+    const authCheck = await verifyStudentSession(request, env);
+    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
+
+    const body = await request.json();
+    const { lessonId, score, answers } = body;
+    const userId = authCheck.userId;
+
+    try {
+      await env.DB.prepare(
+        "INSERT INTO quiz_attempts (user_id, lesson_id, score, answers_json) VALUES (?, ?, ?, ?)"
+      ).bind(userId, lessonId, score, JSON.stringify(answers)).run();
+      
+      return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    } catch (e) {
+      return new Response(JSON.stringify({ error: "حدث خطأ أثناء حفظ النتيجة" }), { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }
   }
 
   return null;
