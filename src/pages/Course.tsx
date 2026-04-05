@@ -628,9 +628,26 @@ export default function Course() {
           <div className="p-6 text-center">
             <h2 className="text-[26px] text-primary mb-2.5 font-bold">{course?.title || 'جاري تحميل بيانات الكورس...'}</h2>
             <p className="text-text-muted text-base mb-5">{course?.description || 'دورة تدريبية متميزة'}</p>
-            <div className="bg-primary text-white border-none py-3 px-8 rounded-xl text-base font-bold inline-block">
-              <i className="fas fa-graduation-cap ml-2"></i> أنت مشترك في هذا الكورس
+            
+            {/* التعديل هنا: إضافة زرار التواصل بجوار زرار "أنت مشترك" */}
+            <div className="flex flex-wrap justify-center items-center gap-4">
+              <div className="bg-primary text-white border-none py-3 px-8 rounded-xl text-base font-bold inline-block">
+                <i className="fas fa-graduation-cap ml-2"></i> أنت مشترك في هذا الكورس
+              </div>
+              
+              {course?.instructor_contact && (
+                <a 
+                  href={course.instructor_contact} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="bg-[#25D366] text-white border-none py-3 px-8 rounded-xl text-base font-bold inline-flex items-center gap-2 transition-all hover:bg-[#1ebe57] hover:-translate-y-0.5 hover:shadow-md no-underline"
+                  title="تواصل مع المحاضر للاستفسارات"
+                >
+                  <i className="fab fa-whatsapp text-lg"></i> تواصل مع المحاضر
+                </a>
+              )}
             </div>
+
           </div>
         </div>
       </div>
