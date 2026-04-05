@@ -178,6 +178,7 @@ export default function Courses() {
         </Link>
         <div className="flex items-center gap-4">
           <Link to="/profile" className="flex items-center gap-2.5 font-bold text-text-main bg-page-bg py-1.5 px-4 pl-1.5 rounded-[30px] border border-border transition-all hover:border-primary hover:shadow-[0_4px_10px_var(--primary-light)] no-underline" title="الذهاب للبروفايل">
+            {/* التعديل هنا: إضافة hidden sm:inline لإخفاء الاسم في الموبايل */}
             <span className="hidden sm:inline">{user.name.split(' ')[0]}</span>
             {user.avatar_url && (
               <img src={user.avatar_url} alt="صورة المستخدم" className="w-10 h-10 rounded-full border-2 border-primary object-cover" />
@@ -252,24 +253,7 @@ export default function Courses() {
                     <p className="text-text-muted text-sm leading-relaxed mb-5 flex-1 line-clamp-3">
                       {course.description || 'دورة تدريبية متميزة لتطوير مهاراتك العملية.'}
                     </p>
-                    <div className="flex justify-between items-center pt-4 border-t border-border">
-                      {/* إضافة زر التواصل مع المحاضر إذا كان الرابط موجوداً */}
-                      {course.instructor_contact ? (
-                        <a 
-                          href={course.instructor_contact} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()} // لمنع النقر من تفعيل فتح الدورة
-                          className="text-slate-400 hover:text-[#25D366] transition-colors flex items-center gap-1.5 text-sm font-bold no-underline"
-                          title="تواصل مع المحاضر"
-                        >
-                          <i className="fab fa-whatsapp text-lg"></i>
-                          <span className="hidden sm:inline">للاستفسار</span>
-                        </a>
-                      ) : (
-                        <div></div> /* عنصر فارغ للحفاظ على التنسيق */
-                      )}
-                      
+                    <div className="flex justify-end items-center pt-4 border-t border-border">
                       {action.button}
                     </div>
                   </div>
