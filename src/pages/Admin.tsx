@@ -494,7 +494,8 @@ export default function Admin() {
                     {course.instructor_id && (
                       <div className="text-[13px] text-[#015669] -mt-1 mb-1">
                         <i className="fas fa-chalkboard-teacher ml-1"></i>
-                        <strong>بواسطة:</strong> {users.find(u => u.id === course.instructor_id)?.name || 'مدرس غير معروف'}
+                        {/* التعديل هنا: قراءة الاسم من السيرفر مباشرة، مع الاحتفاظ بالبحث كبديل احتياطي */}
+                        <strong>بواسطة:</strong> {(course as any).instructor_name || users.find(u => u.id === course.instructor_id)?.name || 'مدرس غير معروف'}
                       </div>
                     )}
                     <div className="text-[13px] text-[#64748b]">
