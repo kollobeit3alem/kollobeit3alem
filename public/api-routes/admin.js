@@ -49,25 +49,62 @@ export async function handleAdminRoutes(request, env, path, url, adminUser) {
   // 2. حذف وتعديل المستخدمين
   if (path.match(/^\/api\/admin\/users\/\d+$/) && request.method === "DELETE") {
     const userId = path.split("/")[4];
+    
+    // التعديل هنا: مسح جميع سجلات الطالب المرتبطة قبل مسح حسابه لتفادي خطأ Foreign Key
+    await env.DB.prepare("DELETE FROM enrollments WHERE user_id = ?").bind(userId).run();
+    await env.DB.prepare("DELETE FROM student_progress WHERE user_id = ?").bind(userId).run();
+    await env.DB.prepare("DELETE FROM student_video_progress WHERE user_id = ?").bind(userId).run();
+    await env.DB.prepare("DELETE FROM quiz_attempts WHERE user_id = ?").bind(userId).run();
+    
+    // بعد مسح السجلات، يتم مسح المستخدم بأمان
     await env.DB.prepare("DELETE FROM users WHERE id = ?").bind(userId).run();
+    
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
   if (path.match(/^\/api\/admin\/users\/\d+$/) && request.method === "PUT") {
     const userId = path.split("/")[4];
     const body = await request.json();
+    
+    // جلب الرتبة الحالية للمستخدم قبل التعديل
+    const currentUser = await env.DB.prepare("SELECT role FROM users WHERE id = ?").bind(userId).first();
+
+    // تحديث بيانات المستخدم
     await env.DB.prepare("UPDATE users SET name = ?, role = ?, phone = ? WHERE id = ?")
           .bind(body.name, body.role, body.phone || null, userId).run();
+          
+    // التعديل هنا: إذا تمت الترقية من "طالب" إلى رتبة أخرى، نقوم بمسح سجلاته التعليمية
+    if (currentUser && currentUser.role === 'student' && body.role !== 'student') {
+      await env.DB.prepare("DELETE FROM enrollments WHERE user_id = ?").bind(userId).run();
+      await env.DB.prepare("DELETE FROM student_progress WHERE user_id = ?").bind(userId).run();
+      await env.DB.prepare("DELETE FROM student_video_progress WHERE user_id = ?").bind(userId).run();
+      await env.DB.prepare("DELETE FROM quiz_attempts WHERE user_id = ?").bind(userId).run();
+    }
+
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
-  // 3. ترقية وتغيير رتب المستخدمين
+  // 3. ترقية وتغيير رتب المستخدمين (بواسطة الإيميل)
   if (path === "/api/admin/users/role" && request.method === "PUT") {
     const body = await request.json();
-    const result = await env.DB.prepare("UPDATE users SET role = ? WHERE email = ?").bind(body.role, body.email).run();
-    if (result.meta.changes === 0) {
+    
+    const currentUser = await env.DB.prepare("SELECT id, role FROM users WHERE email = ?").bind(body.email).first();
+    
+    if (!currentUser) {
        return new Response(JSON.stringify({ error: "المستخدم غير موجود" }), { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
+    
+    await env.DB.prepare("UPDATE users SET role = ? WHERE email = ?").bind(body.role, body.email).run();
+    
+    // التعديل هنا: تصفير السجلات إذا تمت ترقية الطالب
+    if (currentUser.role === 'student' && body.role !== 'student') {
+      const userId = currentUser.id;
+      await env.DB.prepare("DELETE FROM enrollments WHERE user_id = ?").bind(userId).run();
+      await env.DB.prepare("DELETE FROM student_progress WHERE user_id = ?").bind(userId).run();
+      await env.DB.prepare("DELETE FROM student_video_progress WHERE user_id = ?").bind(userId).run();
+      await env.DB.prepare("DELETE FROM quiz_attempts WHERE user_id = ?").bind(userId).run();
+    }
+
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
@@ -76,7 +113,7 @@ export async function handleAdminRoutes(request, env, path, url, adminUser) {
     const studentId = parseInt(path.split("/")[4], 10);
     let enrollments = [];
     let progress = [];
-    let quizzes = []; // المصفوفة الجديدة للامتحانات
+    let quizzes = []; 
 
     try {
       const eRes = await env.DB.prepare(
@@ -92,7 +129,6 @@ export async function handleAdminRoutes(request, env, path, url, adminUser) {
       progress = pRes.results;
     } catch (e) { console.error(e); }
     
-    // التعديل هنا: جلب سجل درجات الامتحانات
     try {
       const qRes = await env.DB.prepare(
         "SELECT q.score, q.attempted_at, l.title as lesson_title, c.title as course_title FROM quiz_attempts q JOIN lessons l ON q.lesson_id = l.id JOIN courses c ON l.course_id = c.id WHERE q.user_id = ? ORDER BY q.attempted_at DESC"
@@ -181,24 +217,27 @@ export async function handleAdminRoutes(request, env, path, url, adminUser) {
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
-  // 8. توليد وإدارة أكواد التفعيل (خاص بالمدير فقط)
+  // 8. توليد وإدارة أكواد التفعيل (نظام المحفظة الجديد)
   if (path === "/api/admin/codes" && request.method === "POST") {
     const body = await request.json();
-    const course_id = body.course_id;
-    const count = body.count || 1;
+    
+    // التعديل هنا: جلب قيمة الكود المادية بدلاً من ربطه بكورس
+    const amount = parseFloat(body.amount) || 0;
+    const count = parseInt(body.count) || 1;
     const codes = [];
     
     for (let i = 0; i < count; i++) {
       const code = Math.random().toString(36).substring(2, 10).toUpperCase();
-      await env.DB.prepare("INSERT INTO activation_codes (code, course_id) VALUES (?, ?)").bind(code, course_id).run();
+      // يتم إدراج الكود بالقيمة المالية، والـ course_id نضعه بصفر أو نتجاهله
+      await env.DB.prepare("INSERT INTO activation_codes (code, course_id, amount) VALUES (?, 0, ?)").bind(code, amount).run();
       codes.push(code);
     }
     return new Response(JSON.stringify({ success: true, codes }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
-  if (path.match(/^\/api\/admin\/codes\/\d+$/) && request.method === "GET") {
-    const courseId = path.split("/")[4];
-    const codes = await env.DB.prepare("SELECT * FROM activation_codes WHERE course_id = ? ORDER BY id DESC").bind(courseId).all();
+  // التعديل هنا: جلب الأكواد بغض النظر عن الـ course_id لأن النظام أصبح محفظة عامة
+  if (path.match(/^\/api\/admin\/codes(\/\d+)?$/) && request.method === "GET") {
+    const codes = await env.DB.prepare("SELECT * FROM activation_codes ORDER BY id DESC").all();
     return new Response(JSON.stringify(codes.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
