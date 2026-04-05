@@ -76,6 +76,7 @@ export default function Course() {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [examFinished, setExamFinished] = useState(false);
   const [examScore, setExamScore] = useState(0);
+  const [isGrading, setIsGrading] = useState(false); // حالة جديدة للتصحيح
   
   const playerRef = useRef<YTPlayer | null>(null);
   const videoIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -86,7 +87,7 @@ export default function Course() {
   const videoSavedRef = useRef(false);
   const celebrationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 💡 التعديل هنا: منع إعادة الكتابة على الذاكرة المحلية عند بداية التحميل
+  // لمنع إعادة الكتابة على الذاكرة المحلية عند بداية التحميل
   const isInitialMount = useRef(true);
 
   // الخزنة الحية لمنع تجمد المتغيرات وقت انتهاء الفيديو
@@ -156,7 +157,6 @@ export default function Course() {
     }
   }, [completedLessons, completedVideos, user]);
 
-  // 💡 التعديل هنا: استخدام isInitialMount لمنع مسح الذاكرة المؤقتة
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -483,6 +483,7 @@ export default function Course() {
     setTimeRemaining((lesson.quizData?.length || 0) * 60);
     setExamFinished(false);
     setExamScore(0);
+    setIsGrading(false);
     setShowExamModal(true);
     
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
@@ -503,47 +504,45 @@ export default function Course() {
   const nextQuestion = () => { if (currentQIndex < quizQuestions.length - 1) setCurrentQIndex(prev => prev + 1); };
   const prevQuestion = () => { if (currentQIndex > 0) setCurrentQIndex(prev => prev - 1); };
 
+  // 💡 التعديل الأمني الجذري: دالة تسليم وتصحيح الامتحان
   const submitExam = async () => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
     
-    let score = 0;
-    const formattedAnswers = [];
+    setIsGrading(true); // تشغيل حالة التحميل
 
-    // تجميع الإجابات وحساب الدرجة
-    for (let i = 0; i < quizQuestions.length; i++) {
-      const isCorrect = userAnswers[i] === quizQuestions[i].correct_option;
-      if (isCorrect) score++;
+    // تجميع إجابات الطالب فقط (بدون تصحيح في المتصفح)
+    const formattedAnswers = quizQuestions.map((q, index) => ({
+      question_id: q.id,
+      chosen_option: userAnswers[index] || null
+    }));
 
-      formattedAnswers.push({
-        question_id: quizQuestions[i].id,
-        chosen_option: userAnswers[i] || null,
-        is_correct: isCorrect,
-        correct_option: quizQuestions[i].correct_option
-      });
-    }
-    
-    const percentage = Math.round((score / quizQuestions.length) * 100);
-    setExamScore(percentage);
-    setExamFinished(true);
-
-    // إرسال النتيجة والتفاصيل للسيرفر
     if (token && activeExamLesson) {
       try {
-        await apiCall('/api/progress/quiz', token, 'POST', {
+        // إرسال الإجابات للسيرفر ليقوم بالتصحيح
+        const response = await apiCall('/api/progress/quiz', token, 'POST', {
           lessonId: activeExamLesson.id,
-          score: percentage,
           answers: formattedAnswers
-        });
+        }) as any;
+
+        // استقبال الدرجة الحقيقية والنهائية من السيرفر
+        const serverScore = response.score || 0;
+        setExamScore(serverScore);
+        setExamFinished(true);
+
+        // إذا كانت النتيجة نجاح، نقوم بفتح المحاضرة التالية
+        if (serverScore >= 50) {
+          markLessonCompleted(activeExamLesson.id);
+        }
       } catch (error) {
-        console.error('Failed to save quiz progress:', error);
+        console.error('Failed to submit quiz:', error);
+        toast.error('حدث خطأ أثناء تصحيح الامتحان. يرجى المحاولة مرة أخرى.');
+        closeExam(); // إغلاق الامتحان في حالة الخطأ
+      } finally {
+        setIsGrading(false);
       }
-    }
-    
-    if (percentage >= 50 && activeExamLesson) {
-      markLessonCompleted(activeExamLesson.id);
     }
   };
 
@@ -592,10 +591,10 @@ export default function Course() {
 
   // تشغيل التصحيح التلقائي عند انتهاء الوقت للامتحان
   useEffect(() => {
-    if (showExamModal && !examFinished && timeRemaining === 0) {
+    if (showExamModal && !examFinished && timeRemaining === 0 && !isGrading) {
       submitExam();
     }
-  }, [timeRemaining, showExamModal, examFinished]);
+  }, [timeRemaining, showExamModal, examFinished, isGrading]);
 
   // إظهار تحذير منع الغش عند الخروج من نافذة الامتحان
   useEffect(() => {
@@ -850,11 +849,17 @@ export default function Course() {
 
           <div className="bg-white py-5 px-[5%] flex justify-between items-center border-b border-border shadow-[0_4px_15px_rgba(0,0,0,0.02)]">
             <h2 className="text-primary text-[22px] font-bold"><i className="fas fa-pen-to-square ml-2"></i> اختبار: {activeExamLesson.title}</h2>
-            <button onClick={closeExam} className="bg-red-50 text-red-500 border-none py-2.5 px-5 rounded-xl font-bold cursor-pointer flex items-center gap-2 hover:bg-red-500 hover:text-white transition-all"><i className="fas fa-xmark"></i> إغلاق مؤقت</button>
+            <button onClick={closeExam} disabled={isGrading} className="bg-red-50 text-red-500 border-none py-2.5 px-5 rounded-xl font-bold cursor-pointer flex items-center gap-2 hover:bg-red-500 hover:text-white transition-all disabled:opacity-50"><i className="fas fa-xmark"></i> إغلاق مؤقت</button>
           </div>
 
           <div className="flex-1 overflow-y-auto py-8 px-[5%] flex flex-col items-center">
-            {!examFinished ? (
+            {isGrading ? (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <i className="fas fa-spinner fa-spin text-6xl text-primary mb-4"></i>
+                <h3 className="text-2xl font-bold text-text-main">جاري تصحيح إجاباتك...</h3>
+                <p className="text-text-muted mt-2">يرجى الانتظار لحظات</p>
+              </div>
+            ) : !examFinished ? (
               <>
                 <div className={`text-white py-2.5 px-6 rounded-[30px] font-bold text-xl mb-5 flex items-center gap-2.5 shadow-[0_5px_15px_rgba(239,68,68,0.3)] ${timeRemaining < 30 ? 'bg-red-50 text-red-500 border-2 border-red-500' : 'bg-red-500'}`}>
                   <i className="fas fa-stopwatch"></i> 
