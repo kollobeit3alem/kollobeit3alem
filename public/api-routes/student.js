@@ -85,7 +85,6 @@ export async function handleStudentRoutes(request, env, path, url) {
     
     const userId = authCheck.userId;
 
-    // التعديل هنا: جلب رصيد المحفظة من الداتا بيز
     const userRecord = await env.DB.prepare("SELECT wallet_balance FROM users WHERE id = ?").bind(userId).first();
     const walletBalance = userRecord ? userRecord.wallet_balance : 0;
 
@@ -106,7 +105,7 @@ export async function handleStudentRoutes(request, env, path, url) {
     const enrolledCourses = await env.DB.prepare(coursesQuery).bind(userId).all();
 
     return new Response(JSON.stringify({
-      stats: { totalCourses, completedLessons, walletBalance }, // إضافة الرصيد هنا
+      stats: { totalCourses, completedLessons, walletBalance }, 
       enrolledCourses: enrolledCourses.results
     }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
@@ -122,26 +121,23 @@ export async function handleStudentRoutes(request, env, path, url) {
 
     if (!code) return new Response(JSON.stringify({ error: "كود الشحن مطلوب" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
     
-    // البحث عن الكود في الداتا بيز
     const activationCode = await env.DB.prepare("SELECT * FROM activation_codes WHERE code = ? AND is_used = 0").bind(code).first();
     
     if (!activationCode) {
       return new Response(JSON.stringify({ error: "الكود غير صحيح أو تم استخدامه مسبقاً" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
 
-    // تحديث رصيد الطالب وحرق الكود في قاعدة البيانات
     await env.DB.batch([
       env.DB.prepare("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?").bind(activationCode.amount, userId),
       env.DB.prepare("UPDATE activation_codes SET is_used = 1, used_by = ?, used_at = CURRENT_TIMESTAMP WHERE id = ?").bind(userId, activationCode.id)
     ]);
     
-    // جلب الرصيد الجديد لإرجاعه للفرونت إند
     const updatedUser = await env.DB.prepare("SELECT wallet_balance FROM users WHERE id = ?").bind(userId).first();
 
     return new Response(JSON.stringify({ success: true, newBalance: updatedUser.wallet_balance, addedAmount: activationCode.amount }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
-  // التعديل الجذري هنا: الاشتراك في الكورس بالدفع من المحفظة
+  // الاشتراك في الكورس بالدفع من المحفظة
   if (path === "/api/enroll" && request.method === "POST") {
     const authCheck = await verifyStudentSession(request, env);
     if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -154,7 +150,6 @@ export async function handleStudentRoutes(request, env, path, url) {
     if (!course) return new Response(JSON.stringify({ error: "الكورس غير موجود" }), { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } });
 
     if (course.is_free === 1) {
-      // كورس مجاني، اشتراك مباشر
       try {
         await env.DB.prepare("INSERT INTO enrollments (user_id, course_id) VALUES (?, ?)").bind(userId, course_id).run();
         return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -162,16 +157,13 @@ export async function handleStudentRoutes(request, env, path, url) {
         return new Response(JSON.stringify({ error: "أنت مشترك بالفعل في هذا الكورس" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
       }
     } else {
-      // كورس مدفوع: نتحقق من رصيد الطالب
       const user = await env.DB.prepare("SELECT wallet_balance FROM users WHERE id = ?").bind(userId).first();
       
       if (user.wallet_balance < course.price) {
-        // الرصيد غير كافٍ
         return new Response(JSON.stringify({ error: "رصيد المحفظة غير كافٍ. يرجى شحن رصيدك أولاً من صفحة حسابك." }), { status: 402, headers: { "Content-Type": "application/json", ...corsHeaders } });
       }
 
       try {
-        // خصم الرصيد وإضافة الاشتراك في خطوة واحدة (Transaction Batch)
         await env.DB.batch([
           env.DB.prepare("UPDATE users SET wallet_balance = wallet_balance - ? WHERE id = ?").bind(course.price, userId),
           env.DB.prepare("INSERT INTO enrollments (user_id, course_id) VALUES (?, ?)").bind(userId, course_id)
@@ -184,7 +176,7 @@ export async function handleStudentRoutes(request, env, path, url) {
     }
   }
 
-  // حفظ تقدم الطالب (إنهاء المحاضرة بالكامل)
+  // حفظ تقدم الطالب (إنهاء المحاضرة) - محمية أمنياً 🔒
   if (path === "/api/progress" && request.method === "POST") {
     const authCheck = await verifyStudentSession(request, env);
     if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -192,6 +184,13 @@ export async function handleStudentRoutes(request, env, path, url) {
     const body = await request.json();
     const lessonId = body.lessonId;
     const userId = authCheck.userId;
+
+    // حماية: التأكد أن الطالب مشترك فعلاً
+    const lesson = await env.DB.prepare("SELECT course_id FROM lessons WHERE id = ?").bind(lessonId).first();
+    if (!lesson) return new Response(JSON.stringify({ error: "المحاضرة غير موجودة" }), { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    
+    const isEnrolled = await env.DB.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").bind(userId, lesson.course_id).first();
+    if (!isEnrolled) return new Response(JSON.stringify({ error: "غير مصرح لك. يجب الاشتراك أولاً." }), { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } });
 
     const existingProgress = await env.DB.prepare(
       "SELECT id FROM student_progress WHERE user_id = ? AND lesson_id = ?"
@@ -206,7 +205,7 @@ export async function handleStudentRoutes(request, env, path, url) {
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
-  // حفظ تقدم فيديو معين
+  // حفظ تقدم فيديو معين - محمية أمنياً 🔒
   if (path === "/api/progress/video" && request.method === "POST") {
     const authCheck = await verifyStudentSession(request, env);
     if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -214,6 +213,10 @@ export async function handleStudentRoutes(request, env, path, url) {
     const body = await request.json();
     const { courseId, lessonId, videoKey } = body;
     const userId = authCheck.userId;
+
+    // حماية: التأكد أن الطالب مشترك
+    const isEnrolled = await env.DB.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").bind(userId, courseId).first();
+    if (!isEnrolled) return new Response(JSON.stringify({ error: "غير مصرح لك." }), { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } });
 
     try {
       const existingProgress = await env.DB.prepare(
@@ -231,23 +234,70 @@ export async function handleStudentRoutes(request, env, path, url) {
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
-  // حفظ نتيجة امتحان الطالب
+  // تصحيح وحفظ نتيجة امتحان الطالب - معاد بناءها بالكامل أمنياً 🔒
   if (path === "/api/progress/quiz" && request.method === "POST") {
     const authCheck = await verifyStudentSession(request, env);
     if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
 
     const body = await request.json();
-    const { lessonId, score, answers } = body;
+    // السيرفر يستقبل فقط إجابات الطالب، ولن يثق بدرجة الـ score القادمة من المتصفح
+    const { lessonId, answers } = body; 
     const userId = authCheck.userId;
 
     try {
+      // 1. التأكد أن الطالب مشترك في الكورس التابع له هذا الامتحان
+      const lesson = await env.DB.prepare("SELECT course_id FROM lessons WHERE id = ?").bind(lessonId).first();
+      if (!lesson) return new Response(JSON.stringify({ error: "المحاضرة غير موجودة" }), { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } });
+
+      const isEnrolled = await env.DB.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").bind(userId, lesson.course_id).first();
+      if (!isEnrolled) {
+        return new Response(JSON.stringify({ error: "غير مصرح لك. يجب الاشتراك أولاً." }), { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } });
+      }
+
+      // 2. جلب الأسئلة وإجاباتها الصحيحة من السيرفر (سراً)
+      const dbQuestions = await env.DB.prepare("SELECT id, correct_option FROM quizzes WHERE lesson_id = ?").bind(lessonId).all();
+      
+      if (!dbQuestions.results || dbQuestions.results.length === 0) {
+        return new Response(JSON.stringify({ error: "لا يوجد امتحان متاح" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+      }
+
+      let correctCount = 0;
+      let finalAnswers = [];
+
+      // 3. مطابقة إجابات الطالب بالإجابات الصحيحة وحساب الدرجة
+      for (const q of dbQuestions.results) {
+        let chosen = null;
+        // دعم التنسيقات المختلفة لإجابات الطالب (مصفوفة أو كائن)
+        if (Array.isArray(answers)) {
+          const ansObj = answers.find(a => a.question_id === q.id || a.id === q.id);
+          chosen = ansObj ? (ansObj.chosen_option || ansObj.answer) : null;
+        } else if (answers && typeof answers === 'object') {
+          chosen = answers[q.id] || answers[q.id.toString()] || null;
+        }
+
+        const isCorrect = chosen === q.correct_option;
+        if (isCorrect) correctCount++;
+
+        finalAnswers.push({
+          question_id: q.id,
+          chosen_option: chosen,
+          is_correct: isCorrect,
+          correct_option: q.correct_option
+        });
+      }
+
+      // حساب النسبة المئوية
+      const actualScore = Math.round((correctCount / dbQuestions.results.length) * 100);
+
+      // 4. حفظ النتيجة المصححة في قاعدة البيانات
       await env.DB.prepare(
         "INSERT INTO quiz_attempts (user_id, lesson_id, score, answers_json) VALUES (?, ?, ?, ?)"
-      ).bind(userId, lessonId, score, JSON.stringify(answers)).run();
+      ).bind(userId, lessonId, actualScore, JSON.stringify(finalAnswers)).run();
       
-      return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+      // إرجاع النتيجة للطالب ليعرضها المتصفح
+      return new Response(JSON.stringify({ success: true, score: actualScore, gradedAnswers: finalAnswers }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
     } catch (e) {
-      return new Response(JSON.stringify({ error: "حدث خطأ أثناء حفظ النتيجة" }), { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
+      return new Response(JSON.stringify({ error: "حدث خطأ أثناء تصحيح الامتحان" }), { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
   }
 
