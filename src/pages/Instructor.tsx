@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, apiCall } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import type { Course, Lesson, QuizQuestion, User, StudentReport } from '@/types';
+import type { Course, Lesson, QuizQuestion, User } from '@/types';
 
 type TabType = 'courses' | 'lessons' | 'quizzes' | 'users';
 
