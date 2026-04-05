@@ -287,7 +287,7 @@ export default function Courses() {
         
         <div className="relative z-[1] max-w-3xl mx-auto flex flex-col items-center">
           <div className="inline-block mb-4 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-sm font-medium animate-[pulse-soft_3s_infinite]">
-            🚀 جاهز لتحدي جديد؟
+            😉😉 جاهز لتحدي جديد؟
           </div>
           
           <h2 className="text-4xl md:text-5xl font-extrabold mb-6 leading-tight drop-shadow-lg">
