@@ -32,6 +32,11 @@ export default function Profile() {
   // حالة نافذة تفاصيل الامتحان
   const [selectedAttempt, setSelectedAttempt] = useState<QuizAttempt | null>(null);
 
+  // حالات شحن المحفظة
+  const [showRechargeModal, setShowRechargeModal] = useState(false);
+  const [rechargeCode, setRechargeCode] = useState('');
+  const [isRecharging, setIsRecharging] = useState(false);
+
   // Redirect if not authenticated
   useEffect(() => {
     if (!isAuthenticated && !user) {
@@ -71,6 +76,36 @@ export default function Profile() {
     }
   }, [token, fetchDashboardData, fetchQuizAttempts]);
 
+  // دالة شحن المحفظة بالكود
+  const handleRecharge = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!token || !rechargeCode.trim()) return;
+    
+    setIsRecharging(true);
+    try {
+      const res = await apiCall('/api/wallet/charge', token, 'POST', { code: rechargeCode.trim().toUpperCase() }) as any;
+      
+      // تحديث الرصيد محلياً فوراً
+      if (dashboardData) {
+        setDashboardData({
+          ...dashboardData,
+          stats: {
+            ...dashboardData.stats,
+            walletBalance: res.newBalance
+          } as any
+        });
+      }
+      
+      toast.success(`تم شحن المحفظة بنجاح! أُضيف ${res.addedAmount} ج.م إلى رصيدك.`);
+      setShowRechargeModal(false);
+      setRechargeCode('');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'كود الشحن غير صحيح أو تم استخدامه مسبقاً.');
+    } finally {
+      setIsRecharging(false);
+    }
+  };
+
   const handleLogout = () => {
     if (confirm('هل تريد تسجيل الخروج حقاً؟')) {
       logout();
@@ -88,8 +123,11 @@ export default function Profile() {
 
   if (!user) return null;
 
+  // استخراج رصيد المحفظة بأمان
+  const walletBalance = (dashboardData?.stats as any)?.walletBalance || 0;
+
   return (
-    <div className="min-h-screen bg-page-bg flex flex-col relative">
+    <div className="min-h-screen bg-page-bg flex flex-col relative" dir="rtl">
       {/* Header */}
       <header className="bg-white py-4 px-[5%] flex justify-between items-center shadow-[0_4px_20px_rgba(0,0,0,0.03)] sticky top-0 z-[100] border-b-[3px] border-b-primary">
         <Link to="/courses" className="flex items-center gap-4 no-underline">
@@ -132,9 +170,33 @@ export default function Profile() {
         </div>
       </section>
 
-      {/* Stats Cards */}
-      <div className="flex gap-5 -mt-8 px-[5%] relative z-10 flex-col sm:flex-row">
-        <div className="bg-white flex-1 p-6 rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.08)] border border-border flex items-center gap-5">
+      {/* Stats Cards - التعديل الجذري هنا لإضافة بطاقة المحفظة */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 -mt-8 px-[5%] relative z-10">
+        
+        {/* بطاقة المحفظة */}
+        <div className="bg-white p-6 rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.08)] border border-emerald-100 flex flex-col justify-center gap-3 relative overflow-hidden transition-all hover:-translate-y-1">
+          <div className="absolute -left-4 -top-4 w-20 h-20 bg-emerald-50 rounded-full z-0"></div>
+          <div className="flex items-center gap-3 z-10 w-full">
+            <div className="w-[60px] h-[60px] rounded-[15px] flex justify-center items-center text-2xl flex-shrink-0 bg-emerald-100 text-emerald-600 shadow-sm">
+              <i className="fas fa-wallet"></i>
+            </div>
+            <div className="flex-1">
+              <h4 className="text-text-muted text-sm mb-1 font-bold">رصيد المحفظة</h4>
+              <span className="text-[28px] font-bold text-emerald-600">
+                {isLoading ? '-' : walletBalance} <span className="text-sm text-emerald-600/70">ج.م</span>
+              </span>
+            </div>
+          </div>
+          <button 
+            onClick={() => setShowRechargeModal(true)} 
+            className="w-full mt-1 bg-emerald-50 text-emerald-600 border border-emerald-200 py-2.5 rounded-xl font-bold hover:bg-emerald-500 hover:text-white transition-all z-10 flex items-center justify-center gap-2"
+          >
+            <i className="fas fa-plus-circle"></i> شحن الرصيد
+          </button>
+        </div>
+
+        {/* باقي البطاقات */}
+        <div className="bg-white p-6 rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.08)] border border-border flex items-center gap-5">
           <div className="w-[60px] h-[60px] rounded-[15px] flex justify-center items-center text-2xl flex-shrink-0 bg-sky-100 text-sky-600">
             <i className="fas fa-book-open"></i>
           </div>
@@ -145,8 +207,9 @@ export default function Profile() {
             </span>
           </div>
         </div>
-        <div className="bg-white flex-1 p-6 rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.08)] border border-border flex items-center gap-5">
-          <div className="w-[60px] h-[60px] rounded-[15px] flex justify-center items-center text-2xl flex-shrink-0 bg-emerald-100 text-emerald-600">
+
+        <div className="bg-white p-6 rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.08)] border border-border flex items-center gap-5">
+          <div className="w-[60px] h-[60px] rounded-[15px] flex justify-center items-center text-2xl flex-shrink-0 bg-purple-100 text-purple-600">
             <i className="fas fa-check-double"></i>
           </div>
           <div>
@@ -156,7 +219,8 @@ export default function Profile() {
             </span>
           </div>
         </div>
-        <div className="bg-white flex-1 p-6 rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.08)] border border-border flex items-center gap-5">
+
+        <div className="bg-white p-6 rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.08)] border border-border flex items-center gap-5">
           <div className="w-[60px] h-[60px] rounded-[15px] flex justify-center items-center text-2xl flex-shrink-0 bg-amber-100 text-amber-600">
             <i className="fas fa-spell-check"></i>
           </div>
@@ -311,6 +375,62 @@ export default function Profile() {
           )}
         </div>
       </main>
+
+      {/* نافذة شحن المحفظة */}
+      {showRechargeModal && (
+        <div className="fixed top-0 left-0 w-full h-full bg-slate-900/60 flex justify-center items-center z-[1000] backdrop-blur-sm px-4">
+          <div className="bg-white p-6 md:p-8 rounded-[24px] w-full max-w-[450px] shadow-[0_20px_60px_rgba(0,0,0,0.15)] animate-fade-in relative">
+            <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
+              <h3 className="text-emerald-600 text-xl font-bold flex items-center gap-2">
+                <i className="fas fa-wallet"></i> شحن المحفظة
+              </h3>
+              <button
+                onClick={() => setShowRechargeModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center cursor-pointer hover:bg-red-100 hover:text-red-500 transition-colors"
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+
+            <p className="mb-5 text-slate-600 text-sm leading-relaxed text-center font-bold">
+              أدخل كود كارت الشحن لإضافة الرصيد إلى محفظتك واستخدامه في شراء الكورسات.
+            </p>
+
+            <form onSubmit={handleRecharge} className="flex flex-col gap-4 mb-6">
+              <input
+                type="text"
+                value={rechargeCode}
+                onChange={(e) => setRechargeCode(e.target.value)}
+                placeholder="أدخل الكود هنا"
+                required
+                disabled={isRecharging}
+                className="w-full p-4 border-2 border-slate-200 rounded-xl text-center text-lg uppercase font-bold tracking-widest text-slate-800 focus:border-emerald-500 focus:outline-none transition-colors"
+                dir="ltr"
+              />
+              <button
+                type="submit"
+                disabled={isRecharging || !rechargeCode.trim()}
+                className="bg-emerald-500 text-white border-none py-4 px-8 rounded-xl font-bold text-lg cursor-pointer w-full hover:bg-emerald-600 transition-all shadow-[0_5px_15px_rgba(16,185,129,0.2)] hover:-translate-y-0.5 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isRecharging ? <i className="fas fa-circle-notch fa-spin"></i> : <i className="fas fa-check-circle"></i>}
+                {isRecharging ? 'جاري الشحن...' : 'تأكيد الشحن'}
+              </button>
+            </form>
+
+            <div className="bg-slate-50 p-4 rounded-xl border border-border text-center">
+              <p className="text-sm text-text-muted mb-3 font-bold">ليس لديك كود شحن؟</p>
+              <a
+                href={`https://wa.me/201153786085?text=${encodeURIComponent('مرحباً، أريد شراء كارت شحن لمحفظتي على منصة كله بيتعلم.')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex justify-center items-center gap-2 bg-[#25D366] text-white no-underline py-3 px-4 rounded-xl font-bold text-sm transition-all hover:bg-[#1ebe57] hover:-translate-y-0.5"
+              >
+                <i className="fab fa-whatsapp text-lg"></i> تواصل معنا لشراء كارت شحن
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* نافذة عرض تفاصيل الامتحان */}
       {selectedAttempt && (
