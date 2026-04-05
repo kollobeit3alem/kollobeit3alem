@@ -1,10 +1,17 @@
 import { corsHeaders } from './api-routes/utils.js';
 import { verifyAdmin } from './api-routes/auth.js';
-import { handleAdminRoutes } from './api-routes/admin.js';
+
+// استدعاء ملفات المهام المنفصلة (Separation of Concerns)
+import { handleAuthRoutes } from './api-routes/auth.js';
+import { handleCourseRoutes } from './api-routes/courses.js';
 import { handleStudentRoutes } from './api-routes/student.js';
+import { handleInstructorRoutes } from './api-routes/instructor.js';
+import { handleAssistantRoutes } from './api-routes/assistant.js';
+import { handleAdminRoutes } from './api-routes/admin.js';
 
 export default {
   async fetch(request, env, ctx) {
+    // 0. السماح بطلبات الـ CORS للمتصفح
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
     }
@@ -14,8 +21,12 @@ export default {
 
     let adminUser = null;
 
-    // --- 1. حماية وتوجيه مسارات الإدارة ---
+    // ============================================================================
+    // 1. حماية وتوجيه مسارات لوحة التحكم (Admin, Instructor, Assistant)
+    // ============================================================================
     if (path === "/admin.kollobeit3alem" || path === "/admin.html" || path.startsWith("/admin_") || path.startsWith("/api/admin/")) {
+      
+      // التفتيش على هوية الزائر
       adminUser = await verifyAdmin(request, env);
       
       if (!adminUser) {
@@ -28,68 +39,78 @@ export default {
         }
       }
 
-      // --- تطبيق القيود الصارمة على المعلم (instructor) والمتابع (assistant) ---
-      if (adminUser.role === 'instructor' || adminUser.role === 'assistant') {
-        const isAssistant = adminUser.role === 'assistant';
-        const isInstructor = adminUser.role === 'instructor';
-        
-        let isRestricted = false;
+      // توجيه طلبات الـ API الخاصة بلوحة التحكم بناءً على الرتبة (أمان تام وعزل للملفات)
+      if (path.startsWith("/api/admin/")) {
+        try {
+          let apiResponse = null;
 
-        if (isAssistant) {
-          // المتابع (assistant) مسموح له فقط بمسارات القراءة (GET) للطلاب والتقارير
-          const isAllowedPath = (path.startsWith("/api/admin/users") || path.startsWith("/api/admin/reports")) && request.method === "GET";
-          if (!isAllowedPath) {
-            isRestricted = true;
+          if (adminUser.role === 'instructor') {
+            // توجيه لملف المدرس (يحتوي فقط على صلاحيات المدرس)
+            apiResponse = await handleInstructorRoutes(request, env, path, url, adminUser);
+          } 
+          else if (adminUser.role === 'assistant') {
+            // توجيه لملف المتابع (يحتوي فقط على صلاحيات المتابعة والقراءة)
+            apiResponse = await handleAssistantRoutes(request, env, path, url, adminUser);
+          } 
+          else if (adminUser.role === 'admin') {
+            // توجيه لملف المدير (يحتوي على الصلاحيات المطلقة)
+            apiResponse = await handleAdminRoutes(request, env, path, url, adminUser);
           }
-        } else if (isInstructor) {
-          // مسارات ممنوعة تماماً على المعلم
-          const restrictedPaths = [
-            "/api/admin/codes",
-            "/api/admin/users/role"
-          ];
-          if (restrictedPaths.some(rp => path.startsWith(rp))) {
-            isRestricted = true;
-          }
-          // منع المعلم من حذف أو تعديل المستخدمين
-          const isUserModify = path.match(/^\/api\/admin\/users\/\d+$/) && (request.method === "DELETE" || request.method === "PUT");
-          if (isUserModify) {
-            isRestricted = true;
-          }
-        }
-        
-        if (isRestricted) {
-          return new Response(JSON.stringify({ error: "Access Denied: غير مصرح لك بهذا الإجراء" }), { 
+
+          // إذا تم معالجة الطلب في الملف المختص، قم بإرجاع الرد
+          if (apiResponse) return apiResponse;
+          
+          // إذا لم يتم العثور على المسار أو كان المستخدم يحاول الوصول لصلاحية غير موجودة في ملفه
+          return new Response(JSON.stringify({ error: "Access Denied or Endpoint Not Found" }), { 
             status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } 
+          });
+
+        } catch (error) {
+          return new Response(JSON.stringify({ error: error.message }), { 
+            status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } 
           });
         }
       }
-
-      // إذا كان الطلب يخص API الإدارة، نوجهه لملف admin.js
-      if (path.startsWith("/api/admin/")) {
-        try {
-          const adminResponse = await handleAdminRoutes(request, env, path, url, adminUser);
-          if (adminResponse) return adminResponse;
-          return new Response(JSON.stringify({ error: "Not Found" }), { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } });
-        } catch (error) {
-          return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
-        }
-      }
     }
 
-    // --- 2. توجيه مسارات الـ API للطلاب والزوار ---
+    // ============================================================================
+    // 2. توجيه مسارات المنصة العامة والطلاب (بدون الدخول للوحة الإدارة)
+    // ============================================================================
     if (path.startsWith("/api/") && !path.startsWith("/api/admin/")) {
       try {
-        const studentResponse = await handleStudentRoutes(request, env, path, url);
-        if (studentResponse) return studentResponse;
+        let apiResponse = null;
+
+        // أ. مسارات المصادقة وتسجيل الدخول
+        if (path.startsWith("/api/auth/")) {
+          apiResponse = await handleAuthRoutes(request, env, path, url);
+        }
+        // ب. مسارات عرض المحتوى التعليمي (الكورسات، الدروس، الامتحانات)
+        else if (path === "/api/courses" || path.startsWith("/api/courses/") || path.startsWith("/api/lessons/")) {
+          apiResponse = await handleCourseRoutes(request, env, path, url);
+        }
+        // ج. مسارات تفاعل الطالب (ملفه الشخصي، حفظ التقدم، الاشتراك)
+        else if (path.startsWith("/api/my-") || path.startsWith("/api/enroll") || path.startsWith("/api/progress")) {
+          apiResponse = await handleStudentRoutes(request, env, path, url);
+        }
+
+        // إرجاع الرد إذا تم معالجته
+        if (apiResponse) return apiResponse;
         
-        // في حال أن المسار غير موجود في ملف student.js
-        return new Response(JSON.stringify({ error: "Not Found" }), { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } });
+        // مسار غير موجود
+        return new Response(JSON.stringify({ error: "API Endpoint Not Found" }), { 
+          status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } 
+        });
+
       } catch (error) {
-        return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
+        return new Response(JSON.stringify({ error: error.message }), { 
+          status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } 
+        });
       }
     }
 
-    // --- 3. عرض الملفات الثابتة للصفحات العادية ---
+    // ============================================================================
+    // 3. عرض الملفات الثابتة للصفحات العادية (React Frontend)
+    // ============================================================================
     return env.ASSETS.fetch(request);
   }
 };
