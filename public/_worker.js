@@ -84,9 +84,9 @@ export default {
         if (path.startsWith("/api/auth/")) {
           apiResponse = await handleAuthRoutes(request, env, path, url);
         }
-        // ب. مسارات تفاعل الطالب (ملفه الشخصي، حفظ التقدم، الاشتراك)
-        // 💡 التعديل هنا: وضعنا هذا الشرط قبل الكورسات ليلتقط مسار "التقدم" بشكل صحيح
-        else if (path.startsWith("/api/my-") || path.startsWith("/api/enroll") || path.startsWith("/api/progress") || path.match(/^\/api\/courses\/\d+\/progress$/)) {
+        // ب. مسارات تفاعل الطالب (ملفه الشخصي، حفظ التقدم، الاشتراك والمحفظة)
+        // 💡 التعديل هنا: إضافة path.startsWith("/api/wallet") ليتعرف على مسار الشحن الجديد
+        else if (path.startsWith("/api/my-") || path.startsWith("/api/enroll") || path.startsWith("/api/wallet") || path.startsWith("/api/progress") || path.match(/^\/api\/courses\/\d+\/progress$/)) {
           apiResponse = await handleStudentRoutes(request, env, path, url);
         }
         // ج. مسارات عرض المحتوى التعليمي (الكورسات، الدروس، الامتحانات)
