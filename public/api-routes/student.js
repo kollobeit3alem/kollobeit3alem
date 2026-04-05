@@ -117,7 +117,7 @@ export async function handleStudentRoutes(request, env, path, url) {
     }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
-  // ميزة شحن المحفظة بالأكواد + الحماية ضد التخمين (Rate Limiting) 🔒
+  // ميزة شحن المحفظة بالأكواد + الحماية ضد التخمين (Rate Limiting) + حماية السباق الزمني (Race Condition) 🔒
   if (path === "/api/wallet/charge" && request.method === "POST") {
     const authCheck = await verifyStudentSession(request, env);
     if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -137,10 +137,17 @@ export async function handleStudentRoutes(request, env, path, url) {
 
     if (!code) return new Response(JSON.stringify({ error: "كود الشحن مطلوب" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
     
-    const activationCode = await env.DB.prepare("SELECT * FROM activation_codes WHERE code = ? AND is_used = 0").bind(code).first();
+    // 💡 التعديل الجذري هنا (Atomic Update) لحل مشكلة Race Condition
+    // بدلاً من البحث أولاً (SELECT)، نحن نأمر قاعدة البيانات بتحديث الكود فوراً وإرجاع قيمته إن كان غير مستخدم
+    const activationCode = await env.DB.prepare(`
+      UPDATE activation_codes 
+      SET is_used = 1, used_by = ?, used_at = CURRENT_TIMESTAMP 
+      WHERE code = ? AND is_used = 0 
+      RETURNING id, amount
+    `).bind(userId, code).first();
     
     if (!activationCode) {
-      // تسجيل المحاولة الخاطئة
+      // تسجيل المحاولة الخاطئة (الكود غير صحيح، مستخدم مسبقاً، أو سبقه طلب آخر في نفس اللحظة)
       userAttempts.count += 1;
       if (userAttempts.count >= MAX_ATTEMPTS) {
         userAttempts.lockoutUntil = now + LOCKOUT_TIME;
@@ -156,14 +163,13 @@ export async function handleStudentRoutes(request, env, path, url) {
       return new Response(JSON.stringify({ error: errorMsg }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
 
-    // الكود صحيح: تصفير عداد المحاولات الخاطئة
+    // الكود صحيح وتم حرقه بنجاح حصرياً لهذا الطلب: تصفير عداد المحاولات الخاطئة
     chargeAttempts.delete(userId);
 
-    // تحديث رصيد الطالب وحرق الكود
-    await env.DB.batch([
-      env.DB.prepare("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?").bind(activationCode.amount, userId),
-      env.DB.prepare("UPDATE activation_codes SET is_used = 1, used_by = ?, used_at = CURRENT_TIMESTAMP WHERE id = ?").bind(userId, activationCode.id)
-    ]);
+    // إضافة الرصيد لمحفظة الطالب (لا نحتاج لـ DB.batch لأن الكود تم حرقه بالفعل في الخطوة السابقة)
+    await env.DB.prepare(
+      "UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?"
+    ).bind(activationCode.amount, userId).run();
     
     const updatedUser = await env.DB.prepare("SELECT wallet_balance FROM users WHERE id = ?").bind(userId).first();
 
