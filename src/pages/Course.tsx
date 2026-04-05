@@ -274,7 +274,7 @@ export default function Course() {
 
     playerRef.current = new window.YT.Player('player', {
       videoId,
-      host: 'https://www.youtube.com', // 💡 السطر الذي تم إضافته لحل المشكلة
+      host: 'https://www.youtube.com',
       playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, modestbranding: 1, rel: 0, showinfo: 0, origin: window.location.origin },
       events: {
         onReady: (event) => { event.target.playVideo(); event.target.setPlaybackRate(1); },
@@ -685,15 +685,17 @@ export default function Course() {
               {/* أزرار التحكم */}
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-6">
-                  <button onClick={() => skipVideo(-10)} className="bg-transparent text-white border-none text-2xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center" title="تأخير 10 ثواني"><i className="fas fa-backward-step"></i></button>
-                  <button onClick={togglePlayPause} className="bg-transparent text-primary-light border-none text-[32px] cursor-pointer transition-all hover:scale-110 flex items-center justify-center" title="تشغيل / إيقاف"><i className={`fas ${isVideoPlaying ? 'fa-circle-pause' : 'fa-circle-play'}`}></i></button>
-                  <button onClick={() => skipVideo(10)} className="bg-transparent text-white border-none text-2xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center" title="تقديم 10 ثواني"><i className="fas fa-forward-step"></i></button>
+                  <button onClick={() => skipVideo(-10)} className="bg-transparent text-white border-none text-2xl cursor-pointer transition-all hover:text-white hover:scale-110 flex items-center justify-center" title="تأخير 10 ثواني"><i className="fas fa-backward-step"></i></button>
+                  {/* تم تعديل لون زرار التشغيل والإيقاف إلى الأبيض ليكون واضحاً */}
+                  <button onClick={togglePlayPause} className="bg-transparent text-white border-none text-[32px] cursor-pointer transition-all hover:scale-110 flex items-center justify-center" title="تشغيل / إيقاف"><i className={`fas ${isVideoPlaying ? 'fa-circle-pause' : 'fa-circle-play'}`}></i></button>
+                  <button onClick={() => skipVideo(10)} className="bg-transparent text-white border-none text-2xl cursor-pointer transition-all hover:text-white hover:scale-110 flex items-center justify-center" title="تقديم 10 ثواني"><i className="fas fa-forward-step"></i></button>
                 </div>
                 
                 <div className="flex items-center gap-5">
-                  <button onClick={cyclePlaybackRate} className="bg-transparent text-white border border-slate-600 px-3 py-1.5 rounded-lg text-sm font-bold cursor-pointer transition-all hover:bg-slate-700 hover:text-primary-light" title="سرعة التشغيل">{playbackRate}x</button>
+                  {/* تم تعديل تأثير الهافر على زرار السرعة ليكون أبيض بالكامل بكتابة سوداء ليكون مقروءاً بوضوح */}
+                  <button onClick={cyclePlaybackRate} className="bg-transparent text-white border border-slate-500 px-3 py-1.5 rounded-lg text-sm font-bold cursor-pointer transition-all hover:bg-white hover:text-slate-900 hover:border-white" title="سرعة التشغيل">{playbackRate}x</button>
                   <div className="text-slate-300 font-bold text-[14px] font-mono tracking-wide" dir="ltr"><span>{formatTime(currentTime)}</span> / <span>{formatTime(videoDuration)}</span></div>
-                  <button onClick={toggleFullscreen} className="bg-transparent text-white border-none text-xl cursor-pointer transition-all hover:text-primary-light hover:scale-110 flex items-center justify-center ml-2" title="ملء الشاشة"><i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i></button>
+                  <button onClick={toggleFullscreen} className="bg-transparent text-white border-none text-xl cursor-pointer transition-all hover:text-white hover:scale-110 flex items-center justify-center ml-2" title="ملء الشاشة"><i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i></button>
                   {isFullscreen && (
                      <button onClick={closeVideo} className="bg-transparent text-red-500 border-none text-2xl cursor-pointer transition-all hover:scale-110 flex items-center justify-center ml-2" title="إغلاق الفيديو"><i className="fas fa-xmark"></i></button>
                   )}
