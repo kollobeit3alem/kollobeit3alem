@@ -29,7 +29,6 @@ export default function Admin() {
   // Form handling states
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [selectedLessonId, setSelectedLessonId] = useState('');
-  const [selectedCodeCourseId, setSelectedCodeCourseId] = useState('');
   
   // UI logic states
   const [isNewCourseFree, setIsNewCourseFree] = useState(true);
@@ -82,6 +81,13 @@ export default function Admin() {
     }
   }, [activeTab, token]);
 
+  // التعديل هنا: جلب كل الأكواد تلقائياً عند فتح تبويب "codes" 
+  useEffect(() => {
+    if (token && activeTab === 'codes') {
+      loadCodes();
+    }
+  }, [activeTab, token]);
+
   const loadCourses = async () => {
     if (!token) return;
     try {
@@ -102,10 +108,11 @@ export default function Admin() {
     }
   };
 
-  const loadCodes = async (courseId: string) => {
-    if (!token || !courseId) return;
+  // التعديل هنا: جلب جميع الأكواد (كروت الشحن) بدون التصفية بكورس معين
+  const loadCodes = async () => {
+    if (!token) return;
     try {
-      const data = await apiCall(`/api/admin/codes/${courseId}`, token) as ActivationCode[];
+      const data = await apiCall(`/api/admin/codes`, token) as ActivationCode[];
       setCodes(data);
     } catch (error) {
       console.error('Failed to load codes:', error);
@@ -244,7 +251,7 @@ export default function Admin() {
     }
   };
 
-  // Code handlers
+  // Code handlers - التعديل هنا: توليد كروت الشحن بناءً على القيمة المالية
   const handleGenerateCodes = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!token) return;
@@ -252,16 +259,16 @@ export default function Admin() {
     const formData = new FormData(form);
     try {
       const count = parseInt(formData.get('count') as string);
+      const amount = parseFloat(formData.get('amount') as string);
+      
       const res = await apiCall('/api/admin/codes', token, 'POST', {
-        course_id: parseInt(formData.get('course_id') as string),
+        amount: amount,
         count: count,
       }) as { codes: string[] };
-      toast.success(`تم توليد ${count} كود بنجاح!\n\nيمكنك نسخها من الجدول بالأسفل.\n\nمثال لأحد الأكواد: ${res.codes[0]}`);
+      
+      toast.success(`تم توليد ${count} كارت شحن بنجاح!\n\nيمكنك نسخها من الجدول بالأسفل.\n\nمثال لأحد الأكواد: ${res.codes[0]}`);
       form.reset();
-      const courseId = formData.get('course_id') as string;
-      if (selectedCodeCourseId === courseId) {
-        loadCodes(courseId);
-      }
+      loadCodes(); // تحديث الجدول مباشرة
     } catch (error) {
       toast.error('فشل توليد الأكواد');
     }
@@ -413,7 +420,7 @@ export default function Admin() {
             <i className="fas fa-user-tie text-xl w-6 text-center"></i> فريق العمل
           </button>
           <button onClick={() => setActiveTab('codes')} className={`${navBtnBaseStyles} ${activeTab === 'codes' ? navBtnActiveStyles : ''}`}>
-            <i className="fas fa-key text-xl w-6 text-center"></i> أكواد التفعيل
+            <i className="fas fa-wallet text-xl w-6 text-center"></i> كروت الشحن
           </button>
           <button onClick={handleLogout} className={`${navBtnBaseStyles} mt-auto !bg-[#fff1f2] !text-[#ef4444] hover:!bg-[#ef4444] hover:!text-white`}>
             <i className="fas fa-sign-out-alt text-xl w-6 text-center"></i> تسجيل الخروج
@@ -749,72 +756,64 @@ export default function Admin() {
           </section>
         )}
 
-        {/* Codes Tab */}
+        {/* Codes Tab - التعديل هنا: واجهة نظام كروت الشحن */}
         {activeTab === 'codes' && (
           <section className="animate-fade-in block">
             <h1 className="text-[28px] text-[#015669] mb-[30px] flex items-center gap-2.5">
-              <i className="fas fa-key"></i> إدارة أكواد التفعيل
+              <i className="fas fa-wallet"></i> إدارة كروت الشحن (المحفظة)
             </h1>
             <div className="bg-white p-[30px] rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] mb-[30px] border border-[rgba(0,0,0,0.02)]">
               <h3 className="text-[#015669] mb-[25px] text-[20px] border-r-4 border-[#015669] pr-2.5">
-                <i className="fas fa-plus-circle"></i> توليد أكواد تفعيل جديدة
+                <i className="fas fa-plus-circle"></i> توليد كروت شحن جديدة
               </h3>
-              <form onSubmit={handleGenerateCodes} className="grid grid-cols-1 gap-5">
+              <form onSubmit={handleGenerateCodes} className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                  <label className="block mb-2 font-bold text-[#1e293b]">اختر الدورة (للكورسات المدفوعة)</label>
-                  <select name="course_id" required className={inputStyles}>
-                    <option value="">اختر الدورة...</option>
-                    {courses.filter(c => c.is_free === 0).map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
-                  </select>
+                  <label className="block mb-2 font-bold text-[#1e293b]">قيمة كارت الشحن (بالجنيه)</label>
+                  <input type="number" name="amount" defaultValue="100" min="1" required className={inputStyles} />
                 </div>
                 <div>
-                  <label className="block mb-2 font-bold text-[#1e293b]">عدد الأكواد المطلوبة</label>
+                  <label className="block mb-2 font-bold text-[#1e293b]">عدد الكروت المطلوبة</label>
                   <input type="number" name="count" defaultValue="1" min="1" max="100" required className={inputStyles} />
                 </div>
-                <div className="mt-2">
-                  <button type="submit" className={btnSubmitStyles}><i className="fas fa-cogs"></i> توليد الأكواد</button>
+                <div className="md:col-span-2 mt-2">
+                  <button type="submit" className={btnSubmitStyles}><i className="fas fa-print"></i> توليد الكروت</button>
                 </div>
               </form>
             </div>
+            
             <div className="bg-white p-[30px] rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.02)]">
               <h3 className="text-[#015669] mb-[25px] text-[20px] border-r-4 border-[#015669] pr-2.5">
-                <i className="fas fa-list"></i> الأكواد الحالية
+                <i className="fas fa-list"></i> الكروت الحالية
               </h3>
-              <div>
-                <label className="block mb-2 font-bold text-[#1e293b]">اختر دورة لعرض أكواد التفعيل الخاصة بها</label>
-                <select className={inputStyles} onChange={(e) => { setSelectedCodeCourseId(e.target.value); loadCodes(e.target.value); }}>
-                  <option value="">اختر الدورة...</option>
-                  {courses.filter(c => c.is_free === 0).map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
-                </select>
+              
+              <div className="mt-[20px] overflow-x-auto">
+                <table className="w-full border-collapse mt-2.5">
+                  <thead>
+                    <tr>
+                      <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">كود الشحن</th>
+                      <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">القيمة</th>
+                      <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">الحالة</th>
+                      <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">تاريخ الاستخدام</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {codes.length === 0 ? (
+                      <tr><td colSpan={4} className="text-center p-[15px]">لا توجد أكواد حالياً.</td></tr>
+                    ) : (
+                      codes.map((code: any) => (
+                        <tr key={code.id} className="hover:bg-[#f8fafc] transition-colors">
+                          <td className="p-[15px] border-b border-[#e2e8f0]"><strong className="tracking-[2px] font-mono text-[16px]">{code.code}</strong></td>
+                          <td className="p-[15px] border-b border-[#e2e8f0] text-[#10b981] font-bold">{code.amount || 0} ج.م</td>
+                          <td className="p-[15px] border-b border-[#e2e8f0]">
+                            {code.is_used === 1 ? <span className="px-3 py-1.5 rounded-full text-[13px] font-bold bg-[#fef2f2] text-[#ef4444]">مُستخدم بواسطة ({code.used_by})</span> : <span className="px-3 py-1.5 rounded-full text-[13px] font-bold bg-[#ecfdf5] text-[#10b981]">متاح للاستخدام</span>}
+                          </td>
+                          <td className="p-[15px] border-b border-[#e2e8f0] text-[#64748b]">{code.used_at ? new Date(code.used_at).toLocaleDateString('ar-EG') : '-'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
-              {selectedCodeCourseId && (
-                <div className="mt-[20px] overflow-x-auto">
-                  <table className="w-full border-collapse mt-2.5">
-                    <thead>
-                      <tr>
-                        <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">كود التفعيل</th>
-                        <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">الحالة</th>
-                        <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">تاريخ الاستخدام</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {codes.length === 0 ? (
-                        <tr><td colSpan={3} className="text-center p-[15px]">لا توجد أكواد لهذه الدورة حالياً.</td></tr>
-                      ) : (
-                        codes.map((code) => (
-                          <tr key={code.id} className="hover:bg-[#f8fafc] transition-colors">
-                            <td className="p-[15px] border-b border-[#e2e8f0]"><strong className="tracking-[2px] font-mono text-[16px]">{code.code}</strong></td>
-                            <td className="p-[15px] border-b border-[#e2e8f0]">
-                              {code.is_used === 1 ? <span className="px-3 py-1.5 rounded-full text-[13px] font-bold bg-[#fef2f2] text-[#ef4444]">مُستخدم بواسطة ({code.used_by})</span> : <span className="px-3 py-1.5 rounded-full text-[13px] font-bold bg-[#ecfdf5] text-[#10b981]">متاح للاستخدام</span>}
-                            </td>
-                            <td className="p-[15px] border-b border-[#e2e8f0] text-[#64748b]">{code.used_at ? new Date(code.used_at).toLocaleDateString('ar-EG') : '-'}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
             </div>
           </section>
         )}
@@ -887,7 +886,6 @@ export default function Admin() {
                   </ul>
                 ) : ( <p className="text-[#64748b]">لم يكمل أي محاضرة حتى الآن.</p> )}
               </div>
-              {/* التعديل هنا: قسم الامتحانات الجديد */}
               <div className="bg-[#fffbeb] border border-[#fde68a] p-[15px] rounded-[10px] mt-5">
                 <h4 className="text-[#f59e0b] mb-2.5 font-bold"><i className="fas fa-spell-check ml-2"></i> نتائج الامتحانات ({reportData.quizzes?.length || 0})</h4>
                 {reportData.quizzes && reportData.quizzes.length > 0 ? (
