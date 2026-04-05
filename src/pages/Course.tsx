@@ -11,7 +11,7 @@ declare global {
         elementId: string,
         options: {
           videoId: string;
-          host?: string; // أضفنا هذا السطر في تعريف النوع لتجنب خطأ TypeScript
+          host?: string;
           playerVars?: Record<string, any>;
           events?: {
             onReady?: (event: { target: YTPlayer }) => void;
@@ -86,6 +86,9 @@ export default function Course() {
   const videoSavedRef = useRef(false);
   const celebrationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // 💡 التعديل هنا: منع إعادة الكتابة على الذاكرة المحلية عند بداية التحميل
+  const isInitialMount = useRef(true);
+
   // الخزنة الحية لمنع تجمد المتغيرات وقت انتهاء الفيديو
   const ytDataRef = useRef<{ lesson: Lesson | null; vIdx: number; vTotal: number }>({
     lesson: null,
@@ -153,7 +156,12 @@ export default function Course() {
     }
   }, [completedLessons, completedVideos, user]);
 
+  // 💡 التعديل هنا: استخدام isInitialMount لمنع مسح الذاكرة المؤقتة
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     saveProgressLocally();
   }, [completedLessons, completedVideos, saveProgressLocally]);
 
@@ -495,7 +503,6 @@ export default function Course() {
   const nextQuestion = () => { if (currentQIndex < quizQuestions.length - 1) setCurrentQIndex(prev => prev + 1); };
   const prevQuestion = () => { if (currentQIndex > 0) setCurrentQIndex(prev => prev - 1); };
 
-  // التعديل الرئيسي هنا: جعل الدالة async لحفظ النتيجة في الباك إند
   const submitExam = async () => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
