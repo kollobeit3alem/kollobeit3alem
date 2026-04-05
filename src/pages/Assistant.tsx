@@ -20,7 +20,7 @@ export default function Assistant() {
 
   // Modal states
   const [showReportModal, setShowReportModal] = useState(false);
-  const [reportData, setReportData] = useState<StudentReport | null>(null);
+  const [reportData, setReportData] = useState<any>(null); // تم التعديل إلى any لتجنب أخطاء TypeScript مع الحقول الجديدة
   const [reportUserName, setReportUserName] = useState('');
 
   // Redirect if not authenticated or not authorized
@@ -69,7 +69,7 @@ export default function Assistant() {
     if (!token) return;
     
     try {
-      const data = await apiCall(`/api/admin/reports/${userId}`, token) as StudentReport;
+      const data = await apiCall(`/api/admin/reports/${userId}`, token) as any;
       setReportData(data);
       setReportUserName(userName);
       setShowReportModal(true);
@@ -274,6 +274,7 @@ export default function Assistant() {
                 <i className="fas fa-times"></i>
               </button>
             </div>
+            
             <div className="leading-[1.8]">
               
               {/* تبويبة الدورات المشترك بها */}
@@ -297,7 +298,7 @@ export default function Assistant() {
               </div>
 
               {/* تبويبة المحاضرات المكتملة */}
-              <div className="bg-[#ecfdf5] border border-[#a7f3d0] p-[15px] rounded-[10px]">
+              <div className="bg-[#ecfdf5] border border-[#a7f3d0] p-[15px] rounded-[10px] mb-5">
                 <h4 className="text-[#10b981] mb-2.5 font-bold"><i className="fas fa-check-circle ml-2"></i> المحاضرات المكتملة ({reportData.progress?.length || 0})</h4>
                 {reportData.progress && reportData.progress.length > 0 ? (
                   <ul className="list-inside pr-[15px] text-[#1e293b]">
@@ -314,6 +315,25 @@ export default function Assistant() {
                 ) : (
                   <p className="text-[#64748b]">لم يكمل أي محاضرة حتى الآن.</p>
                 )}
+              </div>
+
+              {/* التعديل هنا: قسم الامتحانات الجديد */}
+              <div className="bg-[#fffbeb] border border-[#fde68a] p-[15px] rounded-[10px]">
+                <h4 className="text-[#f59e0b] mb-2.5 font-bold"><i className="fas fa-spell-check ml-2"></i> نتائج الامتحانات ({reportData.quizzes?.length || 0})</h4>
+                {reportData.quizzes && reportData.quizzes.length > 0 ? (
+                  <ul className="list-inside pr-[15px] text-[#1e293b] flex flex-col gap-2">
+                    {reportData.quizzes.map((q: any, i: number) => (
+                      <li key={i} className="flex items-center flex-wrap gap-2">
+                        <span>امتحان: <strong>{q.lesson_title}</strong></span> 
+                        <span className="text-[#64748b] text-[13px]">(من دورة: {q.course_title})</span>
+                        <span className={`mr-auto px-3 py-1 rounded-md font-bold text-sm ${q.score >= 50 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                          الدرجة: {q.score}%
+                        </span>
+                        <span className="text-[#64748b] text-[12px] w-full mt-1" dir="ltr">{new Date(q.attempted_at).toLocaleString('ar-EG')}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : ( <p className="text-[#64748b]">لم يؤدِ أي امتحان حتى الآن.</p> )}
               </div>
 
             </div>
