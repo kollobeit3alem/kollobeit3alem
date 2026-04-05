@@ -64,7 +64,8 @@ export default function Instructor() {
   const loadCourses = async () => {
     if (!token) return;
     try {
-      const data = await apiCall('/api/courses', token) as Course[];
+      // 💡 التعديل هنا: استخدام المسار الخاص بالإدارة/المدرسين لجلب كورسات المدرس الحالي فقط
+      const data = await apiCall('/api/admin/courses', token) as Course[];
       setCourses(data);
     } catch (error) {
       console.error('Failed to load courses:', error);
@@ -253,7 +254,6 @@ export default function Instructor() {
     if (!token) return;
     
     try {
-      // التعديل هنا: تم تغيير StudentReport إلى any
       const data = await apiCall(`/api/admin/reports/${userId}`, token) as any;
       setReportData(data);
       setReportUserName(userName);
