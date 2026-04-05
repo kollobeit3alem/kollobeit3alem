@@ -85,6 +85,10 @@ export async function handleStudentRoutes(request, env, path, url) {
     
     const userId = authCheck.userId;
 
+    // التعديل هنا: جلب رصيد المحفظة من الداتا بيز
+    const userRecord = await env.DB.prepare("SELECT wallet_balance FROM users WHERE id = ?").bind(userId).first();
+    const walletBalance = userRecord ? userRecord.wallet_balance : 0;
+
     const enrollments = await env.DB.prepare("SELECT course_id FROM enrollments WHERE user_id = ?").bind(userId).all();
     const totalCourses = enrollments.results.length;
 
@@ -102,12 +106,42 @@ export async function handleStudentRoutes(request, env, path, url) {
     const enrolledCourses = await env.DB.prepare(coursesQuery).bind(userId).all();
 
     return new Response(JSON.stringify({
-      stats: { totalCourses, completedLessons },
+      stats: { totalCourses, completedLessons, walletBalance }, // إضافة الرصيد هنا
       enrolledCourses: enrolledCourses.results
     }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
-  // الاشتراك في كورس
+  // ميزة جديدة: شحن المحفظة بالأكواد
+  if (path === "/api/wallet/charge" && request.method === "POST") {
+    const authCheck = await verifyStudentSession(request, env);
+    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    
+    const userId = authCheck.userId;
+    const body = await request.json();
+    const code = body.code;
+
+    if (!code) return new Response(JSON.stringify({ error: "كود الشحن مطلوب" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    
+    // البحث عن الكود في الداتا بيز
+    const activationCode = await env.DB.prepare("SELECT * FROM activation_codes WHERE code = ? AND is_used = 0").bind(code).first();
+    
+    if (!activationCode) {
+      return new Response(JSON.stringify({ error: "الكود غير صحيح أو تم استخدامه مسبقاً" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }
+
+    // تحديث رصيد الطالب وحرق الكود في قاعدة البيانات
+    await env.DB.batch([
+      env.DB.prepare("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?").bind(activationCode.amount, userId),
+      env.DB.prepare("UPDATE activation_codes SET is_used = 1, used_by = ?, used_at = CURRENT_TIMESTAMP WHERE id = ?").bind(userId, activationCode.id)
+    ]);
+    
+    // جلب الرصيد الجديد لإرجاعه للفرونت إند
+    const updatedUser = await env.DB.prepare("SELECT wallet_balance FROM users WHERE id = ?").bind(userId).first();
+
+    return new Response(JSON.stringify({ success: true, newBalance: updatedUser.wallet_balance, addedAmount: activationCode.amount }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+  }
+
+  // التعديل الجذري هنا: الاشتراك في الكورس بالدفع من المحفظة
   if (path === "/api/enroll" && request.method === "POST") {
     const authCheck = await verifyStudentSession(request, env);
     if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -115,12 +149,12 @@ export async function handleStudentRoutes(request, env, path, url) {
     const userId = authCheck.userId;
     const body = await request.json();
     const course_id = body.course_id;
-    const code = body.code;
 
-    const course = await env.DB.prepare("SELECT is_free FROM courses WHERE id = ?").bind(course_id).first();
-    if (!course) return new Response(JSON.stringify({ error: "Course not found" }), { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    const course = await env.DB.prepare("SELECT is_free, price FROM courses WHERE id = ?").bind(course_id).first();
+    if (!course) return new Response(JSON.stringify({ error: "الكورس غير موجود" }), { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } });
 
     if (course.is_free === 1) {
+      // كورس مجاني، اشتراك مباشر
       try {
         await env.DB.prepare("INSERT INTO enrollments (user_id, course_id) VALUES (?, ?)").bind(userId, course_id).run();
         return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -128,17 +162,21 @@ export async function handleStudentRoutes(request, env, path, url) {
         return new Response(JSON.stringify({ error: "أنت مشترك بالفعل في هذا الكورس" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
       }
     } else {
-      if (!code) return new Response(JSON.stringify({ error: "كود التفعيل مطلوب" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+      // كورس مدفوع: نتحقق من رصيد الطالب
+      const user = await env.DB.prepare("SELECT wallet_balance FROM users WHERE id = ?").bind(userId).first();
       
-      const activationCode = await env.DB.prepare("SELECT * FROM activation_codes WHERE code = ? AND course_id = ? AND is_used = 0").bind(code, course_id).first();
-      
-      if (!activationCode) {
-        return new Response(JSON.stringify({ error: "الكود غير صحيح أو تم استخدامه مسبقاً" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+      if (user.wallet_balance < course.price) {
+        // الرصيد غير كافٍ
+        return new Response(JSON.stringify({ error: "رصيد المحفظة غير كافٍ. يرجى شحن رصيدك أولاً من صفحة حسابك." }), { status: 402, headers: { "Content-Type": "application/json", ...corsHeaders } });
       }
 
-      await env.DB.prepare("UPDATE activation_codes SET is_used = 1, used_by = ?, used_at = CURRENT_TIMESTAMP WHERE id = ?").bind(userId, activationCode.id).run();
       try {
-        await env.DB.prepare("INSERT INTO enrollments (user_id, course_id) VALUES (?, ?)").bind(userId, course_id).run();
+        // خصم الرصيد وإضافة الاشتراك في خطوة واحدة (Transaction Batch)
+        await env.DB.batch([
+          env.DB.prepare("UPDATE users SET wallet_balance = wallet_balance - ? WHERE id = ?").bind(course.price, userId),
+          env.DB.prepare("INSERT INTO enrollments (user_id, course_id) VALUES (?, ?)").bind(userId, course_id)
+        ]);
+        
         return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
       } catch (e) {
         return new Response(JSON.stringify({ error: "أنت مشترك بالفعل في هذا الكورس" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
