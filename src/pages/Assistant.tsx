@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, apiCall } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import type { User, StudentReport } from '@/types';
+import type { User } from '@/types';
 
 export default function Assistant() {
   const navigate = useNavigate();
