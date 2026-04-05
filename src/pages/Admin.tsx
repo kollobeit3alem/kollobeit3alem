@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, apiCall } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+// التعديل هنا: إزالة StudentReport من سطر الاستدعاء
 import type { Course, Lesson, QuizQuestion, User, ActivationCode } from '@/types';
 
 type TabType = 'courses' | 'lessons' | 'quizzes' | 'users' | 'staff' | 'codes';
@@ -40,7 +41,7 @@ export default function Admin() {
   const [editingType, setEditingType] = useState<'course' | 'lesson' | 'user'>('course');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editFormData, setEditFormData] = useState<Record<string, any>>({});
-  // التعديل هنا: استخدام any لتجنب أخطاء الأنواع مع المصفوفة الجديدة للامتحانات
+  // استخدام any لتجنب أخطاء الأنواع مع المصفوفة الجديدة للامتحانات
   const [reportData, setReportData] = useState<any>(null);
   const [reportUserName, setReportUserName] = useState('');
 
