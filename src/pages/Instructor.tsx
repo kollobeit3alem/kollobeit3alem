@@ -38,7 +38,7 @@ export default function Instructor() {
   const [editingType, setEditingType] = useState<'course' | 'lesson'>('course');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editFormData, setEditFormData] = useState<Record<string, any>>({});
-  const [reportData, setReportData] = useState<any>(null); // تم التعديل إلى any لتجنب أخطاء TypeScript
+  const [reportData, setReportData] = useState<any>(null); 
   const [reportUserName, setReportUserName] = useState('');
 
   // Redirect if not authenticated or not authorized
@@ -64,7 +64,6 @@ export default function Instructor() {
   const loadCourses = async () => {
     if (!token) return;
     try {
-      // الباك إند مبرمج تلقائياً ليرجع كورسات هذا المدرس فقط
       const data = await apiCall('/api/courses', token) as Course[];
       setCourses(data);
     } catch (error) {
@@ -75,7 +74,6 @@ export default function Instructor() {
   const loadUsers = async (page: number, search: string) => {
     if (!token) return;
     try {
-      // الباك إند مبرمج تلقائياً ليرجع طلاب هذا المدرس فقط
       const data = await apiCall(`/api/admin/users?page=${page}&limit=${usersLimit}&search=${encodeURIComponent(search)}`, token) as any;
       setUsers(data.users || []);
       setUsersTotal(data.total || 0);
@@ -255,8 +253,8 @@ export default function Instructor() {
     if (!token) return;
     
     try {
-      // الباك إند مبرمج ليرجع تقرير الطالب في كورسات هذا المدرس فقط
-      const data = await apiCall(`/api/admin/reports/${userId}`, token) as StudentReport;
+      // التعديل هنا: تم تغيير StudentReport إلى any
+      const data = await apiCall(`/api/admin/reports/${userId}`, token) as any;
       setReportData(data);
       setReportUserName(userName);
       setShowReportModal(true);
@@ -285,7 +283,7 @@ export default function Instructor() {
     });
   };
 
-  // Edit modal handlers (Only for Courses and Lessons)
+  // Edit modal handlers
   const openEditModal = (type: 'course' | 'lesson', item: any) => {
     setEditingType(type);
     setEditingId(item.id);
