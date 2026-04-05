@@ -34,11 +34,12 @@ export async function handleAssistantRoutes(request, env, path, url, adminUser) 
     }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
-  // 2. عرض التقارير الخاصة بأي طالب (للقراءة فقط)
+  // 2. عرض التقارير الخاصة بأي طالب (للقراءة فقط + نتائج الامتحانات)
   if (path.match(/^\/api\/admin\/reports\/\d+$/) && request.method === "GET") {
     const studentId = parseInt(path.split("/")[4], 10);
     let enrollments = [];
     let progress = [];
+    let quizzes = [];
 
     try {
       const eRes = await env.DB.prepare(
@@ -54,7 +55,15 @@ export async function handleAssistantRoutes(request, env, path, url, adminUser) 
       progress = pRes.results;
     } catch (e) { console.error(e); }
     
-    return new Response(JSON.stringify({ enrollments, progress }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    // التعديل هنا: إضافة جلب سجل درجات الامتحانات
+    try {
+      const qRes = await env.DB.prepare(
+        "SELECT q.score, q.attempted_at, l.title as lesson_title, c.title as course_title FROM quiz_attempts q JOIN lessons l ON q.lesson_id = l.id JOIN courses c ON l.course_id = c.id WHERE q.user_id = ? ORDER BY q.attempted_at DESC"
+      ).bind(studentId).all();
+      quizzes = qRes.results;
+    } catch (e) { console.error(e); }
+
+    return new Response(JSON.stringify({ enrollments, progress, quizzes }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
   return null;
