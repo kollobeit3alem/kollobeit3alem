@@ -1,6 +1,13 @@
 import { corsHeaders } from './utils.js';
 import { verifyStudentSession } from './auth.js';
 
+// ============================================================================
+// نظام حماية ضد التخمين (Rate Limiter) لكروت الشحن في ذاكرة السيرفر
+// ============================================================================
+const chargeAttempts = new Map();
+const MAX_ATTEMPTS = 5; // أقصى عدد للمحاولات الخاطئة
+const LOCKOUT_TIME = 15 * 60 * 1000; // مدة الحظر: 15 دقيقة بالمللي ثانية
+
 export async function handleStudentRoutes(request, env, path, url) {
   
   // مسار تحديث الملف الشخصي (إضافة رقم التليفون للطلاب)
@@ -110,12 +117,21 @@ export async function handleStudentRoutes(request, env, path, url) {
     }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
-  // ميزة جديدة: شحن المحفظة بالأكواد
+  // ميزة شحن المحفظة بالأكواد + الحماية ضد التخمين (Rate Limiting) 🔒
   if (path === "/api/wallet/charge" && request.method === "POST") {
     const authCheck = await verifyStudentSession(request, env);
     if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
     
     const userId = authCheck.userId;
+    const now = Date.now();
+    
+    // التحقق من حالة الحظر للطالب
+    const userAttempts = chargeAttempts.get(userId) || { count: 0, lockoutUntil: 0 };
+    if (userAttempts.lockoutUntil > now) {
+      const minutesLeft = Math.ceil((userAttempts.lockoutUntil - now) / 60000);
+      return new Response(JSON.stringify({ error: `لقد تجاوزت الحد الأقصى للمحاولات الخاطئة. يرجى المحاولة بعد ${minutesLeft} دقيقة.` }), { status: 429, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }
+
     const body = await request.json();
     const code = body.code;
 
@@ -124,9 +140,26 @@ export async function handleStudentRoutes(request, env, path, url) {
     const activationCode = await env.DB.prepare("SELECT * FROM activation_codes WHERE code = ? AND is_used = 0").bind(code).first();
     
     if (!activationCode) {
-      return new Response(JSON.stringify({ error: "الكود غير صحيح أو تم استخدامه مسبقاً" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+      // تسجيل المحاولة الخاطئة
+      userAttempts.count += 1;
+      if (userAttempts.count >= MAX_ATTEMPTS) {
+        userAttempts.lockoutUntil = now + LOCKOUT_TIME;
+        userAttempts.count = 0; // تصفير العداد بعد تطبيق الحظر ليبدأ من جديد بعد انتهائه
+      }
+      chargeAttempts.set(userId, userAttempts);
+      
+      const remainingAttempts = MAX_ATTEMPTS - userAttempts.count;
+      const errorMsg = userAttempts.lockoutUntil > now 
+        ? `تم حظر ميزة الشحن لمدة 15 دقيقة بسبب كثرة المحاولات الخاطئة.`
+        : `الكود غير صحيح أو تم استخدامه مسبقاً. (يتبقى لك ${remainingAttempts} محاولات)`;
+        
+      return new Response(JSON.stringify({ error: errorMsg }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
 
+    // الكود صحيح: تصفير عداد المحاولات الخاطئة
+    chargeAttempts.delete(userId);
+
+    // تحديث رصيد الطالب وحرق الكود
     await env.DB.batch([
       env.DB.prepare("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?").bind(activationCode.amount, userId),
       env.DB.prepare("UPDATE activation_codes SET is_used = 1, used_by = ?, used_at = CURRENT_TIMESTAMP WHERE id = ?").bind(userId, activationCode.id)
@@ -267,7 +300,6 @@ export async function handleStudentRoutes(request, env, path, url) {
       // 3. مطابقة إجابات الطالب بالإجابات الصحيحة وحساب الدرجة
       for (const q of dbQuestions.results) {
         let chosen = null;
-        // دعم التنسيقات المختلفة لإجابات الطالب (مصفوفة أو كائن)
         if (Array.isArray(answers)) {
           const ansObj = answers.find(a => a.question_id === q.id || a.id === q.id);
           chosen = ansObj ? (ansObj.chosen_option || ansObj.answer) : null;
@@ -294,7 +326,6 @@ export async function handleStudentRoutes(request, env, path, url) {
         "INSERT INTO quiz_attempts (user_id, lesson_id, score, answers_json) VALUES (?, ?, ?, ?)"
       ).bind(userId, lessonId, actualScore, JSON.stringify(finalAnswers)).run();
       
-      // إرجاع النتيجة للطالب ليعرضها المتصفح
       return new Response(JSON.stringify({ success: true, score: actualScore, gradedAnswers: finalAnswers }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
     } catch (e) {
       return new Response(JSON.stringify({ error: "حدث خطأ أثناء تصحيح الامتحان" }), { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
