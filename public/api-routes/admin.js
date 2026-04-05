@@ -71,11 +71,12 @@ export async function handleAdminRoutes(request, env, path, url, adminUser) {
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
-  // 4. تقارير الطلاب الشاملة
+  // 4. تقارير الطلاب الشاملة (+ الامتحانات)
   if (path.match(/^\/api\/admin\/reports\/\d+$/) && request.method === "GET") {
     const studentId = parseInt(path.split("/")[4], 10);
     let enrollments = [];
     let progress = [];
+    let quizzes = []; // المصفوفة الجديدة للامتحانات
 
     try {
       const eRes = await env.DB.prepare(
@@ -91,7 +92,15 @@ export async function handleAdminRoutes(request, env, path, url, adminUser) {
       progress = pRes.results;
     } catch (e) { console.error(e); }
     
-    return new Response(JSON.stringify({ enrollments, progress }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    // التعديل هنا: جلب سجل درجات الامتحانات
+    try {
+      const qRes = await env.DB.prepare(
+        "SELECT q.score, q.attempted_at, l.title as lesson_title, c.title as course_title FROM quiz_attempts q JOIN lessons l ON q.lesson_id = l.id JOIN courses c ON l.course_id = c.id WHERE q.user_id = ? ORDER BY q.attempted_at DESC"
+      ).bind(studentId).all();
+      quizzes = qRes.results;
+    } catch (e) { console.error(e); }
+
+    return new Response(JSON.stringify({ enrollments, progress, quizzes }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
   // 5. التحكم المطلق في الكورسات (إضافة/تعديل/مسح)
