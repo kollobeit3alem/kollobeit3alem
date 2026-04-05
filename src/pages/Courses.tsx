@@ -178,7 +178,8 @@ export default function Courses() {
         </Link>
         <div className="flex items-center gap-4">
           <Link to="/profile" className="flex items-center gap-2.5 font-bold text-text-main bg-page-bg py-1.5 px-4 pl-1.5 rounded-[30px] border border-border transition-all hover:border-primary hover:shadow-[0_4px_10px_var(--primary-light)] no-underline" title="الذهاب للبروفايل">
-            <span>{user.name.split(' ')[0]}</span>
+            {/* التعديل هنا: إضافة hidden sm:inline لإخفاء الاسم في الموبايل */}
+            <span className="hidden sm:inline">{user.name.split(' ')[0]}</span>
             {user.avatar_url && (
               <img src={user.avatar_url} alt="صورة المستخدم" className="w-10 h-10 rounded-full border-2 border-primary object-cover" />
             )}
