@@ -11,10 +11,12 @@ export default function Courses() {
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
+  // التعديل هنا: حالة لحفظ رصيد المحفظة
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  
   // Modal States
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [activationCode, setActivationCode] = useState('');
   
   // Phone Modal States
   const [showPhoneModal, setShowPhoneModal] = useState(false);
@@ -37,6 +39,17 @@ export default function Courses() {
       setShowPhoneModal(true);
     }
   }, [user]);
+
+  // التعديل هنا: جلب رصيد المحفظة الخاص بالطالب
+  const fetchWalletData = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await apiCall('/api/my-dashboard', token) as any;
+      setWalletBalance(data.stats?.walletBalance || 0);
+    } catch (error) {
+      console.error('Failed to load wallet balance:', error);
+    }
+  }, [token]);
 
   // Fetch enrollments
   const fetchEnrollments = useCallback(async () => {
@@ -65,25 +78,32 @@ export default function Courses() {
 
   useEffect(() => {
     if (token) {
+      fetchWalletData();
       fetchEnrollments().then(() => fetchCourses());
     }
-  }, [token, fetchEnrollments, fetchCourses]);
+  }, [token, fetchEnrollments, fetchCourses, fetchWalletData]);
 
-  const handleEnroll = async (courseId: number, code?: string) => {
+  // التعديل هنا: دالة الاشتراك تم تحديثها لتعمل مع المحفظة بدون كود تفعيل
+  const handleEnroll = async (courseId: number, coursePrice: number = 0) => {
     if (!token) return;
     
     setIsEnrolling(true);
     try {
-      // إرسال طلب الاشتراك (سواء مجاني أو بكود مدفوع) ليتم حفظه في التقارير
-      await apiCall('/api/enroll', token, 'POST', { course_id: courseId, code });
+      // إرسال طلب الاشتراك (السيرفر سيخصم من المحفظة تلقائياً إذا كان مدفوعاً)
+      await apiCall('/api/enroll', token, 'POST', { course_id: courseId });
       
-      // تحديث حالة الواجهة محلياً فوراً لضمان المزامنة
+      // تحديث حالة الواجهة محلياً
       setEnrolledCourseIds(prev => [...prev, courseId]);
+      
+      // تحديث رصيد المحفظة محلياً لعدم الحاجة لعمل Refresh
+      if (coursePrice > 0) {
+        setWalletBalance(prev => prev - coursePrice);
+      }
       
       toast.success('تم الاشتراك بنجاح!');
       navigate(`/course?id=${courseId}`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'فشل الاشتراك. تأكد من صحة الكود.');
+      toast.error(error instanceof Error ? error.message : 'فشل الاشتراك. تأكد من رصيد محفظتك.');
     } finally {
       setIsEnrolling(false);
     }
@@ -91,22 +111,12 @@ export default function Courses() {
 
   const openPaymentModal = (course: Course) => {
     setSelectedCourse(course);
-    setActivationCode('');
     setShowPaymentModal(true);
   };
 
   const closePaymentModal = () => {
     setShowPaymentModal(false);
     setSelectedCourse(null);
-    setActivationCode('');
-  };
-
-  const activateCourse = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCourse || !activationCode.trim() || isEnrolling) return;
-    
-    await handleEnroll(selectedCourse.id, activationCode.trim().toUpperCase());
-    closePaymentModal();
   };
 
   const handleSavePhone = async (e: React.FormEvent) => {
@@ -115,17 +125,14 @@ export default function Courses() {
     
     setIsSavingPhone(true);
     try {
-      // إرسال الرقم للسيرفر
       await apiCall('/api/my-profile', token, 'PUT', { phone: phoneInput });
       
       toast.success('تم حفظ رقم الواتساب بنجاح! شكراً لك.');
       setShowPhoneModal(false);
       
-      // تحديث بيانات المستخدم في المتصفح
       const updatedUser = { ...user, phone: phoneInput };
       localStorage.setItem('user_info', JSON.stringify(updatedUser));
       
-      // عمل تحديث بسيط للصفحة لتطبيق البيانات الجديدة في الـ Context
       setTimeout(() => window.location.reload(), 1500); 
     } catch (error) {
       toast.error('حدث خطأ أثناء الحفظ، يرجى المحاولة لاحقاً.');
@@ -155,7 +162,7 @@ export default function Courses() {
       return {
         badge: <span className="badge-free absolute top-4 right-4 shadow-lg z-10">مجاني</span>,
         button: <button disabled={isEnrolling} className="bg-emerald-100 text-emerald-600 px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all group-hover:bg-emerald-500 group-hover:text-white disabled:opacity-50">اشترك مجاناً <i className="fas fa-bolt"></i></button>,
-        action: () => !isEnrolling && handleEnroll(course.id),
+        action: () => !isEnrolling && handleEnroll(course.id, 0),
       };
     } else {
       return {
@@ -169,23 +176,29 @@ export default function Courses() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-page-bg flex flex-col">
+    <div className="min-h-screen bg-page-bg flex flex-col" dir="rtl">
       {/* Header */}
       <header className="bg-white py-4 px-[5%] flex justify-between items-center shadow-[0_4px_20px_rgba(0,0,0,0.03)] sticky top-0 z-[100] border-b-[3px] border-b-primary">
         <Link to="/courses" className="flex items-center gap-4 no-underline">
           <img src="/logo.png" alt="شعار المنصة" className="h-[50px] rounded-xl" />
           <h1 className="text-2xl text-primary font-bold">كله بيتعلم</h1>
         </Link>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 md:gap-4">
+          
+          {/* التعديل هنا: أيقونة المحفظة والرصيد في الهيدر */}
+          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 py-1.5 px-3 md:px-4 rounded-xl font-bold shadow-sm" title="رصيد محفظتك">
+            <i className="fas fa-wallet text-lg"></i>
+            <span className="text-[14px] md:text-base">{walletBalance} ج.م</span>
+          </div>
+
           <Link to="/profile" className="flex items-center gap-2.5 font-bold text-text-main bg-page-bg py-1.5 px-4 pl-1.5 rounded-[30px] border border-border transition-all hover:border-primary hover:shadow-[0_4px_10px_var(--primary-light)] no-underline" title="الذهاب للبروفايل">
-            {/* التعديل هنا: إضافة hidden sm:inline لإخفاء الاسم في الموبايل */}
             <span className="hidden sm:inline">{user.name.split(' ')[0]}</span>
             {user.avatar_url && (
               <img src={user.avatar_url} alt="صورة المستخدم" className="w-10 h-10 rounded-full border-2 border-primary object-cover" />
             )}
           </Link>
-          <Link to="/profile" className="bg-primary/10 text-primary no-underline py-2.5 px-4 rounded-xl font-bold transition-all hover:bg-primary hover:text-white flex items-center gap-2">
-            <i className="fas fa-user-circle"></i> <span className="hidden sm:inline">حسابي</span>
+          <Link to="/profile" className="bg-primary/10 text-primary no-underline py-2.5 px-4 rounded-xl font-bold transition-all hover:bg-primary hover:text-white flex items-center gap-2 hidden md:flex">
+            <i className="fas fa-user-circle"></i> <span>حسابي</span>
           </Link>
           <button 
             onClick={handleLogout}
@@ -264,12 +277,12 @@ export default function Courses() {
         )}
       </main>
 
-      {/* Payment Modal */}
+      {/* Payment Modal التعديل الجذري في نظام الدفع والمحفظة */}
       {showPaymentModal && selectedCourse && (
-        <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-[1000] backdrop-blur-sm">
-          <div className="bg-white p-8 rounded-[20px] w-[90%] max-w-[500px] shadow-modal relative">
+        <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-[1000] backdrop-blur-sm px-4">
+          <div className="bg-white p-6 md:p-8 rounded-[20px] w-full max-w-[500px] shadow-modal relative">
             <div className="flex justify-between items-center mb-5 pb-4 border-b border-border">
-              <h3 className="text-primary text-xl font-bold">{selectedCourse.title}</h3>
+              <h3 className="text-primary text-xl font-bold"><i className="fas fa-shopping-cart ml-2"></i> تأكيد الاشتراك</h3>
               <button 
                 onClick={closePaymentModal}
                 className="bg-none border-none text-2xl text-red-500 cursor-pointer hover:text-red-600"
@@ -277,42 +290,58 @@ export default function Courses() {
                 <i className="fas fa-times"></i>
               </button>
             </div>
+            
             <div>
-              <p className="mb-5 leading-relaxed">
-                هذا الكورس مدفوع وقيمته <strong className="text-warning text-lg">{selectedCourse.price || 0}</strong> <strong>جنيه مصري</strong>. 
-                يرجى التواصل معنا عبر واتساب لإتمام عملية الدفع واستلام كود التفعيل الخاص بك.
-              </p>
-              <a 
-                href={`https://wa.me/201153786085?text=${encodeURIComponent(`مرحباً، أريد شراء كورس (${selectedCourse.title}) لتفعيل حسابي.`)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex justify-center items-center gap-2.5 bg-[#25D366] text-white no-underline py-4 rounded-xl font-bold text-base transition-all hover:bg-[#1ebe57] hover:-translate-y-0.5 w-full mb-5"
-              >
-                <i className="fab fa-whatsapp"></i> ادفع الآن واستلم الكود
-              </a>
-              
-              <hr className="my-6 border-0 border-t border-border" />
-              
-              <h4 className="mb-2.5 text-primary font-bold">لدي كود تفعيل بالفعل:</h4>
-              <form onSubmit={activateCourse} className="flex flex-col gap-4">
-                <input 
-                  type="text" 
-                  value={activationCode}
-                  onChange={(e) => setActivationCode(e.target.value)}
-                  placeholder="أدخل الكود هنا (مثال: AB12CD34)" 
-                  required
-                  disabled={isEnrolling}
-                  className="w-full p-4 border-2 border-border rounded-xl text-base text-center uppercase bg-page-bg focus:border-primary focus:outline-none focus:bg-white disabled:opacity-50"
-                />
-                <button 
-                  type="submit" 
-                  disabled={isEnrolling}
-                  className="bg-primary text-white border-none py-4 rounded-xl font-bold cursor-pointer text-base transition-all hover:shadow-[0_5px_15px_var(--primary-light)] hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {isEnrolling ? <i className="fas fa-circle-notch fa-spin"></i> : <i className="fas fa-check-circle"></i>} 
-                  {isEnrolling ? 'جاري التفعيل...' : 'تفعيل الدورة وبدء التعلم'}
-                </button>
-              </form>
+              <div className="bg-slate-50 p-5 rounded-xl mb-6 border border-slate-200 shadow-sm">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-slate-600 font-bold">اسم الدورة:</span>
+                  <span className="text-primary font-bold text-left">{selectedCourse.title}</span>
+                </div>
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-slate-600 font-bold">تكلفة الدورة:</span>
+                  <span className="text-amber-600 font-bold text-lg">{selectedCourse.price || 0} ج.م</span>
+                </div>
+                <div className="flex justify-between items-center border-t border-slate-200 pt-3 mt-3">
+                  <span className="text-slate-600 font-bold">رصيد محفظتك الحالي:</span>
+                  <span className={`${walletBalance >= (selectedCourse.price || 0) ? 'text-emerald-600' : 'text-red-500'} font-bold text-lg`}>
+                    {walletBalance} ج.م
+                  </span>
+                </div>
+              </div>
+
+              {walletBalance >= (selectedCourse.price || 0) ? (
+                <div>
+                  <p className="text-sm text-slate-500 mb-4 text-center">
+                    سيتم خصم المبلغ من محفظتك فوراً وتفعيل الكورس على حسابك.
+                  </p>
+                  <button 
+                    onClick={() => {
+                      handleEnroll(selectedCourse.id, selectedCourse.price || 0);
+                      closePaymentModal();
+                    }}
+                    disabled={isEnrolling}
+                    className="bg-primary text-white border-none py-4 rounded-xl font-bold cursor-pointer text-base transition-all hover:shadow-[0_5px_15px_var(--primary-light)] hover:-translate-y-0.5 flex items-center justify-center gap-2 w-full disabled:opacity-50"
+                  >
+                    {isEnrolling ? <i className="fas fa-circle-notch fa-spin"></i> : <i className="fas fa-check-circle"></i>} 
+                    {isEnrolling ? 'جاري تأكيد الاشتراك...' : 'تأكيد الخصم والاشتراك'}
+                  </button>
+                </div>
+              ) : (
+                <div className="animate-fade-in">
+                  <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-5 text-sm font-bold flex items-start gap-3 border border-red-100">
+                    <i className="fas fa-exclamation-triangle mt-1 text-lg"></i>
+                    <p className="m-0 leading-relaxed">
+                      عذراً، رصيد محفظتك لا يكفي لإتمام هذا الاشتراك. يرجى شحن المحفظة أولاً من صفحة حسابك الشخصي.
+                    </p>
+                  </div>
+                  <Link 
+                    to="/profile"
+                    className="bg-emerald-500 text-white border-none py-4 rounded-xl font-bold cursor-pointer text-base transition-all hover:bg-emerald-600 hover:-translate-y-0.5 shadow-sm flex items-center justify-center gap-2 w-full no-underline"
+                  >
+                    <i className="fas fa-wallet"></i> الذهاب لشحن المحفظة
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         </div>
