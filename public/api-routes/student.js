@@ -69,6 +69,7 @@ export async function handleStudentRoutes(request, env, path, url) {
   }
 
   // جلب الكورسات (ديناميكية: المدير يرى الكل، المعلم يرى كورساته فقط، الطالب يرى الكل)
+  // التعديل هنا: تم دمج جدول الكورسات مع جدول المستخدمين لجلب اسم المحاضر
   if (path === "/api/courses" && request.method === "GET") {
     let isInstructor = false;
     let instId = null;
@@ -88,9 +89,20 @@ export async function handleStudentRoutes(request, env, path, url) {
 
     let courses;
     if (isInstructor) {
-      courses = await env.DB.prepare("SELECT * FROM courses WHERE instructor_id = ? ORDER BY id DESC").bind(instId).all();
+      courses = await env.DB.prepare(`
+        SELECT c.*, u.name as instructor_name 
+        FROM courses c 
+        LEFT JOIN users u ON c.instructor_id = u.id 
+        WHERE c.instructor_id = ? 
+        ORDER BY c.id DESC
+      `).bind(instId).all();
     } else {
-      courses = await env.DB.prepare("SELECT * FROM courses ORDER BY id DESC").all();
+      courses = await env.DB.prepare(`
+        SELECT c.*, u.name as instructor_name 
+        FROM courses c 
+        LEFT JOIN users u ON c.instructor_id = u.id 
+        ORDER BY c.id DESC
+      `).all();
     }
     
     return new Response(JSON.stringify(courses.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
