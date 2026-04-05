@@ -188,14 +188,28 @@ export default function Courses() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-page-bg flex flex-col">
-      {/* إضافة ستايل مخصص للأنيميشنز السلسة مباشرة في الكومبوننت 
-        عشان تشتغل بدون تعديل في الـ tailwind.config.js
+    <div className="min-h-screen bg-page-bg flex flex-col relative overflow-hidden">
+      
+      {/* الأنيميشنز الجديدة: 
+        1. dealCard: تأثير توزيع الكروت بمرونة (Spring Effect).
+        2. blobShape: حركة العناصر المضيئة في الخلفية.
       */}
       <style dangerouslySetInnerHTML={{__html: `
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(30px); }
-          to { opacity: 1; transform: translateY(0); }
+        @keyframes dealCard {
+          0% { 
+            opacity: 0; 
+            transform: translateY(150px) translateX(-50px) rotate(-15deg) scale(0.8); 
+          }
+          100% { 
+            opacity: 1; 
+            transform: translateY(0) translateX(0) rotate(0) scale(1); 
+          }
+        }
+        @keyframes blobShape {
+          0% { transform: translate(0, 0) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+          100% { transform: translate(0, 0) scale(1); }
         }
         @keyframes float {
           0% { transform: translateY(0px); }
@@ -206,17 +220,35 @@ export default function Courses() {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.8; }
         }
-        .course-card-animate {
+        
+        .card-deal-animate {
           opacity: 0;
-          animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          /* استخدام cubic-bezier لإعطاء تأثير الـ Spring الممتع */
+          animation: dealCard 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
         }
         .bg-float-animate {
           animation: float 8s ease-in-out infinite;
         }
+        
+        /* نمط النقاط في الخلفية للمسحة التكنولوجية */
+        .bg-grid-pattern {
+          background-image: radial-gradient(rgba(1, 86, 105, 0.05) 2px, transparent 2px);
+          background-size: 30px 30px;
+        }
       `}} />
 
+      {/* عناصر الخلفية المتحركة (Floating Blobs) */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden bg-grid-pattern">
+        {/* Blob 1 */}
+        <div className="absolute top-[20%] right-[10%] w-[400px] h-[400px] bg-primary/10 rounded-full mix-blend-multiply filter blur-[80px] animate-[blobShape_15s_ease-in-out_infinite]"></div>
+        {/* Blob 2 */}
+        <div className="absolute bottom-[10%] left-[5%] w-[350px] h-[350px] bg-emerald-400/10 rounded-full mix-blend-multiply filter blur-[80px] animate-[blobShape_20s_ease-in-out_infinite_reverse]"></div>
+        {/* Blob 3 */}
+        <div className="absolute top-[60%] left-[40%] w-[300px] h-[300px] bg-amber-300/10 rounded-full mix-blend-multiply filter blur-[80px] animate-[blobShape_18s_ease-in-out_infinite]"></div>
+      </div>
+
       {/* Header */}
-      <header className="bg-white py-4 px-[5%] flex justify-between items-center shadow-[0_4px_20px_rgba(0,0,0,0.03)] sticky top-0 z-[100] border-b-[3px] border-b-primary transition-all duration-500">
+      <header className="bg-white/90 backdrop-blur-md py-4 px-[5%] flex justify-between items-center shadow-[0_4px_20px_rgba(0,0,0,0.03)] sticky top-0 z-[100] border-b-[3px] border-b-primary transition-all duration-500">
         <Link to="/courses" className="flex items-center gap-4 no-underline hover:scale-105 transition-transform duration-300">
           <img src="/logo.png" alt="شعار المنصة" className="h-[50px] rounded-xl shadow-sm" />
           <h1 className="text-2xl text-primary font-bold tracking-tight">كله بيتعلم</h1>
@@ -242,10 +274,10 @@ export default function Courses() {
       </header>
 
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-primary via-[#014d5e] to-[#013d4a] text-white py-20 px-[5%] text-center relative overflow-hidden">
-        {/* Animated Background Pattern */}
+      <section className="bg-gradient-to-br from-primary via-[#014d5e] to-[#013d4a] text-white py-20 px-[5%] text-center relative overflow-hidden shadow-lg z-10">
+        {/* Animated Background Pattern inside Hero */}
         <div 
-          className="absolute inset-0 opacity-10 bg-float-animate"
+          className="absolute inset-0 opacity-10 bg-float-animate pointer-events-none"
           style={{
             backgroundImage: `url("data:image/svg+xml,%3Csvg opacity='0.05' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='white'/%3E%3C/svg%3E")`,
             backgroundSize: '150px',
@@ -274,20 +306,20 @@ export default function Courses() {
       </section>
 
       {/* Main Content */}
-      <main className="flex-1 py-14 px-[5%] max-w-[1400px] mx-auto w-full">
+      <main className="flex-1 py-14 px-[5%] max-w-[1400px] mx-auto w-full relative z-10">
         <div className="flex items-center justify-between mb-10">
-          <h2 className="text-[28px] text-slate-800 font-extrabold flex items-center gap-3 relative">
+          <h2 className="text-[28px] text-slate-800 font-extrabold flex items-center gap-3 relative bg-white/50 backdrop-blur-sm px-6 py-2 rounded-2xl shadow-sm border border-white inline-flex">
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-              <i className="fas fa-compass"></i>
+              <i className="fas fa-layer-group"></i>
             </div>
             استكشف الدورات المتاحة
             {/* خط زخرفي تحت العنوان */}
-            <span className="absolute -bottom-2 right-14 w-1/2 h-1 bg-gradient-to-l from-primary to-transparent rounded-full"></span>
+            <span className="absolute -bottom-1 right-14 w-1/2 h-1 bg-gradient-to-l from-primary to-transparent rounded-full"></span>
           </h2>
         </div>
         
         {isLoading ? (
-          <div className="text-center py-20 text-text-muted flex flex-col items-center justify-center">
+          <div className="text-center py-20 text-text-muted flex flex-col items-center justify-center bg-white/50 backdrop-blur-sm rounded-[30px] border border-white shadow-sm">
             <div className="relative w-16 h-16 mb-6">
               <div className="absolute inset-0 border-4 border-slate-200 rounded-full"></div>
               <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
@@ -295,7 +327,7 @@ export default function Courses() {
             <h3 className="text-lg font-bold text-slate-600 animate-pulse">جاري تجهيز بيئة التعلم...</h3>
           </div>
         ) : courses.length === 0 ? (
-          <div className="text-center py-20 bg-white rounded-[30px] shadow-sm border border-slate-100">
+          <div className="text-center py-20 bg-white/80 backdrop-blur-sm rounded-[30px] shadow-sm border border-white">
             <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
               <i className="fas fa-box-open text-[40px] text-slate-300 hover:text-primary transition-colors duration-300"></i>
             </div>
@@ -303,19 +335,19 @@ export default function Courses() {
             <p className="text-slate-400">نعمل على تجهيز محتوى جديد ومميز قريباً!</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 perspective-1000">
             {courses.map((course, index) => {
               const action = getCourseAction(course);
               return (
                 <div 
                   key={course.id}
                   onClick={action.action}
-                  // إضافة ستايل الـ Staggered Animation بحيث يظهر كل كارت بتأخير بسيط عن اللي قبله
-                  className="course-card-animate group bg-white rounded-[24px] overflow-hidden shadow-sm border border-slate-200/60 transition-all duration-300 flex flex-col cursor-pointer hover:-translate-y-3 hover:shadow-[0_20px_40px_-15px_rgba(1,86,105,0.15)] hover:border-primary/30"
-                  style={{ animationDelay: `${index * 0.1}s` }}
+                  // الكلاس الجديد المسئول عن فرش الكروت
+                  className="card-deal-animate group bg-white/90 backdrop-blur-md rounded-[24px] overflow-hidden shadow-md border border-white/50 transition-all duration-300 flex flex-col cursor-pointer hover:-translate-y-4 hover:shadow-[0_20px_40px_-15px_rgba(1,86,105,0.2)] hover:border-primary/40"
+                  style={{ animationDelay: `${index * 0.15}s` }} // زيادة طفيفة في التأخير لظهور التوزيع بوضوح
                 >
                   <div className="relative w-full h-[220px] overflow-hidden bg-slate-100">
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent z-[5] opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent z-[5] opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     {action.badge}
                     <img 
                       src={course.image_url || 'https://via.placeholder.com/600x400/015669/FFFFFF?text=كورس+جديد'} 
@@ -325,18 +357,18 @@ export default function Courses() {
                     
                     {/* زر تشغيل يظهر عند الـ Hover */}
                     <div className="absolute inset-0 flex items-center justify-center z-10 opacity-0 group-hover:opacity-100 transition-all duration-300 transform scale-50 group-hover:scale-100">
-                       <div className="w-14 h-14 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-primary text-xl shadow-lg">
+                       <div className="w-14 h-14 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-primary text-xl shadow-[0_0_20px_rgba(255,255,255,0.5)]">
                          <i className="fas fa-play ml-1"></i>
                        </div>
                     </div>
                   </div>
                   
-                  <div className="p-6 flex-1 flex flex-col relative bg-white z-10">
+                  <div className="p-6 flex-1 flex flex-col relative bg-transparent z-10">
                     <h3 className="text-[22px] font-bold text-slate-800 mb-3 leading-snug group-hover:text-primary transition-colors duration-300">{course.title}</h3>
                     <p className="text-slate-500 text-sm leading-relaxed mb-6 flex-1 line-clamp-3">
                       {course.description || 'دورة تدريبية متميزة لتطوير مهاراتك العملية والوصول لأهدافك.'}
                     </p>
-                    <div className="flex justify-end items-center pt-5 border-t border-slate-100">
+                    <div className="flex justify-end items-center pt-5 border-t border-slate-200/60">
                       {action.button}
                     </div>
                   </div>
@@ -457,7 +489,7 @@ export default function Courses() {
       )}
 
       {/* Footer */}
-      <footer className="bg-white text-center py-6 border-t border-slate-100 text-slate-400 mt-auto">
+      <footer className="bg-white/80 backdrop-blur-md text-center py-6 border-t border-slate-100 text-slate-400 mt-auto relative z-10">
         <p className="font-medium">جميع الحقوق محفوظة لمنصة كله بيتعلم &copy; 2026</p>
       </footer>
     </div>
