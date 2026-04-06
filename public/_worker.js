@@ -113,5 +113,71 @@ export default {
     // 3. عرض الملفات الثابتة للصفحات العادية (React Frontend)
     // ============================================================================
     return env.ASSETS.fetch(request);
+  },
+
+  // ============================================================================
+  // 4. موظف الخلفية: المسؤول عن سحب الامتحانات من الطابور وتصحيحها بهدوء 🏭
+  // ============================================================================
+  async queue(batch, env) {
+    // نتأكد إن الرسائل دي جاية من طابور الامتحانات بتاعنا
+    if (batch.queue === "exams-queue") {
+      
+      // السيرفر هيمسك رسالة رسالة (طالب طالب) من الطابور
+      for (const msg of batch.messages) {
+        try {
+          // 1. استخراج بيانات الطالب والامتحان من الرسالة
+          const { userId, lessonId, answers } = msg.body;
+
+          // 2. جلب الإجابات الصحيحة من الداتا بيز (سراً)
+          const dbQuestions = await env.DB.prepare("SELECT id, correct_option FROM quizzes WHERE lesson_id = ?").bind(lessonId).all();
+
+          if (!dbQuestions.results || dbQuestions.results.length === 0) {
+            msg.ack(); // لو مفيش امتحان أصلاً، اعتبر العملية خلصت واحذف الرسالة
+            continue;
+          }
+
+          let correctCount = 0;
+          let finalAnswers = [];
+
+          // 3. عملية التصحيح
+          for (const q of dbQuestions.results) {
+            let chosen = null;
+            if (Array.isArray(answers)) {
+              const ansObj = answers.find(a => a.question_id === q.id || a.id === q.id);
+              chosen = ansObj ? (ansObj.chosen_option || ansObj.answer) : null;
+            } else if (answers && typeof answers === 'object') {
+              chosen = answers[q.id] || answers[q.id.toString()] || null;
+            }
+
+            const isCorrect = chosen === q.correct_option;
+            if (isCorrect) correctCount++;
+
+            finalAnswers.push({
+              question_id: q.id,
+              chosen_option: chosen,
+              is_correct: isCorrect,
+              correct_option: q.correct_option
+            });
+          }
+
+          // حساب النسبة المئوية
+          const actualScore = Math.round((correctCount / dbQuestions.results.length) * 100);
+
+          // 4. الحفظ في الداتا بيز (أخيراً)
+          await env.DB.prepare(
+            "INSERT INTO quiz_attempts (user_id, lesson_id, score, answers_json) VALUES (?, ?, ?, ?)"
+          ).bind(userId, lessonId, actualScore, JSON.stringify(finalAnswers)).run();
+
+          // 5. تأكيد النجاح: بنقول للطابور "خلاص الورقة دي اتصححت بنجاح، احذفها"
+          msg.ack();
+
+        } catch (error) {
+          console.error("Background Queue Grading Error:", error);
+          // 6. خطة الإنقاذ: لو الداتا بيز لسه زحمة ومقدرتش تحفظ النتيجة دلوقتي
+          // بنقول للطابور "متحذفش ورقة الطالب دي، حاول تصححها تاني كمان شوية"
+          msg.retry();
+        }
+      }
+    }
   }
 };
