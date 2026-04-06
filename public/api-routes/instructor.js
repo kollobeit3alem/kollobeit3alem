@@ -70,8 +70,14 @@ export async function handleInstructorRoutes(request, env, path, url, adminUser)
   if (path === "/api/admin/courses" && request.method === "POST") {
     const body = await request.json();
     const isFree = body.is_free !== undefined ? body.is_free : 1;
-    const price = body.price || 0;
+    // التأكد من أن السعر رقم
+    const price = parseFloat(body.price) || 0;
     
+    // التعديل الأمني: سد ثغرة السعر السالب
+    if (price < 0) {
+      return new Response(JSON.stringify({ error: "السعر لا يمكن أن يكون قيمة سالبة" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }
+
     await env.DB.prepare(
       "INSERT INTO courses (title, description, image_url, instructor_contact, is_free, price, instructor_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
     ).bind(body.title, body.description, body.image_url, body.instructor_contact || "", isFree, price, adminUser.id).run();
@@ -94,7 +100,13 @@ export async function handleInstructorRoutes(request, env, path, url, adminUser)
 
     const body = await request.json();
     const isFree = body.is_free !== undefined ? body.is_free : 1;
-    const price = body.price || 0;
+    // التأكد من أن السعر رقم
+    const price = parseFloat(body.price) || 0;
+
+    // التعديل الأمني: سد ثغرة السعر السالب
+    if (price < 0) {
+      return new Response(JSON.stringify({ error: "السعر لا يمكن أن يكون قيمة سالبة" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }
 
     await env.DB.prepare(
       "UPDATE courses SET title = ?, description = ?, image_url = ?, is_free = ?, price = ? WHERE id = ?"
