@@ -729,7 +729,7 @@ export default function Instructor() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block mb-2 font-bold text-[#1e293b]">رابط صورة السؤال (اختياري)</label>
+                  <label className="block mb-2 font-bold text-[#1e293b]">رابط صورة السؤال (اجباري)</label>
                   <input type="url" name="image_url" placeholder="مثال: https://imgur.com/question1.png" className={inputStyles} />
                 </div>
                 
