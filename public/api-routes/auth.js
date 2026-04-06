@@ -158,13 +158,15 @@ export async function handleAuthRoutes(request, env, path, url) {
     // 1. التأكد من أن التوكن موجه فعلاً لتطبيقك (Audience Check)
     const CLIENT_ID = "543687035134-d64j2ncr5bcfuv7s9e61psp7qb2dj276.apps.googleusercontent.com";
     if (payload.aud !== CLIENT_ID) {
+       console.error("Google Auth Error: Audience mismatch. Expected:", CLIENT_ID, "Got:", payload.aud);
        return new Response(JSON.stringify({ error: "توكن غير صالح: التطبيق غير معتمد" }), { 
         status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } 
       });
     }
 
     // 2. التحقق من أن البريد الإلكتروني مؤكد (Verified Email)
-    if (payload.email_verified !== true) {
+    if (String(payload.email_verified) !== "true") {
+       console.error("Google Auth Error: Email not verified by Google.");
        return new Response(JSON.stringify({ error: "البريد الإلكتروني غير مؤكد من قبل جوجل" }), { 
         status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } 
       });
@@ -172,6 +174,7 @@ export async function handleAuthRoutes(request, env, path, url) {
 
     // 3. التحقق من صلاحية وقت التوكن (Token Expiration)
     if (payload.exp <= Date.now() / 1000) {
+       console.error("Google Auth Error: Token expired.");
        return new Response(JSON.stringify({ error: "انتهت صلاحية جلسة جوجل، يرجى المحاولة مرة أخرى" }), { 
         status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } 
       });
