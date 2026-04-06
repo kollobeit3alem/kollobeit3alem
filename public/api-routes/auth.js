@@ -89,21 +89,17 @@ export async function verifyAdmin(request, env) {
   if (!token) return null;
 
   try {
-    // التحقق من التوقيع الرقمي للتوكن باستخدام المفتاح السري
     const sessionData = await verifyJWT(token, env.JWT_SECRET);
     if (!sessionData || sessionData.exp < Date.now()) return null;
     
-    // جلب بيانات المستخدم للتأكد من الرتبة ومن أن الجلسة لم تتغير
     const user = await env.DB.prepare("SELECT id, role, session_id FROM users WHERE id = ?").bind(sessionData.userId).first();
     
     if (!user) return null;
     
-    // حماية الجلسة الأحادية (Single Session)
     if (user.session_id !== sessionData.sessionId) {
       return null; 
     }
     
-    // الصلاحيات الإدارية
     if (user.role === 'admin' || user.role === 'instructor' || user.role === 'assistant') {
       return user;
     }
@@ -122,8 +118,6 @@ export async function verifyStudentSession(request, env) {
   
   try {
     const token = authHeader.split(" ")[1];
-    
-    // التحقق من التوقيع الرقمي للتوكن
     const sessionData = await verifyJWT(token, env.JWT_SECRET);
     
     if (!sessionData || sessionData.exp < Date.now()) {
@@ -161,10 +155,24 @@ export async function handleAuthRoutes(request, env, path, url) {
 
     const payload = await googleVerifyRes.json();
     
-    // التأكد من أن التوكن موجه فعلاً لتطبيقك (Audience Check)
+    // 1. التأكد من أن التوكن موجه فعلاً لتطبيقك (Audience Check)
     const CLIENT_ID = "543687035134-d64j2ncr5bcfuv7s9e61psp7qb2dj276.apps.googleusercontent.com";
     if (payload.aud !== CLIENT_ID) {
-       return new Response(JSON.stringify({ error: "توكن غير صالح" }), { 
+       return new Response(JSON.stringify({ error: "توكن غير صالح: التطبيق غير معتمد" }), { 
+        status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } 
+      });
+    }
+
+    // 2. التحقق من أن البريد الإلكتروني مؤكد (Verified Email)
+    if (payload.email_verified !== true) {
+       return new Response(JSON.stringify({ error: "البريد الإلكتروني غير مؤكد من قبل جوجل" }), { 
+        status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } 
+      });
+    }
+
+    // 3. التحقق من صلاحية وقت التوكن (Token Expiration)
+    if (payload.exp <= Date.now() / 1000) {
+       return new Response(JSON.stringify({ error: "انتهت صلاحية جلسة جوجل، يرجى المحاولة مرة أخرى" }), { 
         status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } 
       });
     }
@@ -174,7 +182,6 @@ export async function handleAuthRoutes(request, env, path, url) {
     const avatarUrl = payload.picture;
     const googleId = payload.sub;
 
-    // توليد معرّف جلسة عشوائي فريد للطرد التلقائي للأجهزة الأخرى
     const newSessionId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
     let user = await env.DB.prepare("SELECT * FROM users WHERE email = ?").bind(email).first();
@@ -189,12 +196,11 @@ export async function handleAuthRoutes(request, env, path, url) {
       user.session_id = newSessionId; 
     }
 
-    // --- توليد توكن JWT مشفر وموقع رقمياً ---
     const sessionToken = await signJWT({ 
       userId: user.id, 
-      role: user.role, // الرتبة هنا محمية بالتوقيع الرقمي ولا يمكن تزويرها
+      role: user.role,
       sessionId: newSessionId,
-      exp: Date.now() + 86400000 // صالح لمدة 24 ساعة
+      exp: Date.now() + 86400000 
     }, env.JWT_SECRET);
 
     return new Response(JSON.stringify({ success: true, token: sessionToken, user }), {
