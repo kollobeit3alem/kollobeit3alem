@@ -273,7 +273,9 @@ export async function handleStudentRoutes(request, env, path, url) {
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
-  // تصحيح وحفظ نتيجة امتحان الطالب - معاد بناءها بالكامل أمنياً 🔒
+  // ============================================================================
+  // تصحيح وحفظ نتيجة امتحان الطالب (نظام المفتاح الذكي للتحويل إلى الطابور وقت الضغط) 🛡️🚦
+  // ============================================================================
   if (path === "/api/progress/quiz" && request.method === "POST") {
     const authCheck = await verifyStudentSession(request, env);
     if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -327,13 +329,32 @@ export async function handleStudentRoutes(request, env, path, url) {
       // حساب النسبة المئوية
       const actualScore = Math.round((correctCount / dbQuestions.results.length) * 100);
 
-      // 4. حفظ النتيجة المصححة في قاعدة البيانات
+      // 4. حفظ النتيجة المصححة في قاعدة البيانات (السيناريو السريع المباشر)
       await env.DB.prepare(
         "INSERT INTO quiz_attempts (user_id, lesson_id, score, answers_json) VALUES (?, ?, ?, ?)"
       ).bind(userId, lessonId, actualScore, JSON.stringify(finalAnswers)).run();
       
       return new Response(JSON.stringify({ success: true, score: actualScore, gradedAnswers: finalAnswers }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
     } catch (e) {
+      // 🚨 المفتاح الذكي (Circuit Breaker) 🚨
+      // إذا حدث خطأ (مثل: Database is busy بسبب الضغط العالي)، يتم اصطياد الخطأ هنا والتحويل فوراً إلى الطابور بدلاً من إرجاع خطأ للطالب.
+      if (env.EXAMS_QUEUE) {
+        try {
+          await env.EXAMS_QUEUE.send({
+            userId: userId,
+            lessonId: lessonId,
+            answers: answers,
+            timestamp: Date.now()
+          });
+          return new Response(JSON.stringify({ 
+            status: "queued", 
+            message: "نظراً للضغط الحالي، تم استلام إجاباتك بنجاح وجاري تصحيحها. ستظهر النتيجة في ملفك الشخصي قريباً." 
+          }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+        } catch (queueError) {
+          // في حالة فشل الطابور أيضاً يتم الاستمرار للرد بالخطأ التقليدي بالأسفل
+        }
+      }
+      
       return new Response(JSON.stringify({ error: "حدث خطأ أثناء تصحيح الامتحان" }), { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
   }
