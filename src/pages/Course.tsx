@@ -67,7 +67,7 @@ export default function Course() {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   
-  // 🛡️ التعديل هنا: حالة العلامة المائية المتحركة
+  // 🛡️ التعديل: حالة العلامة المائية المتحركة
   const [watermarkPos, setWatermarkPos] = useState({ top: 10, left: 10 });
 
   // Exam Modal State
@@ -217,7 +217,7 @@ export default function Course() {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
-  // 🛡️ التعديل هنا: تشغيل محرك تحريك العلامة المائية عند فتح الفيديو
+  // 🛡️ تشغيل محرك تحريك العلامة المائية عند فتح الفيديو
   useEffect(() => {
     if (activeLessonId !== null) {
       const interval = setInterval(() => {
@@ -623,6 +623,17 @@ export default function Course() {
     return () => window.removeEventListener('blur', handleBlur);
   }, [showExamModal, examFinished]);
 
+  // 💡 استخراج البيانات الديناميكية (Metadata) من الكورس إن وجدت لعرضها كشارات
+  let courseSettings: any = {};
+  try {
+    // نفترض أن الـ backend يرسل الحقل metadata كـ string JSON
+    if ((course as any)?.metadata) {
+      courseSettings = JSON.parse((course as any).metadata);
+    }
+  } catch (e) {
+    // تجاهل الخطأ في حالة عدم وجود بيانات إضافية
+  }
+
   if (!user) return null;
 
   return (
@@ -673,8 +684,29 @@ export default function Course() {
           />
           <div className="p-6 text-center">
             <h2 className="text-[26px] text-primary mb-2.5 font-bold">{course?.title || 'جاري تحميل بيانات الكورس...'}</h2>
-            <p className="text-text-muted text-base mb-5">{course?.description || 'دورة تدريبية متميزة'}</p>
+            <p className="text-text-muted text-base mb-4">{course?.description || 'دورة تدريبية متميزة'}</p>
             
+            {/* 💡 التعديل هنا: دمج بيانات Metadata الديناميكية كشارات (Tags) */}
+            {(courseSettings.level || courseSettings.language || courseSettings.badge) && (
+              <div className="flex flex-wrap justify-center items-center gap-3 mb-6">
+                {courseSettings.level && (
+                   <span className="bg-blue-50 text-blue-600 border border-blue-200 px-3 py-1 rounded-lg text-sm font-bold">
+                     <i className="fas fa-layer-group ml-1"></i> {courseSettings.level}
+                   </span>
+                )}
+                {courseSettings.language && (
+                   <span className="bg-purple-50 text-purple-600 border border-purple-200 px-3 py-1 rounded-lg text-sm font-bold">
+                     <i className="fas fa-language ml-1"></i> {courseSettings.language}
+                   </span>
+                )}
+                {courseSettings.badge && (
+                   <span className="bg-orange-50 text-orange-500 border border-orange-200 px-3 py-1 rounded-lg text-sm font-bold animate-pulse">
+                     <i className="fas fa-star ml-1"></i> {courseSettings.badge}
+                   </span>
+                )}
+              </div>
+            )}
+
             <div className="flex flex-wrap justify-center items-center gap-4">
               <div className="bg-primary text-white border-none py-3 px-8 rounded-xl text-base font-bold inline-block">
                 <i className="fas fa-graduation-cap ml-2"></i> أنت مشترك في هذا الكورس
@@ -715,13 +747,13 @@ export default function Course() {
             <div className={`relative w-full ${isFullscreen ? 'flex-1 h-full' : 'aspect-video'} bg-black flex items-center justify-center overflow-hidden`}>
               <div key={`${activeLessonId}-${activeVideoIndex}`} id="player" className="absolute inset-0 w-full h-full pointer-events-none"></div>
               
-              {/* 🛡️ التعديل هنا: العلامة المائية المتحركة الخاصة بالطالب */}
+              {/* 🛡️ التعديل هنا: العلامة المائية باللون الأحمر الشفاف 20% */}
               <div 
-                className="absolute text-white/40 text-sm md:text-base lg:text-lg font-bold pointer-events-none select-none z-[15] transition-all duration-[4000ms] ease-in-out whitespace-nowrap"
+                className="absolute text-red-500/20 text-sm md:text-base lg:text-lg font-bold pointer-events-none select-none z-[15] transition-all duration-[4000ms] ease-in-out whitespace-nowrap"
                 style={{ 
                   top: `${watermarkPos.top}%`, 
                   left: `${watermarkPos.left}%`, 
-                  textShadow: '1px 1px 3px rgba(0,0,0,0.8)' 
+                  textShadow: '1px 1px 2px rgba(0,0,0,0.1)' 
                 }}
               >
                 {user.email}
@@ -894,14 +926,23 @@ export default function Course() {
                 )}
                 
                 <div className="grid grid-cols-1 gap-4 w-full max-w-[600px]">
-                  {['A', 'B', 'C', 'D'].map((option) => (
-                    <button key={option} onClick={() => chooseAnswer(option)} className={`bg-white border-2 border-border py-4 px-5 rounded-2xl text-lg font-bold cursor-pointer text-right flex items-center gap-4 transition-all text-text-main shadow-[0_4px_10px_rgba(0,0,0,0.02)] hover:border-primary ${userAnswers[currentQIndex] === option ? 'border-primary bg-primary/5 shadow-[0_8px_20px_rgba(1,86,105,0.15)] -translate-y-0.5' : ''}`}>
-                      <span className={`w-10 h-10 rounded-full flex justify-center items-center text-primary text-xl flex-shrink-0 ${userAnswers[currentQIndex] === option ? 'bg-primary text-white' : 'bg-page-bg'}`}>
-                        {option === 'A' ? 'أ' : option === 'B' ? 'ب' : option === 'C' ? 'ج' : 'د'}
-                      </span>
-                      <span>{quizQuestions[currentQIndex]?.[`option_${option.toLowerCase()}` as keyof QuizQuestion] as string}</span>
-                    </button>
-                  ))}
+                  {/* 💡 التعديل هنا: التوافق مع أسئلة (الصح والخطأ) أو (الاختياري من 4) ديناميكياً */}
+                  {(() => {
+                    const currentQ = quizQuestions[currentQIndex];
+                    // تحديد ما إذا كان السؤال يحتوي على خيارين فقط (مثلاً صح وخطأ) 
+                    // إما من خلال حقل type أو من خلال عدم وجود بيانات في الخيار C و D
+                    const isTrueFalse = (currentQ as any)?.type === 'true_false' || (!currentQ?.option_c && !currentQ?.option_d);
+                    const optionsList = isTrueFalse ? ['A', 'B'] : ['A', 'B', 'C', 'D'];
+
+                    return optionsList.map((option) => (
+                      <button key={option} onClick={() => chooseAnswer(option)} className={`bg-white border-2 border-border py-4 px-5 rounded-2xl text-lg font-bold cursor-pointer text-right flex items-center gap-4 transition-all text-text-main shadow-[0_4px_10px_rgba(0,0,0,0.02)] hover:border-primary ${userAnswers[currentQIndex] === option ? 'border-primary bg-primary/5 shadow-[0_8px_20px_rgba(1,86,105,0.15)] -translate-y-0.5' : ''}`}>
+                        <span className={`w-10 h-10 rounded-full flex justify-center items-center text-primary text-xl flex-shrink-0 ${userAnswers[currentQIndex] === option ? 'bg-primary text-white' : 'bg-page-bg'}`}>
+                          {option === 'A' ? 'أ' : option === 'B' ? 'ب' : option === 'C' ? 'ج' : 'د'}
+                        </span>
+                        <span>{quizQuestions[currentQIndex]?.[`option_${option.toLowerCase()}` as keyof QuizQuestion] as string}</span>
+                      </button>
+                    ));
+                  })()}
                 </div>
 
                 <div className="w-full max-w-[600px] mt-10 flex justify-between">
