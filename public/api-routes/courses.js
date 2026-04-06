@@ -3,7 +3,7 @@ import { verifyStudentSession } from './auth.js';
 
 export async function handleCourseRoutes(request, env, path, url) {
   
-  // جلب الكورسات (ديناميكية: المدير يرى الكل، المعلم يرى كورساته فقط، الطالب يرى الكل)
+  // جلب الكورسات (ديناميكية: المدير يرى الكل، المعلم يرى كورساته فقط، الطالب يرى الكل من الكاش)
   if (path === "/api/courses" && request.method === "GET") {
     let isInstructor = false;
     let instId = null;
@@ -21,25 +21,47 @@ export async function handleCourseRoutes(request, env, path, url) {
       } catch(e) {}
     }
 
-    let courses;
     if (isInstructor) {
-      courses = await env.DB.prepare(`
+      // 1. مسار المدرس: يجلب بياناته من الداتا بيز مباشرة (لأنه يحتاج رؤية تعديلاته اللحظية)
+      const courses = await env.DB.prepare(`
         SELECT c.*, u.name as instructor_name 
         FROM courses c 
         LEFT JOIN users u ON c.instructor_id = u.id 
         WHERE c.instructor_id = ? 
         ORDER BY c.id DESC
       `).bind(instId).all();
+      
+      return new Response(JSON.stringify(courses.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+      
     } else {
-      courses = await env.DB.prepare(`
+      // 2. مسار الطلاب والزوار: تطبيق نظام الكاش الخارق ⚡
+      
+      // أ. محاولة جلب الكورسات من الكاش أولاً
+      if (env.COURSES_CACHE) {
+        const cachedCourses = await env.COURSES_CACHE.get("all_courses");
+        if (cachedCourses) {
+          // إذا وجدها في الكاش، يعيدها فوراً في مللي ثانية بدون لمس قاعدة البيانات
+          return new Response(cachedCourses, { headers: { "Content-Type": "application/json", ...corsHeaders } });
+        }
+      }
+
+      // ب. إذا لم يجدها في الكاش، يجلبها من قاعدة البيانات
+      const courses = await env.DB.prepare(`
         SELECT c.*, u.name as instructor_name 
         FROM courses c 
         LEFT JOIN users u ON c.instructor_id = u.id 
         ORDER BY c.id DESC
       `).all();
+      
+      const coursesJson = JSON.stringify(courses.results);
+
+      // ج. حفظ نسخة في الكاش لمدة 24 ساعة (86400 ثانية) للطلبات القادمة
+      if (env.COURSES_CACHE) {
+        await env.COURSES_CACHE.put("all_courses", coursesJson, { expirationTtl: 86400 });
+      }
+
+      return new Response(coursesJson, { headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
-    
-    return new Response(JSON.stringify(courses.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
   // 💡 جدار الحماية للمحاضرات (يمنع المتطفلين من سحب الفيديوهات)
