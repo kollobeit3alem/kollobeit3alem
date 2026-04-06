@@ -143,7 +143,13 @@ export async function handleAdminRoutes(request, env, path, url, adminUser) {
   if (path === "/api/admin/courses" && request.method === "POST") {
     const body = await request.json();
     const isFree = body.is_free !== undefined ? body.is_free : 1;
-    const price = body.price || 0;
+    // التأكد من أن السعر رقم
+    const price = parseFloat(body.price) || 0;
+
+    // التعديل الأمني: سد ثغرة السعر السالب
+    if (price < 0) {
+      return new Response(JSON.stringify({ error: "السعر لا يمكن أن يكون قيمة سالبة" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }
     
     await env.DB.prepare(
       "INSERT INTO courses (title, description, image_url, instructor_contact, is_free, price, instructor_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
@@ -161,7 +167,13 @@ export async function handleAdminRoutes(request, env, path, url, adminUser) {
     const courseId = path.split("/")[4];
     const body = await request.json();
     const isFree = body.is_free !== undefined ? body.is_free : 1;
-    const price = body.price || 0;
+    // التأكد من أن السعر رقم
+    const price = parseFloat(body.price) || 0;
+
+    // التعديل الأمني: سد ثغرة السعر السالب
+    if (price < 0) {
+      return new Response(JSON.stringify({ error: "السعر لا يمكن أن يكون قيمة سالبة" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }
 
     await env.DB.prepare(
       "UPDATE courses SET title = ?, description = ?, image_url = ?, is_free = ?, price = ? WHERE id = ?"
@@ -221,9 +233,19 @@ export async function handleAdminRoutes(request, env, path, url, adminUser) {
   if (path === "/api/admin/codes" && request.method === "POST") {
     const body = await request.json();
     
-    // التعديل هنا: جلب قيمة الكود المادية بدلاً من ربطه بكورس
+    // التعديل هنا: جلب قيمة الكود المادية بدلاً من ربطه بكورس كأرقام صحيحة
     const amount = parseFloat(body.amount) || 0;
     const count = parseInt(body.count) || 1;
+
+    // التعديل الأمني: سد ثغرة القيم السالبة أو الصفرية لأكواد المحفظة
+    if (amount <= 0) {
+      return new Response(JSON.stringify({ error: "قيمة الشحن يجب أن تكون رقماً موجباً أكبر من الصفر" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }
+    // حماية إضافية ضد توليد عدد أكواد بالسالب أو عدد مهول يوقع الداتا بيز
+    if (count <= 0 || count > 1000) {
+      return new Response(JSON.stringify({ error: "عدد الأكواد يجب أن يكون رقم صحيح موجب (بحد أقصى 1000 كود في المرة)" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }
+
     const codes = [];
     
     for (let i = 0; i < count; i++) {
