@@ -128,12 +128,16 @@ export default function Courses() {
       await apiCall('/api/my-profile', token, 'PUT', { phone: phoneInput });
       
       toast.success('تم حفظ رقم الواتساب بنجاح! شكراً لك.');
-      setShowPhoneModal(false);
       
       const updatedUser = { ...user, phone: phoneInput };
       localStorage.setItem('user_info', JSON.stringify(updatedUser));
       
-      setTimeout(() => window.location.reload(), 1500); 
+      if (user) {
+        user.phone = phoneInput;
+      }
+      
+      setShowPhoneModal(false);
+      
     } catch (error) {
       toast.error('حدث خطأ أثناء الحفظ، يرجى المحاولة لاحقاً.');
     } finally {
