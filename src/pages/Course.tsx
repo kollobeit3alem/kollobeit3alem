@@ -67,6 +67,9 @@ export default function Course() {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   
+  // 🛡️ التعديل هنا: حالة العلامة المائية المتحركة
+  const [watermarkPos, setWatermarkPos] = useState({ top: 10, left: 10 });
+
   // Exam Modal State
   const [showExamModal, setShowExamModal] = useState(false);
   const [activeExamLesson, setActiveExamLesson] = useState<Lesson | null>(null);
@@ -76,7 +79,7 @@ export default function Course() {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [examFinished, setExamFinished] = useState(false);
   const [examScore, setExamScore] = useState(0);
-  const [isGrading, setIsGrading] = useState(false); // حالة جديدة للتصحيح
+  const [isGrading, setIsGrading] = useState(false); 
   
   const playerRef = useRef<YTPlayer | null>(null);
   const videoIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -87,10 +90,8 @@ export default function Course() {
   const videoSavedRef = useRef(false);
   const celebrationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // لمنع إعادة الكتابة على الذاكرة المحلية عند بداية التحميل
   const isInitialMount = useRef(true);
 
-  // الخزنة الحية لمنع تجمد المتغيرات وقت انتهاء الفيديو
   const ytDataRef = useRef<{ lesson: Lesson | null; vIdx: number; vTotal: number }>({
     lesson: null,
     vIdx: 0,
@@ -215,6 +216,19 @@ export default function Course() {
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
+
+  // 🛡️ التعديل هنا: تشغيل محرك تحريك العلامة المائية عند فتح الفيديو
+  useEffect(() => {
+    if (activeLessonId !== null) {
+      const interval = setInterval(() => {
+        setWatermarkPos({
+          top: Math.floor(Math.random() * 80) + 10, // بين 10% و 90%
+          left: Math.floor(Math.random() * 70) + 10, // بين 10% و 80% لتجنب الخروج عن الشاشة
+        });
+      }, 4000); // تغيير المكان كل 4 ثواني
+      return () => clearInterval(interval);
+    }
+  }, [activeLessonId]);
 
   const isLessonLocked = (lesson: Lesson, index: number): { locked: boolean; message: string } => {
     if (lesson.is_admin_locked === 1) return { locked: true, message: 'هذه المحاضرة مغلقة حالياً من الإدارة.' };
@@ -504,7 +518,6 @@ export default function Course() {
   const nextQuestion = () => { if (currentQIndex < quizQuestions.length - 1) setCurrentQIndex(prev => prev + 1); };
   const prevQuestion = () => { if (currentQIndex > 0) setCurrentQIndex(prev => prev - 1); };
 
-  // 💡 التعديل الجذري: دالة تسليم وتصحيح الامتحان باستخدام "المفتاح الذكي والطابور"
   const submitExam = async () => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
@@ -525,16 +538,14 @@ export default function Course() {
           answers: formattedAnswers
         }) as any;
 
-        // 💡 التعديل هنا: السيرفر حول الطلب للطابور بسبب الضغط
         if (response.status === 'queued') {
           toast.success(response.message || 'استلمنا إجاباتك ⏱️. نظراً للضغط الحالي، جاري تصحيح ورقتك وسجلناها في النظام. النتيجة هتظهر في ملفك الشخصي خلال دقايق.', {
             duration: 8000,
           });
-          closeExam(); // قفل شاشة الامتحان
-          return; // خروج لإن الدرجة مش هتظهر دلوقتي
+          closeExam(); 
+          return; 
         }
 
-        // المسار العادي: الداتا بيز ردت بسرعة والنتيجة جاهزة
         const serverScore = response.score || 0;
         setExamScore(serverScore);
         setExamFinished(true);
@@ -595,14 +606,12 @@ export default function Course() {
     };
   }, []);
 
-  // تشغيل التصحيح التلقائي عند انتهاء الوقت للامتحان
   useEffect(() => {
     if (showExamModal && !examFinished && timeRemaining === 0 && !isGrading) {
       submitExam();
     }
   }, [timeRemaining, showExamModal, examFinished, isGrading]);
 
-  // إظهار تحذير منع الغش عند الخروج من نافذة الامتحان
   useEffect(() => {
     const handleBlur = () => {
       if (showExamModal && !examFinished) {
@@ -654,7 +663,7 @@ export default function Course() {
         </div>
       </header>
 
-      {/* Course Hero - دائماً ظاهر */}
+      {/* Course Hero */}
       <div className="mx-[5%] my-5 relative">
         <div className="bg-white rounded-2xl overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.03)] flex flex-col relative border border-border">
           <img 
@@ -666,7 +675,6 @@ export default function Course() {
             <h2 className="text-[26px] text-primary mb-2.5 font-bold">{course?.title || 'جاري تحميل بيانات الكورس...'}</h2>
             <p className="text-text-muted text-base mb-5">{course?.description || 'دورة تدريبية متميزة'}</p>
             
-            {/* التعديل هنا: إضافة زرار التواصل بجوار زرار "أنت مشترك" */}
             <div className="flex flex-wrap justify-center items-center gap-4">
               <div className="bg-primary text-white border-none py-3 px-8 rounded-xl text-base font-bold inline-block">
                 <i className="fas fa-graduation-cap ml-2"></i> أنت مشترك في هذا الكورس
@@ -694,7 +702,6 @@ export default function Course() {
         <div id="video-player-section" className="mx-[5%] mb-10 flex justify-center animate-fade-in scroll-mt-6">
           <div ref={videoContainerRef} className={`group bg-black rounded-2xl overflow-hidden relative shadow-[0_20px_50px_rgba(0,0,0,0.3)] flex flex-col w-full max-w-[854px] border border-slate-700 ${isFullscreen ? '!max-w-none !w-full !h-full !rounded-none !border-none' : ''}`}>
             
-            {/* زر إغلاق الفيديو في الوضع العادي */}
             {!isFullscreen && (
               <button 
                 onClick={closeVideo}
@@ -705,31 +712,39 @@ export default function Course() {
               </button>
             )}
 
-            {/* منطقة الفيديو 16:9 مع استخدام key لمنع خطأ مكتبة اليوتيوب */}
-            <div className={`relative w-full ${isFullscreen ? 'flex-1 h-full' : 'aspect-video'} bg-black flex items-center justify-center`}>
+            <div className={`relative w-full ${isFullscreen ? 'flex-1 h-full' : 'aspect-video'} bg-black flex items-center justify-center overflow-hidden`}>
               <div key={`${activeLessonId}-${activeVideoIndex}`} id="player" className="absolute inset-0 w-full h-full pointer-events-none"></div>
+              
+              {/* 🛡️ التعديل هنا: العلامة المائية المتحركة الخاصة بالطالب */}
+              <div 
+                className="absolute text-white/40 text-sm md:text-base lg:text-lg font-bold pointer-events-none select-none z-[15] transition-all duration-[4000ms] ease-in-out whitespace-nowrap"
+                style={{ 
+                  top: `${watermarkPos.top}%`, 
+                  left: `${watermarkPos.left}%`, 
+                  textShadow: '1px 1px 3px rgba(0,0,0,0.8)' 
+                }}
+              >
+                {user.email}
+              </div>
+
               {/* طبقة حماية شفافة لالتقاط نقرات التشغيل/الإيقاف وحماية الفيديو من السرقة */}
-              <div className="absolute inset-0 w-full h-full z-10 cursor-pointer" onClick={togglePlayPause}></div>
+              <div className="absolute inset-0 w-full h-full z-20 cursor-pointer" onClick={togglePlayPause}></div>
             </div>
             
             {/* شريط التحكم */}
-            <div className={`${isFullscreen ? `absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/95 via-black/60 to-transparent pb-6 pt-16 px-8 transition-opacity duration-300 ${isVideoPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}` : 'bg-[#0f172a] p-4 px-6 border-t border-slate-700'} flex flex-col gap-4 flex-shrink-0 z-20`}>
-              {/* شريط التقدم */}
+            <div className={`${isFullscreen ? `absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/95 via-black/60 to-transparent pb-6 pt-16 px-8 transition-opacity duration-300 ${isVideoPlaying ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}` : 'bg-[#0f172a] p-4 px-6 border-t border-slate-700'} flex flex-col gap-4 flex-shrink-0 z-30`}>
               <div className="w-full h-2.5 bg-white/20 rounded-md cursor-pointer relative overflow-hidden transition-all hover:h-3.5" onClick={seekVideo}>
                 <div className="h-full bg-primary pointer-events-none transition-all" style={{ width: `${videoDuration ? (currentTime / videoDuration) * 100 : 0}%` }} />
               </div>
               
-              {/* أزرار التحكم */}
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-6">
                   <button onClick={() => skipVideo(-10)} className="bg-transparent text-white border-none text-2xl cursor-pointer transition-all hover:text-white hover:scale-110 flex items-center justify-center" title="تأخير 10 ثواني"><i className="fas fa-backward-step"></i></button>
-                  {/* تم تعديل لون زرار التشغيل والإيقاف إلى الأبيض ليكون واضحاً */}
                   <button onClick={togglePlayPause} className="bg-transparent text-white border-none text-[32px] cursor-pointer transition-all hover:scale-110 flex items-center justify-center" title="تشغيل / إيقاف"><i className={`fas ${isVideoPlaying ? 'fa-circle-pause' : 'fa-circle-play'}`}></i></button>
                   <button onClick={() => skipVideo(10)} className="bg-transparent text-white border-none text-2xl cursor-pointer transition-all hover:text-white hover:scale-110 flex items-center justify-center" title="تقديم 10 ثواني"><i className="fas fa-forward-step"></i></button>
                 </div>
                 
                 <div className="flex items-center gap-5">
-                  {/* تم تعديل تأثير الهافر على زرار السرعة ليكون أبيض بالكامل بكتابة سوداء ليكون مقروءاً بوضوح */}
                   <button onClick={cyclePlaybackRate} className="bg-transparent text-white border border-slate-500 px-3 py-1.5 rounded-lg text-sm font-bold cursor-pointer transition-all hover:bg-white hover:text-slate-900 hover:border-white" title="سرعة التشغيل">{playbackRate}x</button>
                   <div className="text-slate-300 font-bold text-[14px] font-mono tracking-wide" dir="ltr"><span>{formatTime(currentTime)}</span> / <span>{formatTime(videoDuration)}</span></div>
                   <button onClick={toggleFullscreen} className="bg-transparent text-white border-none text-xl cursor-pointer transition-all hover:text-white hover:scale-110 flex items-center justify-center ml-2" title="ملء الشاشة"><i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i></button>
