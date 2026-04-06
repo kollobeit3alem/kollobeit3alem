@@ -31,6 +31,10 @@ export default function Instructor() {
   // UI logic states
   const [isNewCourseFree, setIsNewCourseFree] = useState(true);
   const [isEditCourseFree, setIsEditCourseFree] = useState(true);
+  
+  // 💡 التعديل: حالات الإعدادات المتقدمة (Metadata) وأنواع الأسئلة
+  const [newCourseMeta, setNewCourseMeta] = useState({ level: '', language: '', badge: '' });
+  const [questionType, setQuestionType] = useState<'mcq' | 'tf'>('mcq');
 
   // Modal states
   const [showEditModal, setShowEditModal] = useState(false);
@@ -38,6 +42,7 @@ export default function Instructor() {
   const [editingType, setEditingType] = useState<'course' | 'lesson'>('course');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editFormData, setEditFormData] = useState<Record<string, any>>({});
+  const [editCourseMeta, setEditCourseMeta] = useState({ level: '', language: '', badge: '' });
   const [reportData, setReportData] = useState<any>(null); 
   const [reportUserName, setReportUserName] = useState('');
 
@@ -64,7 +69,6 @@ export default function Instructor() {
   const loadCourses = async () => {
     if (!token) return;
     try {
-      // 💡 التعديل هنا: استخدام المسار الخاص بالإدارة/المدرسين لجلب كورسات المدرس الحالي فقط
       const data = await apiCall('/api/admin/courses', token) as Course[];
       setCourses(data);
     } catch (error) {
@@ -112,6 +116,12 @@ export default function Instructor() {
     const form = e.currentTarget;
     const formData = new FormData(form);
     
+    // 💡 تجميع البيانات الوصفية (Metadata) كـ JSON
+    const metadataObj: any = {};
+    if (newCourseMeta.level) metadataObj.level = newCourseMeta.level;
+    if (newCourseMeta.language) metadataObj.language = newCourseMeta.language;
+    if (newCourseMeta.badge) metadataObj.badge = newCourseMeta.badge;
+
     try {
       await apiCall('/api/admin/courses', token, 'POST', {
         title: formData.get('title'),
@@ -120,10 +130,12 @@ export default function Instructor() {
         instructor_contact: formData.get('instructor_contact'),
         is_free: parseInt(formData.get('is_free') as string),
         price: parseFloat(formData.get('price') as string) || 0,
+        metadata: Object.keys(metadataObj).length > 0 ? JSON.stringify(metadataObj) : null
       });
       toast.success('تمت إضافة الدورة بنجاح!');
       form.reset();
       setIsNewCourseFree(true); 
+      setNewCourseMeta({ level: '', language: '', badge: '' });
       loadCourses();
     } catch (error) {
       toast.error('فشل إضافة الدورة');
@@ -205,19 +217,24 @@ export default function Instructor() {
     const formData = new FormData(form);
     
     try {
-      await apiCall('/api/admin/quizzes', token, 'POST', {
+      // 💡 التعديل هنا: معالجة بيانات السؤال بناءً على نوعه
+      const payload = {
         lesson_id: parseInt(formData.get('lesson_id') as string),
-        image_url: formData.get('image_url'),
-        option_a: formData.get('option_a'),
-        option_b: formData.get('option_b'),
-        option_c: formData.get('option_c'),
-        option_d: formData.get('option_d'),
+        image_url: formData.get('image_url') || null,
+        option_a: questionType === 'tf' ? 'صح' : formData.get('option_a'),
+        option_b: questionType === 'tf' ? 'خطأ' : formData.get('option_b'),
+        option_c: questionType === 'tf' ? '' : formData.get('option_c'),
+        option_d: questionType === 'tf' ? '' : formData.get('option_d'),
         correct_option: formData.get('correct_option'),
-      });
+        type: questionType === 'tf' ? 'true_false' : 'mcq'
+      };
+
+      await apiCall('/api/admin/quizzes', token, 'POST', payload);
       toast.success('تم إضافة السؤال!');
       
       ['image_url', 'option_a', 'option_b', 'option_c', 'option_d'].forEach(name => {
-        (form.elements.namedItem(name) as HTMLInputElement).value = '';
+        const el = form.elements.namedItem(name) as HTMLInputElement;
+        if (el) el.value = '';
       });
 
       loadQuestions(selectedLessonId);
@@ -291,6 +308,12 @@ export default function Instructor() {
     
     if (type === 'course') {
       setIsEditCourseFree(item.is_free === 1);
+      // فك تشفير الميتاداتا لو موجودة
+      let parsedMeta = { level: '', language: '', badge: '' };
+      try {
+        if (item.metadata) parsedMeta = JSON.parse(item.metadata);
+      } catch(e) {}
+      setEditCourseMeta(parsedMeta);
     }
     
     setShowEditModal(true);
@@ -303,12 +326,18 @@ export default function Instructor() {
     try {
       let payload = {};
       if (editingType === 'course') {
+        const metadataObj: any = {};
+        if (editCourseMeta.level) metadataObj.level = editCourseMeta.level;
+        if (editCourseMeta.language) metadataObj.language = editCourseMeta.language;
+        if (editCourseMeta.badge) metadataObj.badge = editCourseMeta.badge;
+
         payload = {
           title: editFormData.title,
           description: editFormData.description,
           image_url: editFormData.image_url,
           is_free: editFormData.is_free,
-          price: editFormData.price || 0
+          price: editFormData.price || 0,
+          metadata: Object.keys(metadataObj).length > 0 ? JSON.stringify(metadataObj) : null
         };
         await apiCall(`/api/admin/courses/${editingId}`, token, 'PUT', payload);
         loadCourses();
@@ -455,6 +484,49 @@ export default function Instructor() {
                     <input type="number" name="price" defaultValue="0" min="0" className={inputStyles} />
                   </div>
                 )}
+                
+                {/* 💡 الإعدادات المتقدمة (Metadata) */}
+                <div className="md:col-span-2 mt-4 pt-4 border-t border-[#e2e8f0]">
+                  <h4 className="text-[#015669] font-bold mb-4"><i className="fas fa-sliders"></i> إعدادات متقدمة (اختياري)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block mb-2 text-sm font-bold text-[#1e293b]">مستوى الكورس</label>
+                      <select 
+                        value={newCourseMeta.level} 
+                        onChange={(e) => setNewCourseMeta({...newCourseMeta, level: e.target.value})}
+                        className={inputStyles}
+                      >
+                        <option value="">بدون تحديد</option>
+                        <option value="مبتدئ">مبتدئ</option>
+                        <option value="متوسط">متوسط</option>
+                        <option value="متقدم">متقدم</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block mb-2 text-sm font-bold text-[#1e293b]">لغة الكورس</label>
+                      <select 
+                        value={newCourseMeta.language} 
+                        onChange={(e) => setNewCourseMeta({...newCourseMeta, language: e.target.value})}
+                        className={inputStyles}
+                      >
+                        <option value="">بدون تحديد</option>
+                        <option value="عربي">عربي</option>
+                        <option value="إنجليزي">إنجليزي</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block mb-2 text-sm font-bold text-[#1e293b]">شارة ترويجية (Badge)</label>
+                      <input 
+                        type="text" 
+                        placeholder="مثال: الأكثر مبيعاً" 
+                        value={newCourseMeta.badge}
+                        onChange={(e) => setNewCourseMeta({...newCourseMeta, badge: e.target.value})}
+                        className={inputStyles} 
+                      />
+                    </div>
+                  </div>
+                </div>
+
                 <div className="md:col-span-2 mt-2">
                   <button type="submit" className={btnSubmitStyles}>
                     <i className="fas fa-save"></i> حفظ ونشر الدورة
@@ -642,33 +714,65 @@ export default function Instructor() {
                     {lessons.map(l => <option key={l.id} value={l.id}>{l.title}</option>)}
                   </select>
                 </div>
+                
+                {/* 💡 التعديل هنا: محدد نوع السؤال */}
+                <div className="md:col-span-2 mt-2 pt-4 border-t border-[#e2e8f0]">
+                  <label className="block mb-2 font-bold text-[#015669] text-lg">نوع السؤال</label>
+                  <select 
+                    value={questionType}
+                    onChange={(e) => setQuestionType(e.target.value as 'mcq' | 'tf')}
+                    className={inputStyles}
+                  >
+                    <option value="mcq">اختيار من متعدد (4 خيارات A, B, C, D)</option>
+                    <option value="tf">صح وخطأ (خيارين فقط)</option>
+                  </select>
+                </div>
+
                 <div className="md:col-span-2">
-                  <label className="block mb-2 font-bold text-[#1e293b]">رابط صورة السؤال</label>
-                  <input type="url" name="image_url" required placeholder="مثال: https://imgur.com/question1.png" className={inputStyles} />
+                  <label className="block mb-2 font-bold text-[#1e293b]">رابط صورة السؤال (اختياري)</label>
+                  <input type="url" name="image_url" placeholder="مثال: https://imgur.com/question1.png" className={inputStyles} />
                 </div>
-                <div>
-                  <label className="block mb-2 font-bold text-[#1e293b]">خيار (أ)</label>
-                  <input type="text" name="option_a" required className={inputStyles} />
-                </div>
-                <div>
-                  <label className="block mb-2 font-bold text-[#1e293b]">خيار (ب)</label>
-                  <input type="text" name="option_b" required className={inputStyles} />
-                </div>
-                <div>
-                  <label className="block mb-2 font-bold text-[#1e293b]">خيار (ج)</label>
-                  <input type="text" name="option_c" required className={inputStyles} />
-                </div>
-                <div>
-                  <label className="block mb-2 font-bold text-[#1e293b]">خيار (د)</label>
-                  <input type="text" name="option_d" required className={inputStyles} />
-                </div>
+                
+                {/* 💡 التكيف مع نوع السؤال (صح وخطأ يخفي C و D ويثبت A و B) */}
+                {questionType === 'mcq' ? (
+                  <>
+                    <div>
+                      <label className="block mb-2 font-bold text-[#1e293b]">خيار (أ)</label>
+                      <input type="text" name="option_a" required className={inputStyles} />
+                    </div>
+                    <div>
+                      <label className="block mb-2 font-bold text-[#1e293b]">خيار (ب)</label>
+                      <input type="text" name="option_b" required className={inputStyles} />
+                    </div>
+                    <div>
+                      <label className="block mb-2 font-bold text-[#1e293b]">خيار (ج)</label>
+                      <input type="text" name="option_c" required className={inputStyles} />
+                    </div>
+                    <div>
+                      <label className="block mb-2 font-bold text-[#1e293b]">خيار (د)</label>
+                      <input type="text" name="option_d" required className={inputStyles} />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block mb-2 font-bold text-[#1e293b]">خيار (أ)</label>
+                      <input type="text" value="صح" disabled className={`${inputStyles} bg-gray-200 cursor-not-allowed font-bold text-green-700`} />
+                    </div>
+                    <div>
+                      <label className="block mb-2 font-bold text-[#1e293b]">خيار (ب)</label>
+                      <input type="text" value="خطأ" disabled className={`${inputStyles} bg-gray-200 cursor-not-allowed font-bold text-red-700`} />
+                    </div>
+                  </>
+                )}
+
                 <div>
                   <label className="block mb-2 font-bold text-[#1e293b]">الإجابة الصحيحة</label>
                   <select name="correct_option" required className={inputStyles}>
-                    <option value="A">أ</option>
-                    <option value="B">ب</option>
-                    <option value="C">ج</option>
-                    <option value="D">د</option>
+                    <option value="A">أ {questionType === 'tf' ? '(صح)' : ''}</option>
+                    <option value="B">ب {questionType === 'tf' ? '(خطأ)' : ''}</option>
+                    {questionType === 'mcq' && <option value="C">ج</option>}
+                    {questionType === 'mcq' && <option value="D">د</option>}
                   </select>
                 </div>
                 <div className="md:col-span-2 flex gap-[15px] mt-2">
@@ -684,21 +788,26 @@ export default function Instructor() {
                   {questions.length === 0 ? (
                     <p className="text-[#64748b]">لم يتم إضافة أي أسئلة حتى الآن.</p>
                   ) : (
-                    questions.map((q, index) => (
-                      <div key={q.id} className="bg-[#f4f7f9] border border-[#e2e8f0] rounded-[10px] p-[15px] mb-2.5 flex justify-between items-center">
-                        <div className="flex items-center">
-                          <strong className="ml-[10px]">س {index + 1}:</strong>
-                          <img src={q.image_url} alt="سؤال" className="h-[50px] rounded-[5px] border border-[#ccc] ml-[10px]" onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/50?text=خطأ'; }} />
-                          <span className="text-[#10b981] font-bold mr-[15px]">(الإجابة: {q.correct_option})</span>
+                    questions.map((q, index) => {
+                      // تحديد نوع السؤال للعرض
+                      const isTF = !q.option_c && !q.option_d;
+                      return (
+                        <div key={q.id} className="bg-[#f4f7f9] border border-[#e2e8f0] rounded-[10px] p-[15px] mb-2.5 flex justify-between items-center">
+                          <div className="flex flex-wrap items-center">
+                            <strong className="ml-[10px]">س {index + 1}:</strong>
+                            {isTF && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs font-bold ml-2">صح/خطأ</span>}
+                            {q.image_url && <img src={q.image_url} alt="سؤال" className="h-[50px] rounded-[5px] border border-[#ccc] ml-[10px]" onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/50?text=خطأ'; }} />}
+                            <span className="text-[#10b981] font-bold mr-[15px] mt-2 md:mt-0">(الإجابة: {q.correct_option})</span>
+                          </div>
+                          <button 
+                            onClick={() => handleDeleteQuestion(q.id)}
+                            className="py-2.5 px-[15px] flex-none w-auto border-none rounded-lg cursor-pointer font-bold transition-all text-center text-[14px] bg-[#fee2e2] text-[#ef4444] hover:bg-[#ef4444] hover:text-white"
+                          >
+                            <i className="fas fa-trash"></i>
+                          </button>
                         </div>
-                        <button 
-                          onClick={() => handleDeleteQuestion(q.id)}
-                          className="py-2.5 px-[15px] flex-none w-auto border-none rounded-lg cursor-pointer font-bold transition-all text-center text-[14px] bg-[#fee2e2] text-[#ef4444] hover:bg-[#ef4444] hover:text-white"
-                        >
-                          <i className="fas fa-trash"></i>
-                        </button>
-                      </div>
-                    ))
+                      )
+                    })
                   )}
                 </div>
               )}
@@ -879,6 +988,48 @@ export default function Instructor() {
                       />
                     </div>
                   )}
+
+                  {/* 💡 تعديل الإعدادات المتقدمة في النافذة المنبثقة */}
+                  <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
+                    <h4 className="text-[#015669] font-bold mb-4"><i className="fas fa-sliders"></i> إعدادات متقدمة (اختياري)</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block mb-2 text-sm font-bold text-[#1e293b]">مستوى الكورس</label>
+                        <select 
+                          value={editCourseMeta.level} 
+                          onChange={(e) => setEditCourseMeta({...editCourseMeta, level: e.target.value})}
+                          className={inputStyles}
+                        >
+                          <option value="">بدون تحديد</option>
+                          <option value="مبتدئ">مبتدئ</option>
+                          <option value="متوسط">متوسط</option>
+                          <option value="متقدم">متقدم</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block mb-2 text-sm font-bold text-[#1e293b]">لغة الكورس</label>
+                        <select 
+                          value={editCourseMeta.language} 
+                          onChange={(e) => setEditCourseMeta({...editCourseMeta, language: e.target.value})}
+                          className={inputStyles}
+                        >
+                          <option value="">بدون تحديد</option>
+                          <option value="عربي">عربي</option>
+                          <option value="إنجليزي">إنجليزي</option>
+                        </select>
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block mb-2 text-sm font-bold text-[#1e293b]">شارة ترويجية (Badge)</label>
+                        <input 
+                          type="text" 
+                          placeholder="مثال: الأكثر مبيعاً" 
+                          value={editCourseMeta.badge}
+                          onChange={(e) => setEditCourseMeta({...editCourseMeta, badge: e.target.value})}
+                          className={inputStyles} 
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </>
               )}
               {editingType === 'lesson' && (
@@ -977,7 +1128,6 @@ export default function Instructor() {
                 )}
               </div>
 
-              {/* التعديل هنا: قسم الامتحانات الجديد */}
               <div className="bg-[#fffbeb] border border-[#fde68a] p-[15px] rounded-[10px]">
                 <h4 className="text-[#f59e0b] mb-2.5 font-bold"><i className="fas fa-spell-check ml-2"></i> نتائج الامتحانات (دوراتي فقط)</h4>
                 {reportData.quizzes && reportData.quizzes.length > 0 ? (
