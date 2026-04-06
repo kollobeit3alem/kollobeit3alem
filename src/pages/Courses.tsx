@@ -11,7 +11,7 @@ export default function Courses() {
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // التعديل هنا: حالة لحفظ رصيد المحفظة
+  // حالة لحفظ رصيد المحفظة
   const [walletBalance, setWalletBalance] = useState<number>(0);
   
   // Modal States
@@ -40,7 +40,7 @@ export default function Courses() {
     }
   }, [user]);
 
-  // التعديل هنا: جلب رصيد المحفظة الخاص بالطالب
+  // جلب رصيد المحفظة الخاص بالطالب
   const fetchWalletData = useCallback(async () => {
     if (!token) return;
     try {
@@ -83,7 +83,7 @@ export default function Courses() {
     }
   }, [token, fetchEnrollments, fetchCourses, fetchWalletData]);
 
-  // التعديل هنا: دالة الاشتراك تم تحديثها لتعمل مع المحفظة بدون كود تفعيل
+  // دالة الاشتراك تم تحديثها لتعمل مع المحفظة بدون كود تفعيل
   const handleEnroll = async (courseId: number, coursePrice: number = 0) => {
     if (!token) return;
     
@@ -185,7 +185,6 @@ export default function Courses() {
         </Link>
         <div className="flex items-center gap-3 md:gap-4">
           
-          {/* التعديل هنا: أيقونة المحفظة والرصيد في الهيدر */}
           <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 py-1.5 px-3 md:px-4 rounded-xl font-bold shadow-sm" title="رصيد محفظتك">
             <i className="fas fa-wallet text-lg"></i>
             <span className="text-[14px] md:text-base">{walletBalance} ج.م</span>
@@ -247,6 +246,15 @@ export default function Courses() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {courses.map((course) => {
               const action = getCourseAction(course);
+              
+              // 💡 التعديل: فك تشفير الميتاداتا لاستخراج الشارات الديناميكية
+              let courseSettings: any = {};
+              try {
+                if ((course as any).metadata) {
+                  courseSettings = JSON.parse((course as any).metadata);
+                }
+              } catch(e) {}
+
               return (
                 <div 
                   key={course.id}
@@ -255,6 +263,14 @@ export default function Courses() {
                 >
                   <div className="relative w-full h-[200px] overflow-hidden bg-slate-200">
                     {action.badge}
+                    
+                    {/* 💡 الشارة الترويجية (إن وجدت) */}
+                    {courseSettings.badge && (
+                      <span className="absolute top-4 left-4 shadow-lg z-10 bg-orange-500 text-white px-3 py-1.5 rounded-full text-[13px] font-bold animate-pulse flex items-center gap-1.5">
+                        <i className="fas fa-star text-[10px]"></i> {courseSettings.badge}
+                      </span>
+                    )}
+
                     <img 
                       src={course.image_url || 'https://via.placeholder.com/600x400/015669/FFFFFF?text=كورس+جديد'} 
                       alt={course.title}
@@ -263,10 +279,28 @@ export default function Courses() {
                   </div>
                   <div className="p-6 flex-1 flex flex-col">
                     <h3 className="text-xl font-bold text-primary mb-2.5 leading-snug">{course.title}</h3>
-                    <p className="text-text-muted text-sm leading-relaxed mb-5 flex-1 line-clamp-3">
+                    
+                    <p className="text-text-muted text-sm leading-relaxed mb-4 flex-1 line-clamp-3">
                       {course.description || 'دورة تدريبية متميزة لتطوير مهاراتك العملية.'}
                     </p>
-                    <div className="flex justify-end items-center pt-4 border-t border-border">
+
+                    {/* 💡 شارات المستوى واللغة (إن وجدت) */}
+                    {(courseSettings.level || courseSettings.language) && (
+                      <div className="flex flex-wrap items-center gap-2 mb-4">
+                        {courseSettings.level && (
+                          <span className="bg-blue-50 text-blue-600 border border-blue-100 px-2.5 py-1 rounded-lg text-[13px] font-bold flex items-center gap-1.5">
+                            <i className="fas fa-layer-group"></i> {courseSettings.level}
+                          </span>
+                        )}
+                        {courseSettings.language && (
+                          <span className="bg-purple-50 text-purple-600 border border-purple-100 px-2.5 py-1 rounded-lg text-[13px] font-bold flex items-center gap-1.5">
+                            <i className="fas fa-language"></i> {courseSettings.language}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex justify-end items-center pt-4 border-t border-border mt-auto">
                       {action.button}
                     </div>
                   </div>
