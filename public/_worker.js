@@ -66,7 +66,9 @@ export default {
           });
 
         } catch (error) {
-          return new Response(JSON.stringify({ error: error.message }), { 
+          // التعديل الأمني هنا: تسجيل الخطأ داخلياً وإرسال رسالة عامة للمستخدم
+          console.error("Admin Route Error:", error);
+          return new Response(JSON.stringify({ error: "حدث خطأ داخلي في الخادم، يرجى المحاولة لاحقاً" }), { 
             status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } 
           });
         }
@@ -85,7 +87,6 @@ export default {
           apiResponse = await handleAuthRoutes(request, env, path, url);
         }
         // ب. مسارات تفاعل الطالب (ملفه الشخصي، حفظ التقدم، الاشتراك والمحفظة)
-        // 💡 التعديل هنا: إضافة path.startsWith("/api/wallet") ليتعرف على مسار الشحن الجديد
         else if (path.startsWith("/api/my-") || path.startsWith("/api/enroll") || path.startsWith("/api/wallet") || path.startsWith("/api/progress") || path.match(/^\/api\/courses\/\d+\/progress$/)) {
           apiResponse = await handleStudentRoutes(request, env, path, url);
         }
@@ -103,7 +104,9 @@ export default {
         });
 
       } catch (error) {
-        return new Response(JSON.stringify({ error: error.message }), { 
+        // التعديل الأمني هنا: تسجيل الخطأ داخلياً وإرسال رسالة مبهمة للمستخدم
+        console.error("API Route Error:", error);
+        return new Response(JSON.stringify({ error: "حدث خطأ غير متوقع، يرجى المحاولة لاحقاً" }), { 
           status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } 
         });
       }
