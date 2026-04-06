@@ -504,16 +504,15 @@ export default function Course() {
   const nextQuestion = () => { if (currentQIndex < quizQuestions.length - 1) setCurrentQIndex(prev => prev + 1); };
   const prevQuestion = () => { if (currentQIndex > 0) setCurrentQIndex(prev => prev - 1); };
 
-  // 💡 التعديل الأمني الجذري: دالة تسليم وتصحيح الامتحان
+  // 💡 التعديل الجذري: دالة تسليم وتصحيح الامتحان باستخدام "المفتاح الذكي والطابور"
   const submitExam = async () => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
     
-    setIsGrading(true); // تشغيل حالة التحميل
+    setIsGrading(true);
 
-    // تجميع إجابات الطالب فقط (بدون تصحيح في المتصفح)
     const formattedAnswers = quizQuestions.map((q, index) => ({
       question_id: q.id,
       chosen_option: userAnswers[index] || null
@@ -521,25 +520,32 @@ export default function Course() {
 
     if (token && activeExamLesson) {
       try {
-        // إرسال الإجابات للسيرفر ليقوم بالتصحيح
         const response = await apiCall('/api/progress/quiz', token, 'POST', {
           lessonId: activeExamLesson.id,
           answers: formattedAnswers
         }) as any;
 
-        // استقبال الدرجة الحقيقية والنهائية من السيرفر
+        // 💡 التعديل هنا: السيرفر حول الطلب للطابور بسبب الضغط
+        if (response.status === 'queued') {
+          toast.success(response.message || 'استلمنا إجاباتك ⏱️. نظراً للضغط الحالي، جاري تصحيح ورقتك وسجلناها في النظام. النتيجة هتظهر في ملفك الشخصي خلال دقايق.', {
+            duration: 8000,
+          });
+          closeExam(); // قفل شاشة الامتحان
+          return; // خروج لإن الدرجة مش هتظهر دلوقتي
+        }
+
+        // المسار العادي: الداتا بيز ردت بسرعة والنتيجة جاهزة
         const serverScore = response.score || 0;
         setExamScore(serverScore);
         setExamFinished(true);
 
-        // إذا كانت النتيجة نجاح، نقوم بفتح المحاضرة التالية
         if (serverScore >= 50) {
           markLessonCompleted(activeExamLesson.id);
         }
       } catch (error) {
         console.error('Failed to submit quiz:', error);
         toast.error('حدث خطأ أثناء تصحيح الامتحان. يرجى المحاولة مرة أخرى.');
-        closeExam(); // إغلاق الامتحان في حالة الخطأ
+        closeExam(); 
       } finally {
         setIsGrading(false);
       }
