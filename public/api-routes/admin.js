@@ -151,9 +151,10 @@ export async function handleAdminRoutes(request, env, path, url, adminUser) {
       return new Response(JSON.stringify({ error: "السعر لا يمكن أن يكون قيمة سالبة" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
     
+    // التعديل هنا: إضافة عمود metadata للـ INSERT
     await env.DB.prepare(
-      "INSERT INTO courses (title, description, image_url, instructor_contact, is_free, price, instructor_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    ).bind(body.title, body.description, body.image_url, body.instructor_contact || "", isFree, price, adminUser.id).run();
+      "INSERT INTO courses (title, description, image_url, instructor_contact, is_free, price, instructor_id, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).bind(body.title, body.description, body.image_url, body.instructor_contact || "", isFree, price, adminUser.id, body.metadata || null).run();
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
@@ -175,9 +176,10 @@ export async function handleAdminRoutes(request, env, path, url, adminUser) {
       return new Response(JSON.stringify({ error: "السعر لا يمكن أن يكون قيمة سالبة" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
 
+    // التعديل هنا: تحديث عمود metadata في الـ UPDATE
     await env.DB.prepare(
-      "UPDATE courses SET title = ?, description = ?, image_url = ?, is_free = ?, price = ? WHERE id = ?"
-    ).bind(body.title, body.description, body.image_url, isFree, price, courseId).run();
+      "UPDATE courses SET title = ?, description = ?, image_url = ?, is_free = ?, price = ?, metadata = ? WHERE id = ?"
+    ).bind(body.title, body.description, body.image_url, isFree, price, body.metadata || null, courseId).run();
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
