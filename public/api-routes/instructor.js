@@ -67,6 +67,24 @@ export async function handleInstructorRoutes(request, env, path, url, adminUser)
   }
 
   // 3. إدارة الكورسات
+  // التعديل هنا: جلب الكورسات الخاصة بهذا المدرس فقط لعرضها في لوحته
+  if (path === "/api/admin/courses" && request.method === "GET") {
+    try {
+      const coursesRes = await env.DB.prepare(
+        "SELECT * FROM courses WHERE instructor_id = ? ORDER BY created_at DESC"
+      ).bind(adminUser.id).all();
+      
+      return new Response(JSON.stringify(coursesRes.results), { 
+        headers: { "Content-Type": "application/json", ...corsHeaders } 
+      });
+    } catch (error) {
+      console.error(error);
+      return new Response(JSON.stringify({ error: "حدث خطأ أثناء جلب الدورات" }), { 
+        status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } 
+      });
+    }
+  }
+
   if (path === "/api/admin/courses" && request.method === "POST") {
     const body = await request.json();
     const isFree = body.is_free !== undefined ? body.is_free : 1;
@@ -170,8 +188,8 @@ export async function handleInstructorRoutes(request, env, path, url, adminUser)
     if (!check || check.instructor_id !== adminUser.id) return new Response(JSON.stringify({ error: "Access Denied" }), { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } });
 
     await env.DB.prepare(
-      "INSERT INTO quizzes (lesson_id, image_url, option_a, option_b, option_c, option_d, correct_option) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    ).bind(body.lesson_id, body.image_url, body.option_a, body.option_b, body.option_c, body.option_d, body.correct_option).run();
+      "INSERT INTO quizzes (lesson_id, image_url, option_a, option_b, option_c, option_d, correct_option, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).bind(body.lesson_id, body.image_url, body.option_a, body.option_b, body.option_c || null, body.option_d || null, body.correct_option, body.type || 'mcq').run();
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
