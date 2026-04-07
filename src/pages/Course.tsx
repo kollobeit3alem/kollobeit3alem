@@ -494,7 +494,7 @@ export default function Course() {
     setQuizQuestions(lesson.quizData || []);
     setCurrentQIndex(0);
     setUserAnswers({});
-    setTimeRemaining((lesson.quizData?.length || 0) * 60);
+    setTimeRemaining((lesson.quizData?.length || 0) * 180);
     setExamFinished(false);
     setExamScore(0);
     setIsGrading(false);
