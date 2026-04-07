@@ -4,7 +4,8 @@ import { useAuth, apiCall } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { Course, Lesson, QuizQuestion, User, ActivationCode } from '@/types';
 
-type TabType = 'courses' | 'lessons' | 'quizzes' | 'users' | 'staff' | 'codes';
+// 💡 التعديل: إضافة نوع التبويب الجديد (failedExams)
+type TabType = 'courses' | 'lessons' | 'quizzes' | 'users' | 'staff' | 'codes' | 'failedExams';
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -18,6 +19,8 @@ export default function Admin() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [codes, setCodes] = useState<ActivationCode[]>([]);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  // 💡 التعديل: حالة الامتحانات المعلقة
+  const [failedExams, setFailedExams] = useState<any[]>([]);
   
   // Pagination & Search States
   const [usersPage, setUsersPage] = useState(1);
@@ -33,7 +36,7 @@ export default function Admin() {
   const [isNewCourseFree, setIsNewCourseFree] = useState(true);
   const [isEditCourseFree, setIsEditCourseFree] = useState(true);
 
-  // 💡 التعديل: حالات الإعدادات المتقدمة (Metadata) وأنواع الأسئلة
+  // حالات الإعدادات المتقدمة (Metadata) وأنواع الأسئلة
   const [newCourseMeta, setNewCourseMeta] = useState({ level: '', language: '', badge: '' });
   const [questionType, setQuestionType] = useState<'mcq' | 'tf'>('mcq');
 
@@ -90,6 +93,13 @@ export default function Admin() {
     }
   }, [activeTab, token]);
 
+  // 💡 التعديل: جلب بيانات الامتحانات المعلقة
+  useEffect(() => {
+    if (token && activeTab === 'failedExams') {
+      loadFailedExams();
+    }
+  }, [activeTab, token]);
+
   const loadCourses = async () => {
     if (!token) return;
     try {
@@ -130,6 +140,18 @@ export default function Admin() {
     }
   };
 
+  // 💡 التعديل: دالة جلب الامتحانات المعلقة
+  const loadFailedExams = async () => {
+    if (!token) return;
+    try {
+      const data = await apiCall('/api/admin/failed-exams', token) as any[];
+      setFailedExams(data);
+    } catch (error) {
+      console.error('Failed to load failed exams:', error);
+      toast.error('فشل جلب الامتحانات المعلقة');
+    }
+  };
+
   // Course handlers
   const handleAddCourse = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -137,7 +159,6 @@ export default function Admin() {
     const form = e.currentTarget;
     const formData = new FormData(form);
 
-    // 💡 تجميع البيانات الوصفية (Metadata) كـ JSON
     const metadataObj: any = {};
     if (newCourseMeta.level) metadataObj.level = newCourseMeta.level;
     if (newCourseMeta.language) metadataObj.language = newCourseMeta.language;
@@ -231,7 +252,6 @@ export default function Admin() {
     const formData = new FormData(form);
     
     try {
-      // 💡 التعديل: معالجة الإجابات بناءً على نوع السؤال المختار
       const payload = {
         lesson_id: parseInt(formData.get('lesson_id') as string),
         image_url: formData.get('image_url') || null,
@@ -352,7 +372,6 @@ export default function Admin() {
     
     if (type === 'course') {
       setIsEditCourseFree(item.is_free === 1);
-      // 💡 فك تشفير الميتاداتا لو موجودة في الكورس
       let parsedMeta = { level: '', language: '', badge: '' };
       try {
         if (item.metadata) parsedMeta = JSON.parse(item.metadata);
@@ -452,6 +471,10 @@ export default function Admin() {
           <button onClick={() => setActiveTab('codes')} className={`${navBtnBaseStyles} ${activeTab === 'codes' ? navBtnActiveStyles : ''}`}>
             <i className="fas fa-wallet text-xl w-6 text-center"></i> كروت الشحن
           </button>
+          {/* 💡 التعديل: زر الامتحانات المعلقة في الشريط الجانبي */}
+          <button onClick={() => setActiveTab('failedExams')} className={`${navBtnBaseStyles} ${activeTab === 'failedExams' ? navBtnActiveStyles : ''}`}>
+            <i className="fas fa-exclamation-triangle text-xl w-6 text-center"></i> درج العزل
+          </button>
           <button onClick={handleLogout} className={`${navBtnBaseStyles} mt-auto !bg-[#fff1f2] !text-[#ef4444] hover:!bg-[#ef4444] hover:!text-white`}>
             <i className="fas fa-sign-out-alt text-xl w-6 text-center"></i> تسجيل الخروج
           </button>
@@ -512,7 +535,6 @@ export default function Admin() {
                   </div>
                 )}
                 
-                {/* 💡 الإعدادات المتقدمة (Metadata) */}
                 <div className="md:col-span-2 mt-4 pt-4 border-t border-[#e2e8f0]">
                   <h4 className="text-[#015669] font-bold mb-4"><i className="fas fa-sliders"></i> إعدادات متقدمة (اختياري)</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -691,7 +713,6 @@ export default function Admin() {
                   </select>
                 </div>
                 
-                {/* 💡 التعديل هنا: محدد نوع السؤال */}
                 <div className="md:col-span-2 mt-2 pt-4 border-t border-[#e2e8f0]">
                   <label className="block mb-2 font-bold text-[#015669] text-lg">نوع السؤال</label>
                   <select 
@@ -709,7 +730,6 @@ export default function Admin() {
                   <input type="url" name="image_url" placeholder="مثال: https://imgur.com/question1.png" className={inputStyles} />
                 </div>
 
-                {/* 💡 التكيف مع نوع السؤال (صح وخطأ يخفي C و D ويثبت A و B) */}
                 {questionType === 'mcq' ? (
                   <>
                     <div>
@@ -926,6 +946,59 @@ export default function Admin() {
             </div>
           </section>
         )}
+
+        {/* 💡 التعديل: تبويب الامتحانات المعلقة (درج العزل) */}
+        {activeTab === 'failedExams' && (
+          <section className="animate-fade-in block">
+            <h1 className="text-[28px] text-[#015669] mb-[30px] flex items-center gap-2.5">
+              <i className="fas fa-exclamation-triangle text-red-500"></i> الامتحانات المعلقة (درج العزل)
+            </h1>
+            <div className="bg-white p-[30px] rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.02)] overflow-x-auto">
+              <h3 className="text-[#015669] mb-[25px] text-[20px] border-r-4 border-[#015669] pr-2.5">
+                <i className="fas fa-list"></i> قائمة الأوراق التي فشل تصحيحها
+              </h3>
+              <p className="text-gray-500 mb-4 text-sm">
+                هذه القائمة تحتوي على الامتحانات التي حاول النظام تصحيحها أكثر من 3 مرات وفشل (بسبب ضغط قاعدة البيانات أو وجود أخطاء في البيانات المرسلة من الطالب).
+              </p>
+              <table className="w-full border-collapse mt-2.5">
+                <thead>
+                  <tr>
+                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">الطالب</th>
+                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">المحاضرة</th>
+                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">سبب الخطأ</th>
+                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">الإجابات (مادة خام)</th>
+                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">وقت المحاولة</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {failedExams.length === 0 ? (
+                    <tr><td colSpan={5} className="text-center p-[15px]">لا يوجد امتحانات معلقة والحمد لله.</td></tr>
+                  ) : (
+                    failedExams.map((f: any) => (
+                      <tr key={f.id} className="hover:bg-[#f8fafc] transition-colors">
+                        <td className="p-[15px] border-b border-[#e2e8f0]">
+                          <strong>{f.student_name || 'غير معروف'}</strong>
+                          <br /><span className="text-sm text-gray-500">{f.phone || 'بدون رقم'}</span>
+                        </td>
+                        <td className="p-[15px] border-b border-[#e2e8f0]">{f.lesson_title || 'غير معروف'}</td>
+                        <td className="p-[15px] border-b border-[#e2e8f0] text-red-500 text-sm max-w-[200px] break-words">{f.error_reason}</td>
+                        <td className="p-[15px] border-b border-[#e2e8f0]">
+                          <details>
+                            <summary className="cursor-pointer text-blue-500 font-bold hover:underline">عرض الإجابات</summary>
+                            <pre className="text-xs bg-gray-100 p-2 mt-2 rounded max-w-[300px] overflow-auto" dir="ltr">
+                              {f.answers_json}
+                            </pre>
+                          </details>
+                        </td>
+                        <td className="p-[15px] border-b border-[#e2e8f0] text-[#64748b]">{new Date(f.failed_at).toLocaleString('ar-EG')}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
       </main>
 
       {/* Edit Modal */}
@@ -945,7 +1018,6 @@ export default function Admin() {
                   <div><label className="block mb-2 font-bold text-[#1e293b]">نوع الدورة</label><select value={isEditCourseFree ? '1' : '0'} className={inputStyles} onChange={(e) => { const isFree = e.target.value === '1'; setIsEditCourseFree(isFree); setEditFormData({...editFormData, is_free: isFree ? 1 : 0, price: isFree ? 0 : editFormData.price}); }}><option value="1">مجانية</option><option value="0">مدفوعة</option></select></div>
                   {!isEditCourseFree && <div className="mt-[10px]"><label className="block mb-2 font-bold text-[#1e293b]">السعر (بالجنيه)</label><input type="number" value={(editFormData.price as number) || 0} onChange={(e) => setEditFormData({...editFormData, price: parseFloat(e.target.value)})} min="0" className={inputStyles} /></div>}
                   
-                  {/* 💡 تعديل الإعدادات المتقدمة في النافذة المنبثقة */}
                   <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
                     <h4 className="text-[#015669] font-bold mb-4"><i className="fas fa-sliders"></i> إعدادات متقدمة (اختياري)</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
