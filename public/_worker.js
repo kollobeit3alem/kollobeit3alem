@@ -39,34 +39,28 @@ export default {
         }
       }
 
-      // توجيه طلبات الـ API الخاصة بلوحة التحكم بناءً على الرتبة (أمان تام وعزل للملفات)
+      // توجيه طلبات الـ API الخاصة بلوحة التحكم بناءً على الرتبة
       if (path.startsWith("/api/admin/")) {
         try {
           let apiResponse = null;
 
           if (adminUser.role === 'instructor') {
-            // توجيه لملف المدرس (يحتوي فقط على صلاحيات المدرس)
             apiResponse = await handleInstructorRoutes(request, env, path, url, adminUser);
           } 
           else if (adminUser.role === 'assistant') {
-            // توجيه لملف المتابع (يحتوي فقط على صلاحيات المتابعة والقراءة)
             apiResponse = await handleAssistantRoutes(request, env, path, url, adminUser);
           } 
           else if (adminUser.role === 'admin') {
-            // توجيه لملف المدير (يحتوي على الصلاحيات المطلقة)
             apiResponse = await handleAdminRoutes(request, env, path, url, adminUser);
           }
 
-          // إذا تم معالجة الطلب في الملف المختص، قم بإرجاع الرد
           if (apiResponse) return apiResponse;
           
-          // إذا لم يتم العثور على المسار أو كان المستخدم يحاول الوصول لصلاحية غير موجودة في ملفه
           return new Response(JSON.stringify({ error: "Access Denied or Endpoint Not Found" }), { 
             status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } 
           });
 
         } catch (error) {
-          // التعديل الأمني هنا: تسجيل الخطأ داخلياً وإرسال رسالة عامة للمستخدم
           console.error("Admin Route Error:", error);
           return new Response(JSON.stringify({ error: "حدث خطأ داخلي في الخادم، يرجى المحاولة لاحقاً" }), { 
             status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } 
@@ -82,29 +76,23 @@ export default {
       try {
         let apiResponse = null;
 
-        // أ. مسارات المصادقة وتسجيل الدخول
         if (path.startsWith("/api/auth/")) {
           apiResponse = await handleAuthRoutes(request, env, path, url);
         }
-        // ب. مسارات تفاعل الطالب (ملفه الشخصي، حفظ التقدم، الاشتراك والمحفظة)
         else if (path.startsWith("/api/my-") || path.startsWith("/api/enroll") || path.startsWith("/api/wallet") || path.startsWith("/api/progress") || path.match(/^\/api\/courses\/\d+\/progress$/)) {
           apiResponse = await handleStudentRoutes(request, env, path, url);
         }
-        // ج. مسارات عرض المحتوى التعليمي (الكورسات، الدروس، الامتحانات)
         else if (path === "/api/courses" || path.startsWith("/api/courses/") || path.startsWith("/api/lessons/")) {
           apiResponse = await handleCourseRoutes(request, env, path, url);
         }
 
-        // إرجاع الرد إذا تم معالجته
         if (apiResponse) return apiResponse;
         
-        // مسار غير موجود
         return new Response(JSON.stringify({ error: "API Endpoint Not Found" }), { 
           status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } 
         });
 
       } catch (error) {
-        // التعديل الأمني هنا: تسجيل الخطأ داخلياً وإرسال رسالة مبهمة للمستخدم
         console.error("API Route Error:", error);
         return new Response(JSON.stringify({ error: "حدث خطأ غير متوقع، يرجى المحاولة لاحقاً" }), { 
           status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } 
@@ -112,37 +100,42 @@ export default {
       }
     }
 
-    // ============================================================================
-    // 3. عرض الملفات الثابتة للصفحات العادية (React Frontend)
-    // ============================================================================
+    // 3. عرض الملفات الثابتة (React Frontend)
     return env.ASSETS.fetch(request);
   },
 
   // ============================================================================
-  // 4. موظف الخلفية: المسؤول عن سحب الامتحانات من الطابور وتصحيحها بهدوء 🏭
+  // 4. موظف الخلفية: المطور والمحمي ضد الرسائل المسممة والضغط العالي 🏭
   // ============================================================================
   async queue(batch, env) {
-    // نتأكد إن الرسائل دي جاية من طابور الامتحانات بتاعنا
     if (batch.queue === "exams-queue") {
-      
-      // السيرفر هيمسك رسالة رسالة (طالب طالب) من الطابور
       for (const msg of batch.messages) {
         try {
-          // 1. استخراج بيانات الطالب والامتحان من الرسالة
           const { userId, lessonId, answers } = msg.body;
 
-          // 2. جلب الإجابات الصحيحة من الداتا بيز (سراً)
-          const dbQuestions = await env.DB.prepare("SELECT id, correct_option FROM quizzes WHERE lesson_id = ?").bind(lessonId).all();
+          // 🛡️ خط الدفاع الأول: الفرز المبدئي (Data Validation)
+          // التأكد من أن البيانات مرسلة بشكل صحيح قبل أي عملية مع قاعدة البيانات
+          if (!userId || !lessonId || !Array.isArray(answers)) {
+            console.warn(`[Queue] Invalid data format from user ${userId}. Dropping message.`);
+            msg.ack(); // حذف الرسالة الفاسدة فوراً لعدم تعطيل الطابور
+            continue;
+          }
+
+          // 1. جلب الإجابات الصحيحة من الداتا بيز
+          const dbQuestions = await env.DB.prepare(
+            "SELECT id, correct_option FROM quizzes WHERE lesson_id = ?"
+          ).bind(lessonId).all();
 
           if (!dbQuestions.results || dbQuestions.results.length === 0) {
-            msg.ack(); // لو مفيش امتحان أصلاً، اعتبر العملية خلصت واحذف الرسالة
+            console.warn(`[Queue] No quiz found for lesson ${lessonId}. Skipping.`);
+            msg.ack(); 
             continue;
           }
 
           let correctCount = 0;
           let finalAnswers = [];
 
-          // 3. عملية التصحيح
+          // 2. عملية التصحيح البرمجية
           for (const q of dbQuestions.results) {
             let chosen = null;
             if (Array.isArray(answers)) {
@@ -163,22 +156,46 @@ export default {
             });
           }
 
-          // حساب النسبة المئوية
           const actualScore = Math.round((correctCount / dbQuestions.results.length) * 100);
 
-          // 4. الحفظ في الداتا بيز (أخيراً)
+          // 3. الحفظ النهائي في قاعدة البيانات
           await env.DB.prepare(
             "INSERT INTO quiz_attempts (user_id, lesson_id, score, answers_json) VALUES (?, ?, ?, ?)"
           ).bind(userId, lessonId, actualScore, JSON.stringify(finalAnswers)).run();
 
-          // 5. تأكيد النجاح: بنقول للطابور "خلاص الورقة دي اتصححت بنجاح، احذفها"
+          // 4. تأكيد النجاح وحذفها من الطابور
           msg.ack();
 
         } catch (error) {
           console.error("Background Queue Grading Error:", error);
-          // 6. خطة الإنقاذ: لو الداتا بيز لسه زحمة ومقدرتش تحفظ النتيجة دلوقتي
-          // بنقول للطابور "متحذفش ورقة الطالب دي، حاول تصححها تاني كمان شوية"
-          msg.retry();
+          
+          // 🛡️ خط الدفاع الثاني: عداد المحاولات (Retry Limit)
+          // إذا فشلت العملية بسبب ضغط قاعدة البيانات، نحاول بحد أقصى 3 مرات
+          if (msg.attempts < 3) {
+            console.log(`[Queue] Retrying message. Attempt: ${msg.attempts}`);
+            msg.retry();
+          } else {
+            // 🛡️ خط الدفاع الثالث: سلة المهملات الذكية (Custom DLQ)
+            // إذا فشل التصحيح بعد 3 محاولات، نحفظ الورقة في جدول الفاشلين للأدمن
+            console.error(`[Queue] Message exceeded retry limits. Moving to failed_exams.`);
+            try {
+              await env.DB.prepare(
+                "INSERT INTO failed_exams (user_id, lesson_id, answers_json, error_reason) VALUES (?, ?, ?, ?)"
+              ).bind(
+                msg.body.userId || 0, 
+                msg.body.lessonId || 0, 
+                JSON.stringify(msg.body.answers || {}), 
+                error.message
+              ).run();
+              
+              // بعد الحفظ في جدول الأخطاء، نحذفها من الطابور لتنظيف السير
+              msg.ack();
+            } catch (dbError) {
+              // إذا كانت قاعدة البيانات منهارة تماماً ولا تقبل حتى تسجيل الخطأ
+              // نترك الرسالة لتعود للطابور لاحقاً كحل أخير
+              console.error("[Queue] Critical DB Failure during error logging.");
+            }
+          }
         }
       }
     }
