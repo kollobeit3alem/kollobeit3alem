@@ -265,5 +265,22 @@ export async function handleAdminRoutes(request, env, path, url, adminUser) {
     return new Response(JSON.stringify(codes.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
   }
 
+  // 9. 🚨 جلب الامتحانات المعلقة/الفاشلة (درج العزل) 🚨
+  if (path === "/api/admin/failed-exams" && request.method === "GET") {
+    try {
+      const failed = await env.DB.prepare(`
+        SELECT f.*, u.name as student_name, u.phone, l.title as lesson_title 
+        FROM failed_exams f
+        LEFT JOIN users u ON f.user_id = u.id
+        LEFT JOIN lessons l ON f.lesson_id = l.id
+        ORDER BY f.failed_at DESC
+      `).all();
+      
+      return new Response(JSON.stringify(failed.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    } catch (e) {
+      return new Response(JSON.stringify({ error: "خطأ في جلب الامتحانات المعلقة" }), { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }
+  }
+
   return null;
 }
