@@ -1,7 +1,8 @@
-import { corsHeaders } from './utils.js';
+import { getCorsHeaders } from './utils.js';
 
 export async function handleAssistantRoutes(request, env, path, url, adminUser) {
-  
+  const ch = getCorsHeaders(request, env);
+
   // 1. جلب قائمة الطلاب (للقراءة فقط)
   if (path === "/api/admin/users" && request.method === "GET") {
     const page = parseInt(url.searchParams.get("page")) || 1;
@@ -18,7 +19,7 @@ export async function handleAssistantRoutes(request, env, path, url, adminUser) 
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
       countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
-    
+
     const query = `SELECT id, name, email, phone, role, created_at ${baseWhere} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
     const countQuery = `SELECT COUNT(*) as total ${baseWhere}`;
     params.push(limit, offset);
@@ -31,10 +32,10 @@ export async function handleAssistantRoutes(request, env, path, url, adminUser) 
       total: countRes.total,
       page: page,
       limit: limit
-    }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    }), { headers: { "Content-Type": "application/json", ...ch } });
   }
 
-  // 2. عرض التقارير الخاصة بأي طالب (للقراءة فقط + نتائج الامتحانات)
+  // 2. عرض تقارير الطلاب (للقراءة فقط + نتائج الامتحانات)
   if (path.match(/^\/api\/admin\/reports\/\d+$/) && request.method === "GET") {
     const studentId = parseInt(path.split("/")[4], 10);
     let enrollments = [];
@@ -54,8 +55,7 @@ export async function handleAssistantRoutes(request, env, path, url, adminUser) 
       ).bind(studentId).all();
       progress = pRes.results;
     } catch (e) { console.error(e); }
-    
-    // التعديل هنا: إضافة جلب سجل درجات الامتحانات
+
     try {
       const qRes = await env.DB.prepare(
         "SELECT q.score, q.attempted_at, l.title as lesson_title, c.title as course_title FROM quiz_attempts q JOIN lessons l ON q.lesson_id = l.id JOIN courses c ON l.course_id = c.id WHERE q.user_id = ? ORDER BY q.attempted_at DESC"
@@ -63,7 +63,7 @@ export async function handleAssistantRoutes(request, env, path, url, adminUser) 
       quizzes = qRes.results;
     } catch (e) { console.error(e); }
 
-    return new Response(JSON.stringify({ enrollments, progress, quizzes }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    return new Response(JSON.stringify({ enrollments, progress, quizzes }), { headers: { "Content-Type": "application/json", ...ch } });
   }
 
   return null;
