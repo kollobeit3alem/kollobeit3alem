@@ -231,7 +231,7 @@ export default function Login() {
               title="أدهم عطية يالم — مطور المنصة"
               itemProp="creator"
             >
-              أدهم عطية يالم
+              أدهم عطية سالم
             </a>
           </span>
           <span className="mx-2">|</span>
