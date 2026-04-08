@@ -1,2 +1,35 @@
+# robots.txt — منصة كله بيتعلم
+# المؤلف: أدهم عطية يالم
+# ============================================================
+
+# السماح لكل روبوتات جوجل وبقية محركات البحث بالفهرسة الكاملة
 User-agent: *
 Allow: /
+Allow: /privacy
+
+# منع فهرسة الصفحات الإدارية الحساسة
+Disallow: /admin
+Disallow: /admin.html
+Disallow: /admin.kollobeit3alem
+Disallow: /instructor
+Disallow: /assistant
+Disallow: /api/
+Disallow: /profile
+
+# السماح لروبوت جوجل تحديداً بكل شيء عام
+User-agent: Googlebot
+Allow: /
+Allow: /privacy
+Disallow: /admin
+Disallow: /admin.html
+Disallow: /admin.kollobeit3alem
+Disallow: /instructor
+Disallow: /assistant
+Disallow: /api/
+Disallow: /profile
+
+# تحديد مسار الـ Sitemap
+Sitemap: https://kollobeit3alem.pages.dev/sitemap.xml
+
+# Crawl-delay لتقليل الضغط على السيرفر
+Crawl-delay: 1
