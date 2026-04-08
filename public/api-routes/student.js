@@ -1,31 +1,139 @@
-import { corsHeaders } from './utils.js';
+import { getCorsHeaders } from './utils.js';
 import { verifyStudentSession } from './auth.js';
 
 // ============================================================================
-// نظام حماية ضد التخمين (Rate Limiter) لكروت الشحن في ذاكرة السيرفر
+// التحسين: Two-Tier Rate Limiter (استراتيجية Gemini)
+// الطبقة 1: ذاكرة الـ Worker (مجانية تماماً) — تمسك الـ Spam في 10 ثواني
+// الطبقة 2: KV (مرجع مشترك بين كل الـ instances) — تطبق الحظر الفعلي
+// بهذا الأسلوب: Bot يضغط 100 مرة = نمسكه من الذاكرة بدون إرسال أي طلب لـ KV
 // ============================================================================
-const chargeAttempts = new Map();
-const MAX_ATTEMPTS = 5; // أقصى عدد للمحاولات الخاطئة
-const LOCKOUT_TIME = 15 * 60 * 1000; // مدة الحظر: 15 دقيقة بالمللي ثانية
+const memoryAttempts = new Map(); // الطبقة 1: ذاكرة مؤقتة سريعة ومجانية
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_SECONDS = 15 * 60; // 15 دقيقة
+const MEMORY_WINDOW_MS = 10 * 1000; // 10 ثواني — نافذة الذاكرة المحلية
 
+// ============================================================================
+// دالة فحص Rate Limit — الطبقتين معاً
+// ============================================================================
+async function checkRateLimit(userId, env) {
+  const now = Date.now();
+  const memKey = `${userId}`;
+
+  // --- الطبقة 1: فحص الذاكرة المحلية (مجاني تماماً) ---
+  const memData = memoryAttempts.get(memKey) || { count: 0, firstAttempt: now, blocked: false };
+
+  // لو الـ instance المحلي شايفه محظور خلال الـ 10 ثواني الأخيرة، نرفضه فوراً
+  if (memData.blocked && (now - memData.blockTime) < MEMORY_WINDOW_MS) {
+    return { allowed: false, source: 'memory', minutesLeft: Math.ceil(LOCKOUT_SECONDS / 60) };
+  }
+
+  // لو فات أكتر من 10 ثواني، نصفر العداد المحلي
+  if ((now - memData.firstAttempt) > MEMORY_WINDOW_MS) {
+    memoryAttempts.delete(memKey);
+  }
+
+  // --- الطبقة 2: فحص KV (المرجع الموثوق المشترك بين كل الـ instances) ---
+  if (env.COURSES_CACHE) {
+    const kvData = await env.COURSES_CACHE.get(`rate_limit:charge:${userId}`, { type: 'json' });
+    if (kvData && kvData.lockoutUntil > now) {
+      const minutesLeft = Math.ceil((kvData.lockoutUntil - now) / 60000);
+      // نحدث الذاكرة المحلية عشان الطلبات الجاية تتمسك من الذاكرة مجاناً
+      memoryAttempts.set(memKey, { count: MAX_ATTEMPTS, firstAttempt: now, blocked: true, blockTime: now });
+      return { allowed: false, source: 'kv', minutesLeft };
+    }
+  }
+
+  return { allowed: true };
+}
+
+// دالة تسجيل محاولة خاطئة
+async function recordFailedAttempt(userId, env) {
+  const now = Date.now();
+  const memKey = `${userId}`;
+
+  // تحديث الذاكرة المحلية
+  const memData = memoryAttempts.get(memKey) || { count: 0, firstAttempt: now, blocked: false };
+  memData.count += 1;
+
+  // إذا تجاوز الحد في الذاكرة، نسجل في KV ونطبق الحظر الفعلي
+  if (memData.count >= MAX_ATTEMPTS) {
+    memData.blocked = true;
+    memData.blockTime = now;
+    if (env.COURSES_CACHE) {
+      await env.COURSES_CACHE.put(
+        `rate_limit:charge:${userId}`,
+        JSON.stringify({ lockoutUntil: now + (LOCKOUT_SECONDS * 1000), count: MAX_ATTEMPTS }),
+        { expirationTtl: LOCKOUT_SECONDS + 60 }
+      );
+    }
+  }
+
+  memoryAttempts.set(memKey, memData);
+  return memData.count;
+}
+
+// دالة مسح محاولات المستخدم بعد نجاح الشحن
+async function clearRateLimit(userId, env) {
+  memoryAttempts.delete(`${userId}`);
+  if (env.COURSES_CACHE) {
+    await env.COURSES_CACHE.delete(`rate_limit:charge:${userId}`);
+  }
+}
+
+// ============================================================================
+// دالة مساعدة: Cache API (استراتيجية Gemini) — لكاش البيانات العامة مجاناً
+// Cloudflare Cache API مجانية تماماً وتعمل على كل الـ CDN nodes
+// ============================================================================
+async function getCacheAPIResponse(cacheKey) {
+  try {
+    const cache = caches.default;
+    const cachedResponse = await cache.match(new Request(cacheKey));
+    if (cachedResponse) {
+      return cachedResponse.clone();
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function putCacheAPIResponse(cacheKey, data, ttlSeconds) {
+  try {
+    const cache = caches.default;
+    const response = new Response(JSON.stringify(data), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': `public, max-age=${ttlSeconds}`,
+      }
+    });
+    await cache.put(new Request(cacheKey), response);
+  } catch (e) {
+    // Cache API قد تفشل في بعض البيئات — مش مشكلة
+  }
+}
+
+// ============================================================================
+// handleStudentRoutes — كل مسارات الطالب
+// ============================================================================
 export async function handleStudentRoutes(request, env, path, url) {
-  
-  // مسار تحديث الملف الشخصي (إضافة رقم التليفون للطلاب)
+  const ch = getCorsHeaders(request, env);
+
+  // مسار تحديث الملف الشخصي
   if (path === "/api/my-profile" && request.method === "PUT") {
     const authCheck = await verifyStudentSession(request, env);
-    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
-    
+    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...ch } });
+
     const body = await request.json();
     if (body.phone !== undefined) {
       await env.DB.prepare("UPDATE users SET phone = ? WHERE id = ?").bind(body.phone, authCheck.userId).run();
     }
-    return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...ch } });
   }
 
-  // جلب سجل امتحانات الطالب (للعرض في صفحة البروفايل)
+  // جلب سجل امتحانات الطالب
   if (path === "/api/my-quizzes" && request.method === "GET") {
     const authCheck = await verifyStudentSession(request, env);
-    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...ch } });
 
     const userId = authCheck.userId;
 
@@ -39,10 +147,10 @@ export async function handleStudentRoutes(request, env, path, url) {
         ORDER BY q.attempted_at DESC
       `;
       const attempts = await env.DB.prepare(query).bind(userId).all();
-      
-      return new Response(JSON.stringify(attempts.results), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+
+      return new Response(JSON.stringify(attempts.results), { headers: { "Content-Type": "application/json", ...ch } });
     } catch (e) {
-      return new Response(JSON.stringify({ error: "فشل جلب سجل الامتحانات" }), { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
+      return new Response(JSON.stringify({ error: "فشل جلب سجل الامتحانات" }), { status: 500, headers: { "Content-Type": "application/json", ...ch } });
     }
   }
 
@@ -50,8 +158,8 @@ export async function handleStudentRoutes(request, env, path, url) {
   if (path.match(/^\/api\/courses\/\d+\/progress$/) && request.method === "GET") {
     const courseId = path.split("/")[3];
     const authCheck = await verifyStudentSession(request, env);
-    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
-    
+    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...ch } });
+
     const userId = authCheck.userId;
 
     const completedLessonsQuery = await env.DB.prepare(`
@@ -68,29 +176,36 @@ export async function handleStudentRoutes(request, env, path, url) {
         "SELECT video_key FROM student_video_progress WHERE user_id = ? AND course_id = ?"
       ).bind(userId, courseId).all();
       completedVideos = completedVideosQuery.results.map(row => row.video_key);
-    } catch (e) {
-    }
+    } catch (e) {}
 
-    return new Response(JSON.stringify({ completedLessons, completedVideos }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    return new Response(JSON.stringify({ completedLessons, completedVideos }), { headers: { "Content-Type": "application/json", ...ch } });
   }
 
   // جلب معرفات الكورسات التي اشترك فيها الطالب
   if (path === "/api/my-enrollments" && request.method === "GET") {
     const authCheck = await verifyStudentSession(request, env);
-    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
-    
+    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...ch } });
+
     const enrollments = await env.DB.prepare("SELECT course_id FROM enrollments WHERE user_id = ?").bind(authCheck.userId).all();
     const enrolledCourseIds = enrollments.results.map(e => e.course_id);
-    
-    return new Response(JSON.stringify(enrolledCourseIds), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+
+    return new Response(JSON.stringify(enrolledCourseIds), { headers: { "Content-Type": "application/json", ...ch } });
   }
 
-  // جلب بيانات لوحة تحكم الطالب (Profile Dashboard)
+  // جلب بيانات لوحة تحكم الطالب
   if (path === "/api/my-dashboard" && request.method === "GET") {
     const authCheck = await verifyStudentSession(request, env);
-    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
-    
+    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...ch } });
+
     const userId = authCheck.userId;
+
+    // التحسين: Cache API للـ dashboard (بيانات شخصية لا تتغير كثيراً)
+    const dashCacheKey = `https://cache.internal/dashboard/${userId}`;
+    const cachedDash = await getCacheAPIResponse(dashCacheKey);
+    if (cachedDash) {
+      const data = await cachedDash.json();
+      return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json", ...ch } });
+    }
 
     const userRecord = await env.DB.prepare("SELECT wallet_balance FROM users WHERE id = ?").bind(userId).first();
     const walletBalance = userRecord ? userRecord.wallet_balance : 0;
@@ -111,95 +226,93 @@ export async function handleStudentRoutes(request, env, path, url) {
     `;
     const enrolledCourses = await env.DB.prepare(coursesQuery).bind(userId).all();
 
-    return new Response(JSON.stringify({
-      stats: { totalCourses, completedLessons, walletBalance }, 
+    const dashData = {
+      stats: { totalCourses, completedLessons, walletBalance },
       enrolledCourses: enrolledCourses.results
-    }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    };
+
+    // كاش الـ dashboard لمدة 2 دقيقة (120 ثانية) — مجاناً عبر Cache API
+    await putCacheAPIResponse(dashCacheKey, dashData, 120);
+
+    return new Response(JSON.stringify(dashData), { headers: { "Content-Type": "application/json", ...ch } });
   }
 
-  // ميزة شحن المحفظة بالأكواد + الحماية ضد التخمين (Rate Limiting) + حماية السباق الزمني (Race Condition) 🔒
+  // ============================================================================
+  // شحن المحفظة بالأكواد — محمي بـ Two-Tier Rate Limiter
+  // ============================================================================
   if (path === "/api/wallet/charge" && request.method === "POST") {
     const authCheck = await verifyStudentSession(request, env);
-    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
-    
+    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...ch } });
+
     const userId = authCheck.userId;
-    const now = Date.now();
-    
-    // التحقق من حالة الحظر للطالب
-    const userAttempts = chargeAttempts.get(userId) || { count: 0, lockoutUntil: 0 };
-    if (userAttempts.lockoutUntil > now) {
-      const minutesLeft = Math.ceil((userAttempts.lockoutUntil - now) / 60000);
-      return new Response(JSON.stringify({ error: `لقد تجاوزت الحد الأقصى للمحاولات الخاطئة. يرجى المحاولة بعد ${minutesLeft} دقيقة.` }), { status: 429, headers: { "Content-Type": "application/json", ...corsHeaders } });
+
+    // فحص الـ Rate Limit بالطبقتين
+    const rateCheck = await checkRateLimit(userId, env);
+    if (!rateCheck.allowed) {
+      return new Response(JSON.stringify({
+        error: `لقد تجاوزت الحد الأقصى للمحاولات الخاطئة. يرجى المحاولة بعد ${rateCheck.minutesLeft} دقيقة.`
+      }), { status: 429, headers: { "Content-Type": "application/json", ...ch } });
     }
 
     const body = await request.json();
     const code = body.code;
 
-    if (!code) return new Response(JSON.stringify({ error: "كود الشحن مطلوب" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
-    
-    // 💡 التعديل الجذري هنا (Atomic Update) لحل مشكلة Race Condition
-    // بدلاً من البحث أولاً (SELECT)، نحن نأمر قاعدة البيانات بتحديث الكود فوراً وإرجاع قيمته إن كان غير مستخدم
+    if (!code) return new Response(JSON.stringify({ error: "كود الشحن مطلوب" }), { status: 400, headers: { "Content-Type": "application/json", ...ch } });
+
+    // Atomic Update — يحمي من Race Condition
     const activationCode = await env.DB.prepare(`
       UPDATE activation_codes 
       SET is_used = 1, used_by = ?, used_at = CURRENT_TIMESTAMP 
       WHERE code = ? AND is_used = 0 
       RETURNING id, amount
     `).bind(userId, code).first();
-    
+
     if (!activationCode) {
-      // تسجيل المحاولة الخاطئة (الكود غير صحيح، مستخدم مسبقاً، أو سبقه طلب آخر في نفس اللحظة)
-      userAttempts.count += 1;
-      if (userAttempts.count >= MAX_ATTEMPTS) {
-        userAttempts.lockoutUntil = now + LOCKOUT_TIME;
-        userAttempts.count = 0; // تصفير العداد بعد تطبيق الحظر ليبدأ من جديد بعد انتهائه
-      }
-      chargeAttempts.set(userId, userAttempts);
-      
-      const remainingAttempts = MAX_ATTEMPTS - userAttempts.count;
-      const errorMsg = userAttempts.lockoutUntil > now 
+      const attemptCount = await recordFailedAttempt(userId, env);
+      const remaining = Math.max(0, MAX_ATTEMPTS - attemptCount);
+      const errorMsg = remaining === 0
         ? `تم حظر ميزة الشحن لمدة 15 دقيقة بسبب كثرة المحاولات الخاطئة.`
-        : `الكود غير صحيح أو تم استخدامه مسبقاً. (يتبقى لك ${remainingAttempts} محاولات)`;
-        
-      return new Response(JSON.stringify({ error: errorMsg }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+        : `الكود غير صحيح أو تم استخدامه مسبقاً. (يتبقى لك ${remaining} محاولات)`;
+
+      return new Response(JSON.stringify({ error: errorMsg }), { status: 400, headers: { "Content-Type": "application/json", ...ch } });
     }
 
-    // الكود صحيح وتم حرقه بنجاح حصرياً لهذا الطلب: تصفير عداد المحاولات الخاطئة
-    chargeAttempts.delete(userId);
+    // نجاح: تصفير عداد المحاولات
+    await clearRateLimit(userId, env);
 
-    // إضافة الرصيد لمحفظة الطالب (لا نحتاج لـ DB.batch لأن الكود تم حرقه بالفعل في الخطوة السابقة)
     await env.DB.prepare(
       "UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?"
     ).bind(activationCode.amount, userId).run();
-    
+
     const updatedUser = await env.DB.prepare("SELECT wallet_balance FROM users WHERE id = ?").bind(userId).first();
 
-    return new Response(JSON.stringify({ success: true, newBalance: updatedUser.wallet_balance, addedAmount: activationCode.amount }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    return new Response(JSON.stringify({ success: true, newBalance: updatedUser.wallet_balance, addedAmount: activationCode.amount }), { headers: { "Content-Type": "application/json", ...ch } });
   }
 
-  // الاشتراك في الكورس بالدفع من المحفظة
+  // الاشتراك في الكورس
   if (path === "/api/enroll" && request.method === "POST") {
     const authCheck = await verifyStudentSession(request, env);
-    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
-    
+    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...ch } });
+
     const userId = authCheck.userId;
     const body = await request.json();
     const course_id = body.course_id;
 
     const course = await env.DB.prepare("SELECT is_free, price FROM courses WHERE id = ?").bind(course_id).first();
-    if (!course) return new Response(JSON.stringify({ error: "الكورس غير موجود" }), { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    if (!course) return new Response(JSON.stringify({ error: "الكورس غير موجود" }), { status: 404, headers: { "Content-Type": "application/json", ...ch } });
 
     if (course.is_free === 1) {
       try {
         await env.DB.prepare("INSERT INTO enrollments (user_id, course_id) VALUES (?, ?)").bind(userId, course_id).run();
-        return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+        return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...ch } });
       } catch (e) {
-        return new Response(JSON.stringify({ error: "أنت مشترك بالفعل في هذا الكورس" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+        return new Response(JSON.stringify({ error: "أنت مشترك بالفعل في هذا الكورس" }), { status: 400, headers: { "Content-Type": "application/json", ...ch } });
       }
     } else {
       const user = await env.DB.prepare("SELECT wallet_balance FROM users WHERE id = ?").bind(userId).first();
-      
+
       if (user.wallet_balance < course.price) {
-        return new Response(JSON.stringify({ error: "رصيد المحفظة غير كافٍ. يرجى شحن رصيدك أولاً من صفحة حسابك." }), { status: 402, headers: { "Content-Type": "application/json", ...corsHeaders } });
+        return new Response(JSON.stringify({ error: "رصيد المحفظة غير كافٍ. يرجى شحن رصيدك أولاً من صفحة حسابك." }), { status: 402, headers: { "Content-Type": "application/json", ...ch } });
       }
 
       try {
@@ -207,29 +320,28 @@ export async function handleStudentRoutes(request, env, path, url) {
           env.DB.prepare("UPDATE users SET wallet_balance = wallet_balance - ? WHERE id = ?").bind(course.price, userId),
           env.DB.prepare("INSERT INTO enrollments (user_id, course_id) VALUES (?, ?)").bind(userId, course_id)
         ]);
-        
-        return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+
+        return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...ch } });
       } catch (e) {
-        return new Response(JSON.stringify({ error: "أنت مشترك بالفعل في هذا الكورس" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+        return new Response(JSON.stringify({ error: "أنت مشترك بالفعل في هذا الكورس" }), { status: 400, headers: { "Content-Type": "application/json", ...ch } });
       }
     }
   }
 
-  // حفظ تقدم الطالب (إنهاء المحاضرة) - محمية أمنياً 🔒
+  // حفظ تقدم الطالب (إنهاء المحاضرة)
   if (path === "/api/progress" && request.method === "POST") {
     const authCheck = await verifyStudentSession(request, env);
-    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
-    
+    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...ch } });
+
     const body = await request.json();
     const lessonId = body.lessonId;
     const userId = authCheck.userId;
 
-    // حماية: التأكد أن الطالب مشترك فعلاً
     const lesson = await env.DB.prepare("SELECT course_id FROM lessons WHERE id = ?").bind(lessonId).first();
-    if (!lesson) return new Response(JSON.stringify({ error: "المحاضرة غير موجودة" }), { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } });
-    
+    if (!lesson) return new Response(JSON.stringify({ error: "المحاضرة غير موجودة" }), { status: 404, headers: { "Content-Type": "application/json", ...ch } });
+
     const isEnrolled = await env.DB.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").bind(userId, lesson.course_id).first();
-    if (!isEnrolled) return new Response(JSON.stringify({ error: "غير مصرح لك. يجب الاشتراك أولاً." }), { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    if (!isEnrolled) return new Response(JSON.stringify({ error: "غير مصرح لك. يجب الاشتراك أولاً." }), { status: 403, headers: { "Content-Type": "application/json", ...ch } });
 
     const existingProgress = await env.DB.prepare(
       "SELECT id FROM student_progress WHERE user_id = ? AND lesson_id = ?"
@@ -241,21 +353,20 @@ export async function handleStudentRoutes(request, env, path, url) {
       ).bind(userId, lessonId).run();
     }
 
-    return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...ch } });
   }
 
-  // حفظ تقدم فيديو معين - محمية أمنياً 🔒
+  // حفظ تقدم فيديو معين
   if (path === "/api/progress/video" && request.method === "POST") {
     const authCheck = await verifyStudentSession(request, env);
-    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...ch } });
 
     const body = await request.json();
     const { courseId, lessonId, videoKey } = body;
     const userId = authCheck.userId;
 
-    // حماية: التأكد أن الطالب مشترك
     const isEnrolled = await env.DB.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").bind(userId, courseId).first();
-    if (!isEnrolled) return new Response(JSON.stringify({ error: "غير مصرح لك." }), { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    if (!isEnrolled) return new Response(JSON.stringify({ error: "غير مصرح لك." }), { status: 403, headers: { "Content-Type": "application/json", ...ch } });
 
     try {
       const existingProgress = await env.DB.prepare(
@@ -267,45 +378,38 @@ export async function handleStudentRoutes(request, env, path, url) {
           "INSERT INTO student_video_progress (user_id, course_id, lesson_id, video_key, completed_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)"
         ).bind(userId, courseId, lessonId, videoKey).run();
       }
-    } catch (e) {
-    }
+    } catch (e) {}
 
-    return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+    return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...ch } });
   }
 
-  // ============================================================================
-  // تصحيح وحفظ نتيجة امتحان الطالب (نظام المفتاح الذكي للتحويل إلى الطابور وقت الضغط) 🛡️🚦
-  // ============================================================================
+  // تصحيح وحفظ نتيجة امتحان الطالب
   if (path === "/api/progress/quiz" && request.method === "POST") {
     const authCheck = await verifyStudentSession(request, env);
-    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...corsHeaders } });
+    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...ch } });
 
     const body = await request.json();
-    // السيرفر يستقبل فقط إجابات الطالب، ولن يثق بدرجة الـ score القادمة من المتصفح
-    const { lessonId, answers } = body; 
+    const { lessonId, answers } = body;
     const userId = authCheck.userId;
 
     try {
-      // 1. التأكد أن الطالب مشترك في الكورس التابع له هذا الامتحان
       const lesson = await env.DB.prepare("SELECT course_id FROM lessons WHERE id = ?").bind(lessonId).first();
-      if (!lesson) return new Response(JSON.stringify({ error: "المحاضرة غير موجودة" }), { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } });
+      if (!lesson) return new Response(JSON.stringify({ error: "المحاضرة غير موجودة" }), { status: 404, headers: { "Content-Type": "application/json", ...ch } });
 
       const isEnrolled = await env.DB.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").bind(userId, lesson.course_id).first();
       if (!isEnrolled) {
-        return new Response(JSON.stringify({ error: "غير مصرح لك. يجب الاشتراك أولاً." }), { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } });
+        return new Response(JSON.stringify({ error: "غير مصرح لك. يجب الاشتراك أولاً." }), { status: 403, headers: { "Content-Type": "application/json", ...ch } });
       }
 
-      // 2. جلب الأسئلة وإجاباتها الصحيحة من السيرفر (سراً)
       const dbQuestions = await env.DB.prepare("SELECT id, correct_option FROM quizzes WHERE lesson_id = ?").bind(lessonId).all();
-      
+
       if (!dbQuestions.results || dbQuestions.results.length === 0) {
-        return new Response(JSON.stringify({ error: "لا يوجد امتحان متاح" }), { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } });
+        return new Response(JSON.stringify({ error: "لا يوجد امتحان متاح" }), { status: 400, headers: { "Content-Type": "application/json", ...ch } });
       }
 
       let correctCount = 0;
       let finalAnswers = [];
 
-      // 3. مطابقة إجابات الطالب بالإجابات الصحيحة وحساب الدرجة
       for (const q of dbQuestions.results) {
         let chosen = null;
         if (Array.isArray(answers)) {
@@ -326,18 +430,15 @@ export async function handleStudentRoutes(request, env, path, url) {
         });
       }
 
-      // حساب النسبة المئوية
       const actualScore = Math.round((correctCount / dbQuestions.results.length) * 100);
 
-      // 4. حفظ النتيجة المصححة في قاعدة البيانات (السيناريو السريع المباشر)
       await env.DB.prepare(
         "INSERT INTO quiz_attempts (user_id, lesson_id, score, answers_json) VALUES (?, ?, ?, ?)"
       ).bind(userId, lessonId, actualScore, JSON.stringify(finalAnswers)).run();
-      
-      return new Response(JSON.stringify({ success: true, score: actualScore, gradedAnswers: finalAnswers }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+
+      return new Response(JSON.stringify({ success: true, score: actualScore, gradedAnswers: finalAnswers }), { headers: { "Content-Type": "application/json", ...ch } });
     } catch (e) {
-      // 🚨 المفتاح الذكي (Circuit Breaker) 🚨
-      // إذا حدث خطأ (مثل: Database is busy بسبب الضغط العالي)، يتم اصطياد الخطأ هنا والتحويل فوراً إلى الطابور بدلاً من إرجاع خطأ للطالب.
+      // Circuit Breaker: عند ضغط الـ DB نحول للطابور
       if (env.EXAMS_QUEUE) {
         try {
           await env.EXAMS_QUEUE.send({
@@ -346,16 +447,14 @@ export async function handleStudentRoutes(request, env, path, url) {
             answers: answers,
             timestamp: Date.now()
           });
-          return new Response(JSON.stringify({ 
-            status: "queued", 
-            message: "نظراً للضغط الحالي، تم استلام إجاباتك بنجاح وجاري تصحيحها. ستظهر النتيجة في ملفك الشخصي قريباً." 
-          }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
-        } catch (queueError) {
-          // في حالة فشل الطابور أيضاً يتم الاستمرار للرد بالخطأ التقليدي بالأسفل
-        }
+          return new Response(JSON.stringify({
+            status: "queued",
+            message: "نظراً للضغط الحالي، تم استلام إجاباتك بنجاح وجاري تصحيحها. ستظهر النتيجة في ملفك الشخصي قريباً."
+          }), { headers: { "Content-Type": "application/json", ...ch } });
+        } catch (queueError) {}
       }
-      
-      return new Response(JSON.stringify({ error: "حدث خطأ أثناء تصحيح الامتحان" }), { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } });
+
+      return new Response(JSON.stringify({ error: "حدث خطأ أثناء تصحيح الامتحان" }), { status: 500, headers: { "Content-Type": "application/json", ...ch } });
     }
   }
 
