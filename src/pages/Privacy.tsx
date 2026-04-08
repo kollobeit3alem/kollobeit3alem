@@ -18,7 +18,7 @@ export default function Privacy() {
             "dateModified": "2026-04-04",
             "author": {
               "@type": "Person",
-              "name": "أدهم عطية يالم",
+              "name": "أدهم عطية سالم",
               "url": "https://adham-protofoilo.vercel.app"
             },
             "publisher": {
@@ -198,10 +198,10 @@ export default function Privacy() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[#015669] hover:underline"
-                  title="أدهم عطية يالم — مطور المنصة"
+                  title="أدهم عطية سالم — مطور المنصة"
                   itemProp="author"
                 >
-                  أدهم عطية يالم
+                  أدهم عطية سالم
                 </a>
               </div>
             </div>
