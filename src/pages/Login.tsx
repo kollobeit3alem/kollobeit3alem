@@ -211,7 +211,7 @@ export default function Login() {
         </main>
 
         {/* ============================================================ */}
-        {/* SEO: Footer مع بيانات المؤلف — أدهم عطية يالم               */}
+        {/* SEO: Footer مع بيانات المؤلف — أدهم عطية سالم               */}
         {/* ============================================================ */}
         <footer
           className="w-full p-6 text-center text-text-muted text-sm bg-white/60 backdrop-blur-md border-t border-black/[0.04]"
@@ -228,7 +228,7 @@ export default function Login() {
               className="text-primary font-bold mx-1 hover:underline transition-colors"
               target="_blank"
               rel="noopener noreferrer"
-              title="أدهم عطية يالم — مطور المنصة"
+              title="أدهم عطية سالم — مطور المنصة"
               itemProp="creator"
             >
               أدهم عطية سالم
