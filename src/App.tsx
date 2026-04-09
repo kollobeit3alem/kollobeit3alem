@@ -10,7 +10,7 @@ import Instructor from '@/pages/Instructor';
 import Assistant from '@/pages/Assistant';
 import Privacy from '@/pages/Privacy';
 
-// Protected Route Component (نظام الحماية الجديد)
+// Protected Route Component — يحتاج تسجيل دخول وصلاحية معينة
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
   const { isAuthenticated, user, isLoading } = useAuth();
 
@@ -23,7 +23,7 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
   }
 
   if (!isAuthenticated || !user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   // إذا كانت الصفحة محددة لرتب معينة والمستخدم ليس منهم، يتم توجيهه لصفحته الصحيحة
@@ -37,8 +37,8 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
   return <>{children}</>;
 }
 
-// Public Route Component (توجيه المستخدمين المسجلين لصفحاتهم)
-function PublicRoute({ children }: { children: React.ReactNode }) {
+// Login Route Component — المستخدمين المسجلين يتوجهون لصفحاتهم مباشرة
+function LoginRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, isLoading } = useAuth();
 
   if (isLoading) {
@@ -62,74 +62,82 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   return (
     <Routes>
-      <Route 
-        path="/" 
-        element={
-          <PublicRoute>
-            <Login />
-          </PublicRoute>
-        } 
+      {/* الصفحة الرئيسية = قائمة الكورسات — متاحة للجميع بدون تسجيل دخول */}
+      <Route
+        path="/"
+        element={<Courses />}
       />
 
-      {/* مسار الخصوصية متاح للجميع ليتمكن بوت جوجل من الوصول إليه */}
+      {/* مسار تسجيل الدخول — إذا كنت مسجل يتحولك لصفحتك */}
+      <Route
+        path="/login"
+        element={
+          <LoginRoute>
+            <Login />
+          </LoginRoute>
+        }
+      />
+
+      {/* مسار الخصوصية متاح للجميع */}
       <Route path="/privacy" element={<Privacy />} />
 
-      <Route 
-        path="/courses" 
-        element={
-          <ProtectedRoute>
-            <Courses />
-          </ProtectedRoute>
-        } 
+      {/* مسار الكورسات — متاح للجميع (نفس الصفحة الرئيسية) */}
+      <Route
+        path="/courses"
+        element={<Courses />}
       />
-      <Route 
-        path="/course" 
+
+      {/* محتوى الكورس — يحتاج تسجيل دخول واشتراك */}
+      <Route
+        path="/course"
         element={
           <ProtectedRoute>
             <Course />
           </ProtectedRoute>
-        } 
+        }
       />
-      <Route 
-        path="/profile" 
+
+      {/* البروفايل — يحتاج تسجيل دخول */}
+      <Route
+        path="/profile"
         element={
           <ProtectedRoute>
             <Profile />
           </ProtectedRoute>
-        } 
+        }
       />
-      
+
       {/* مسار المدير العام فقط */}
-      <Route 
-        path="/admin" 
+      <Route
+        path="/admin"
         element={
           <ProtectedRoute allowedRoles={['admin']}>
             <Admin />
           </ProtectedRoute>
-        } 
+        }
       />
 
       {/* مسار المدرس فقط */}
-      <Route 
-        path="/instructor" 
+      <Route
+        path="/instructor"
         element={
           <ProtectedRoute allowedRoles={['instructor']}>
             <Instructor />
           </ProtectedRoute>
-        } 
+        }
       />
 
       {/* مسار المتابع فقط */}
-      <Route 
-        path="/assistant" 
+      <Route
+        path="/assistant"
         element={
           <ProtectedRoute allowedRoles={['assistant']}>
             <Assistant />
           </ProtectedRoute>
-        } 
+        }
       />
 
-      {/* Catch all - redirect to home */}
+      {/* Catch all - redirect to courses homepage */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
@@ -140,9 +148,9 @@ function App() {
     <AuthProvider>
       <Router>
         <AppRoutes />
-        <Toaster 
-          position="top-center" 
-          richColors 
+        <Toaster
+          position="top-center"
+          richColors
           closeButton
           toastOptions={{
             style: {
