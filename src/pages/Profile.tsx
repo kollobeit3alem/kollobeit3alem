@@ -46,7 +46,7 @@ export default function Profile() {
   // Redirect if not authenticated
   useEffect(() => {
     if (!isAuthenticated && !user) {
-      navigate('/');
+      navigate('/login');
     }
   }, [isAuthenticated, user, navigate]);
 
@@ -115,7 +115,7 @@ export default function Profile() {
   const handleLogout = () => {
     if (confirm('هل تريد تسجيل الخروج حقاً؟')) {
       logout();
-      navigate('/');
+      navigate('/login');
     }
   };
 
