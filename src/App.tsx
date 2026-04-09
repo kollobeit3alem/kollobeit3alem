@@ -10,7 +10,9 @@ import Instructor from '@/pages/Instructor';
 import Assistant from '@/pages/Assistant';
 import Privacy from '@/pages/Privacy';
 
-// Protected Route Component — يحتاج تسجيل دخول وصلاحية معينة
+// ============================================================================
+// ProtectedRoute — للصفحات التي تتطلب تسجيل دخول (profile, course, admin...)
+// ============================================================================
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
   const { isAuthenticated, user, isLoading } = useAuth();
 
@@ -23,22 +25,25 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
   }
 
   if (!isAuthenticated || !user) {
-    return <Navigate to="/login" replace />;
+    // المستخدم غير مسجل → نرجعه للصفحة الرئيسية (Courses العامة)
+    return <Navigate to="/" replace />;
   }
 
-  // إذا كانت الصفحة محددة لرتب معينة والمستخدم ليس منهم، يتم توجيهه لصفحته الصحيحة
+  // إذا كانت الصفحة محددة لرتب معينة والمستخدم ليس منهم
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     if (user.role === 'admin') return <Navigate to="/admin" replace />;
     if (user.role === 'instructor') return <Navigate to="/instructor" replace />;
     if (user.role === 'assistant') return <Navigate to="/assistant" replace />;
-    return <Navigate to="/courses" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
 }
 
-// Login Route Component — المستخدمين المسجلين يتوجهون لصفحاتهم مباشرة
-function LoginRoute({ children }: { children: React.ReactNode }) {
+// ============================================================================
+// AdminRedirectRoute — المسؤولون يُوجَّهون مباشرة للوحة التحكم إذا دخلوا /
+// ============================================================================
+function AdminRedirectRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, isLoading } = useAuth();
 
   if (isLoading) {
@@ -49,11 +54,12 @@ function LoginRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // لو مسجل دخول وعنده رتبة إدارية → وجّهه للوحة التحكم
   if (isAuthenticated && user) {
     if (user.role === 'admin') return <Navigate to="/admin" replace />;
     if (user.role === 'instructor') return <Navigate to="/instructor" replace />;
     if (user.role === 'assistant') return <Navigate to="/assistant" replace />;
-    return <Navigate to="/courses" replace />;
+    // الطالب يبقى في صفحة الكورسات العامة عادي
   }
 
   return <>{children}</>;
@@ -62,32 +68,44 @@ function LoginRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   return (
     <Routes>
-      {/* الصفحة الرئيسية = قائمة الكورسات — متاحة للجميع بدون تسجيل دخول */}
+      {/* ================================================================ */}
+      {/* الصفحة الرئيسية = Courses (عامة للجميع بدون تسجيل دخول)         */}
+      {/* المسؤولون (admin/instructor/assistant) يُوجَّهون للوحة التحكم  */}
+      {/* ================================================================ */}
       <Route
         path="/"
-        element={<Courses />}
-      />
-
-      {/* مسار تسجيل الدخول — إذا كنت مسجل يتحولك لصفحتك */}
-      <Route
-        path="/login"
         element={
-          <LoginRoute>
-            <Login />
-          </LoginRoute>
+          <AdminRedirectRoute>
+            <Courses />
+          </AdminRedirectRoute>
         }
       />
 
-      {/* مسار الخصوصية متاح للجميع */}
-      <Route path="/privacy" element={<Privacy />} />
-
-      {/* مسار الكورسات — متاح للجميع (نفس الصفحة الرئيسية) */}
+      {/* ================================================================ */}
+      {/* /courses = نفس الصفحة الرئيسية (للتوافق مع الروابط القديمة)     */}
+      {/* ================================================================ */}
       <Route
         path="/courses"
-        element={<Courses />}
+        element={
+          <AdminRedirectRoute>
+            <Courses />
+          </AdminRedirectRoute>
+        }
       />
 
-      {/* محتوى الكورس — يحتاج تسجيل دخول واشتراك */}
+      {/* ================================================================ */}
+      {/* صفحة الخصوصية — عامة للجميع وللروبوتات                          */}
+      {/* ================================================================ */}
+      <Route path="/privacy" element={<Privacy />} />
+
+      {/* ================================================================ */}
+      {/* صفحة تسجيل الدخول — يصلها من يريد تسجيل الدخول يدوياً          */}
+      {/* ================================================================ */}
+      <Route path="/login" element={<Login />} />
+
+      {/* ================================================================ */}
+      {/* صفحة الكورس — تتطلب تسجيل دخول (المحتوى خاص)                   */}
+      {/* ================================================================ */}
       <Route
         path="/course"
         element={
@@ -97,7 +115,9 @@ function AppRoutes() {
         }
       />
 
-      {/* البروفايل — يحتاج تسجيل دخول */}
+      {/* ================================================================ */}
+      {/* صفحة البروفايل — تتطلب تسجيل دخول                               */}
+      {/* ================================================================ */}
       <Route
         path="/profile"
         element={
@@ -137,7 +157,7 @@ function AppRoutes() {
         }
       />
 
-      {/* Catch all - redirect to courses homepage */}
+      {/* Catch all → الصفحة الرئيسية (Courses) */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
