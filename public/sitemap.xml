@@ -3,7 +3,7 @@
         xmlns:xhtml="http://www.w3.org/1999/xhtml"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 
-  <!-- الصفحة الرئيسية — قائمة الكورسات المتاحة للعموم -->
+  <!-- الصفحة الرئيسية = قائمة الكورسات (عامة للجميع) -->
   <url>
     <loc>https://kollobeit3alem.pages.dev/</loc>
     <lastmod>2026-04-09</lastmod>
@@ -17,13 +17,12 @@
     </image:image>
   </url>
 
-  <!-- مسار /courses — نفس الصفحة الرئيسية (للتأكد من الفهرسة) -->
+  <!-- /courses = نفس الصفحة الرئيسية (للتوافق) -->
   <url>
     <loc>https://kollobeit3alem.pages.dev/courses</loc>
     <lastmod>2026-04-09</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
-    <xhtml:link rel="alternate" hreflang="ar" href="https://kollobeit3alem.pages.dev/courses" />
   </url>
 
   <!-- صفحة الخصوصية — متاحة للعموم -->
@@ -33,8 +32,5 @@
     <changefreq>monthly</changefreq>
     <priority>0.4</priority>
   </url>
-
-  <!-- ملاحظة: صفحة /course (محتوى الكورس) مستثناة من الـ Sitemap -->
-  <!-- لأن محتواها خاص بالمشتركين فقط ولا يجب فهرسته -->
 
 </urlset>
