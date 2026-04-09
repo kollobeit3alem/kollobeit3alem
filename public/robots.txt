@@ -2,22 +2,15 @@
 # المؤلف: أدهم عطية سالم
 # ============================================================
 
-# السماح لكل روبوتات جوجل وبقية محركات البحث بالفهرسة الكاملة
+# السماح لكل روبوتات جوجل بفهرسة الصفحات العامة
 User-agent: *
 Allow: /
 Allow: /courses
 Allow: /privacy
 Allow: /sitemap.xml
 Allow: /robots.txt
-Allow: /logo.png
-Allow: /icon-192.png
-Allow: /icon-512.png
 
-# منع فهرسة محتوى الكورسات (المحتوى الخاص بالمشتركين فقط)
-Disallow: /course
-Disallow: /course?*
-
-# منع فهرسة الصفحات الإدارية الحساسة
+# منع فهرسة صفحات المحتوى الخاص والإدارة
 Disallow: /admin
 Disallow: /admin.html
 Disallow: /admin.kollobeit3alem
@@ -25,20 +18,15 @@ Disallow: /instructor
 Disallow: /assistant
 Disallow: /api/
 Disallow: /profile
-Disallow: /login
+Disallow: /course
 
-# السماح لروبوت جوجل تحديداً بكل شيء عام
+# السماح لـ Googlebot تحديداً
 User-agent: Googlebot
 Allow: /
 Allow: /courses
 Allow: /privacy
 Allow: /sitemap.xml
 Allow: /robots.txt
-Allow: /logo.png
-
-# منع فهرسة المحتوى الخاص
-Disallow: /course
-Disallow: /course?*
 Disallow: /admin
 Disallow: /admin.html
 Disallow: /admin.kollobeit3alem
@@ -46,10 +34,10 @@ Disallow: /instructor
 Disallow: /assistant
 Disallow: /api/
 Disallow: /profile
-Disallow: /login
+Disallow: /course
 
-# تحديد مسار الـ Sitemap
+# مسار الـ Sitemap
 Sitemap: https://kollobeit3alem.pages.dev/sitemap.xml
 
-# Crawl-delay لتقليل الضغط على السيرفر
+# Crawl-delay
 Crawl-delay: 1
