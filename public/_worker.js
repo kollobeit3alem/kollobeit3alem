@@ -20,6 +20,16 @@ function addSecurityHeaders(response, requestId) {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
+// ============================================================================
+// دالة إضافة X-Robots-Tag: noindex لصفحات المحتوى الخاص
+// تمنع جوجل من فهرسة محتوى الكورسات حتى لو وصل إليها
+// ============================================================================
+function addNoIndexHeader(response) {
+  const headers = new Headers(response.headers);
+  headers.set("X-Robots-Tag", "noindex, nofollow");
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const requestId = crypto.randomUUID();
@@ -32,6 +42,23 @@ export default {
 
     const url = new URL(request.url);
     const path = url.pathname;
+
+    // ============================================================================
+    // 0. السماح الصريح للملفات الـ Static الخاصة بـ SEO
+    //    جوجل يحتاج يصل لـ sitemap.xml و robots.txt بدون أي redirect أو تدخل
+    //    Cloudflare Pages يخدمها من /public مباشرة، لكن نضمن عدم التدخل فيها
+    // ============================================================================
+    if (
+      path === "/sitemap.xml" ||
+      path === "/robots.txt" ||
+      path === "/logo.png" ||
+      path === "/icon-192.png" ||
+      path === "/icon-512.png" ||
+      path === "/favicon.ico"
+    ) {
+      // نخليها تمر مباشرة لـ ASSETS بدون أي معالجة
+      return env.ASSETS.fetch(request);
+    }
 
     let adminUser = null;
 
@@ -52,7 +79,7 @@ export default {
             requestId
           );
         } else {
-          return Response.redirect(url.origin + "/courses.html", 302);
+          return Response.redirect(url.origin + "/", 302);
         }
       }
 
@@ -138,8 +165,32 @@ export default {
       }
     }
 
+    // ============================================================================
     // 3. عرض الملفات الثابتة (React Frontend)
-    return env.ASSETS.fetch(request);
+    //    نضيف X-Robots-Tag: noindex لصفحة /course عشان محتواها خاص
+    //    ونضيف للصفحات الإدارية كمان
+    // ============================================================================
+    const staticResponse = await env.ASSETS.fetch(request);
+
+    // صفحة محتوى الكورس — خاصة بالمشتركين، لا تُفهرس
+    if (path === "/course" || path.startsWith("/course?") || url.search.includes("id=")) {
+      if (path === "/course") {
+        return addNoIndexHeader(staticResponse);
+      }
+    }
+
+    // الصفحات الإدارية والخاصة — لا تُفهرس
+    if (
+      path === "/profile" ||
+      path === "/admin" ||
+      path === "/instructor" ||
+      path === "/assistant" ||
+      path === "/login"
+    ) {
+      return addNoIndexHeader(staticResponse);
+    }
+
+    return staticResponse;
   },
 
   // ============================================================================
