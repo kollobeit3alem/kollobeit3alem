@@ -9,6 +9,92 @@ import { handleAssistantRoutes } from './api-routes/assistant.js';
 import { handleAdminRoutes } from './api-routes/admin.js';
 
 // ============================================================================
+// محتوى robots.txt — hardcoded مباشرة في الـ Worker
+// الحل الأضمن: لا يعتمد على ASSETS أو dist/ أو أي build
+// جوجل يقدر يقرأه دايماً في أي وقت
+// ============================================================================
+const ROBOTS_TXT = `# robots.txt — منصة كله بيتعلم
+User-agent: *
+Allow: /
+Allow: /courses
+Allow: /privacy
+Allow: /sitemap.xml
+Allow: /robots.txt
+
+Disallow: /course
+Disallow: /login
+Disallow: /profile
+Disallow: /admin
+Disallow: /admin.html
+Disallow: /admin.kollobeit3alem
+Disallow: /instructor
+Disallow: /assistant
+Disallow: /api/
+
+User-agent: Googlebot
+Allow: /
+Allow: /courses
+Allow: /privacy
+Allow: /sitemap.xml
+
+Disallow: /course
+Disallow: /login
+Disallow: /profile
+Disallow: /admin
+Disallow: /admin.html
+Disallow: /admin.kollobeit3alem
+Disallow: /instructor
+Disallow: /assistant
+Disallow: /api/
+
+Sitemap: https://kollobeit3alem.pages.dev/sitemap.xml
+Crawl-delay: 1
+`;
+
+// ============================================================================
+// محتوى sitemap.xml — hardcoded مباشرة في الـ Worker
+// الحل الأضمن: لا يعتمد على ASSETS أو dist/ أو أي build
+// جوجل يقدر يقرأه دايماً وده الهدف الأساسي
+// ============================================================================
+const SITEMAP_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+
+  <!-- الصفحة الرئيسية — قائمة الكورسات المتاحة للعموم -->
+  <url>
+    <loc>https://kollobeit3alem.pages.dev/</loc>
+    <lastmod>2026-04-09</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://kollobeit3alem.pages.dev/" />
+    <image:image>
+      <image:loc>https://kollobeit3alem.pages.dev/logo.png</image:loc>
+      <image:title>منصة كله بيتعلم — كورسات أونلاين</image:title>
+      <image:caption>أفضل منصة كورسات أونلاين في مصر والعالم العربي</image:caption>
+    </image:image>
+  </url>
+
+  <!-- مسار /courses — نفس الصفحة الرئيسية -->
+  <url>
+    <loc>https://kollobeit3alem.pages.dev/courses</loc>
+    <lastmod>2026-04-09</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="ar" href="https://kollobeit3alem.pages.dev/courses" />
+  </url>
+
+  <!-- صفحة الخصوصية — متاحة للعموم -->
+  <url>
+    <loc>https://kollobeit3alem.pages.dev/privacy</loc>
+    <lastmod>2026-04-09</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
+  </url>
+
+</urlset>`;
+
+// ============================================================================
 // دالة إضافة Security Headers لكل الردود
 // ============================================================================
 function addSecurityHeaders(response, requestId) {
@@ -22,7 +108,6 @@ function addSecurityHeaders(response, requestId) {
 
 // ============================================================================
 // دالة إضافة X-Robots-Tag: noindex لصفحات المحتوى الخاص
-// تمنع جوجل من فهرسة محتوى الكورسات حتى لو وصل إليها
 // ============================================================================
 function addNoIndexHeader(response) {
   const headers = new Headers(response.headers);
@@ -44,20 +129,31 @@ export default {
     const path = url.pathname;
 
     // ============================================================================
-    // 0. السماح الصريح للملفات الـ Static الخاصة بـ SEO
-    //    جوجل يحتاج يصل لـ sitemap.xml و robots.txt بدون أي redirect أو تدخل
-    //    Cloudflare Pages يخدمها من /public مباشرة، لكن نضمن عدم التدخل فيها
+    // 0. robots.txt — يُرجع المحتوى مباشرة من الـ Worker بدون أي اعتماد على ASSETS
+    //    ده الحل الوحيد المضمون لأن Cloudflare Workers تشتغل قبل أي شيء تاني
     // ============================================================================
-    if (
-      path === "/sitemap.xml" ||
-      path === "/robots.txt" ||
-      path === "/logo.png" ||
-      path === "/icon-192.png" ||
-      path === "/icon-512.png" ||
-      path === "/favicon.ico"
-    ) {
-      // نخليها تمر مباشرة لـ ASSETS بدون أي معالجة
-      return env.ASSETS.fetch(request);
+    if (path === "/robots.txt") {
+      return new Response(ROBOTS_TXT, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "public, max-age=86400",
+        },
+      });
+    }
+
+    // ============================================================================
+    // 0b. sitemap.xml — يُرجع المحتوى مباشرة من الـ Worker بدون أي اعتماد على ASSETS
+    //     ده الحل الوحيد المضمون — جوجل هيقدر يقرأه دايماً
+    // ============================================================================
+    if (path === "/sitemap.xml") {
+      return new Response(SITEMAP_XML, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/xml; charset=utf-8",
+          "Cache-Control": "public, max-age=3600",
+        },
+      });
     }
 
     let adminUser = null;
@@ -167,16 +263,13 @@ export default {
 
     // ============================================================================
     // 3. عرض الملفات الثابتة (React Frontend)
-    //    نضيف X-Robots-Tag: noindex لصفحة /course عشان محتواها خاص
-    //    ونضيف للصفحات الإدارية كمان
+    //    نضيف X-Robots-Tag: noindex لصفحات المحتوى الخاص
     // ============================================================================
     const staticResponse = await env.ASSETS.fetch(request);
 
     // صفحة محتوى الكورس — خاصة بالمشتركين، لا تُفهرس
-    if (path === "/course" || path.startsWith("/course?") || url.search.includes("id=")) {
-      if (path === "/course") {
-        return addNoIndexHeader(staticResponse);
-      }
+    if (path === "/course") {
+      return addNoIndexHeader(staticResponse);
     }
 
     // الصفحات الإدارية والخاصة — لا تُفهرس
