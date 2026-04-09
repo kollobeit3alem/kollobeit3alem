@@ -94,7 +94,6 @@ export default function Login() {
     <>
       {/* ============================================================ */}
       {/* SEO: Schema.org structured data لصفحة تسجيل الدخول           */}
-      {/* يساعد جوجل على فهم المنصة ويحسن ظهورها في نتائج البحث       */}
       {/* ============================================================ */}
       <script
         type="application/ld+json"
@@ -104,7 +103,7 @@ export default function Login() {
             "@type": "WebPage",
             "name": "تسجيل الدخول — منصة كله بيتعلم",
             "description": "سجّل دخولك لمنصة كله بيتعلم وابدأ رحلتك في تعلم المهارات والكورسات الأونلاين",
-            "url": "https://kollobeit3alem.pages.dev/",
+            "url": "https://kollobeit3alem.pages.dev/login",
             "isPartOf": {
               "@type": "EducationalOrganization",
               "name": "كله بيتعلم",
@@ -116,8 +115,14 @@ export default function Login() {
                 {
                   "@type": "ListItem",
                   "position": 1,
-                  "name": "الرئيسية",
+                  "name": "الكورسات",
                   "item": "https://kollobeit3alem.pages.dev/"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 2,
+                  "name": "تسجيل الدخول",
+                  "item": "https://kollobeit3alem.pages.dev/login"
                 }
               ]
             }
@@ -129,33 +134,21 @@ export default function Login() {
         className="min-h-screen bg-gradient-to-br from-[#fdfbfb] to-[#ebedee] flex flex-col justify-between items-center"
         dir="rtl"
       >
-        {/* ============================================================ */}
-        {/* SEO: Main content wrapper — semantic HTML                     */}
-        {/* ============================================================ */}
         <main className="flex-1 flex justify-center items-center w-full p-5" role="main">
-
-          {/* ============================================================ */}
-          {/* SEO: hidden text للروبوتات — يُحسن الفهرسة                  */}
-          {/* ============================================================ */}
-          <div className="sr-only" aria-hidden="false">
-            <h1>منصة كله بيتعلم — كورسات أونلاين في مصر والعالم العربي</h1>
-            <p>
-              كله بيتعلم هي منصة التعليم الأونلاين الأولى في مصر. تعلم البرمجة، اللغات،
-              مهارات سوق العمل، والتطوير الشخصي مع أفضل المدربين. كورسات مجانية ومدفوعة
-              متاحة لكل المستويات. ابدأ رحلتك التعليمية الآن مع منصة كلو بيتعلم.
-            </p>
-            <ul>
-              <li>كورسات برمجة أونلاين</li>
-              <li>تعلم اللغة الإنجليزية</li>
-              <li>مهارات سوق العمل</li>
-              <li>تطوير الذات</li>
-              <li>دورات تدريبية مجانية</li>
-            </ul>
-          </div>
 
           <div className="bg-white rounded-[28px] shadow-[0_20px_40px_-10px_rgba(0,0,0,0.08)] w-full max-w-[450px] p-12 px-10 text-center flex flex-col items-center gap-5 border border-black/[0.03] border-t-[6px] border-t-primary relative overflow-hidden">
             {/* Background Glow */}
             <div className="absolute -top-[60px] left-1/2 -translate-x-1/2 w-[180px] h-[180px] bg-primary/10 blur-[45px] rounded-full z-0" />
+
+            {/* رابط العودة للكورسات */}
+            <div className="w-full flex justify-start z-[1] -mb-2">
+              <Link
+                to="/"
+                className="text-primary/70 text-sm font-bold hover:text-primary flex items-center gap-1.5 no-underline transition-colors"
+              >
+                <i className="fas fa-arrow-right text-xs"></i> العودة للكورسات
+              </Link>
+            </div>
 
             {/* Platform Identity */}
             <div className="flex flex-col items-center gap-4 z-[1]">
@@ -168,10 +161,9 @@ export default function Login() {
                 loading="eager"
                 className="max-w-[150px] h-auto rounded-[20px] shadow-[0_10px_20px_rgba(0,0,0,0.05)] transition-transform duration-300 hover:scale-[1.03]"
               />
-              {/* SEO: h2 لأن h1 موجود في sr-only — هيكل semantic صح */}
-              <h2 className="text-[28px] font-bold text-primary mb-[-5px]">
+              <h1 className="text-[28px] font-bold text-primary mb-[-5px]">
                 كله بيتعلم لتعلم المهارات
-              </h2>
+              </h1>
             </div>
 
             <p className="text-[15px] text-text-muted z-[1] leading-relaxed mb-2">
@@ -210,9 +202,7 @@ export default function Login() {
           </div>
         </main>
 
-        {/* ============================================================ */}
-        {/* SEO: Footer مع بيانات المؤلف — أدهم عطية سالم               */}
-        {/* ============================================================ */}
+        {/* Footer */}
         <footer
           className="w-full p-6 text-center text-text-muted text-sm bg-white/60 backdrop-blur-md border-t border-black/[0.04]"
           role="contentinfo"
