@@ -5,7 +5,17 @@
 # السماح لكل روبوتات جوجل وبقية محركات البحث بالفهرسة الكاملة
 User-agent: *
 Allow: /
+Allow: /courses
 Allow: /privacy
+Allow: /sitemap.xml
+Allow: /robots.txt
+Allow: /logo.png
+Allow: /icon-192.png
+Allow: /icon-512.png
+
+# منع فهرسة محتوى الكورسات (المحتوى الخاص بالمشتركين فقط)
+Disallow: /course
+Disallow: /course?*
 
 # منع فهرسة الصفحات الإدارية الحساسة
 Disallow: /admin
@@ -15,11 +25,20 @@ Disallow: /instructor
 Disallow: /assistant
 Disallow: /api/
 Disallow: /profile
+Disallow: /login
 
 # السماح لروبوت جوجل تحديداً بكل شيء عام
 User-agent: Googlebot
 Allow: /
+Allow: /courses
 Allow: /privacy
+Allow: /sitemap.xml
+Allow: /robots.txt
+Allow: /logo.png
+
+# منع فهرسة المحتوى الخاص
+Disallow: /course
+Disallow: /course?*
 Disallow: /admin
 Disallow: /admin.html
 Disallow: /admin.kollobeit3alem
@@ -27,6 +46,7 @@ Disallow: /instructor
 Disallow: /assistant
 Disallow: /api/
 Disallow: /profile
+Disallow: /login
 
 # تحديد مسار الـ Sitemap
 Sitemap: https://kollobeit3alem.pages.dev/sitemap.xml
