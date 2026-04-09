@@ -597,7 +597,7 @@ export default function Courses() {
             target="_blank"
             rel="noopener noreferrer"
           >
-            أدهم عطية يالم
+            أدهم عطية سالم
           </a>
         </footer>
       </div>
