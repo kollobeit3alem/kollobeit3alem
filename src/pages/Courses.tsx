@@ -1,102 +1,8 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth, apiCall, publicApiCall } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { Course } from '@/types';
-
-// ============================================================================
-// مكوّن نافذة تسجيل الدخول المدمجة (تظهر عند محاولة الاشتراك بدون لوجن)
-// ============================================================================
-function LoginModal({ onClose }: { onClose: () => void }) {
-  const googleButtonRef = useRef<HTMLDivElement>(null);
-  const initialized = useRef(false);
-  const { login } = useAuth();
-
-  const handleGoogleLogin = useCallback(async (response: { credential: string }) => {
-    try {
-      await login(response.credential);
-      onClose();
-      toast.success('تم تسجيل الدخول بنجاح!');
-    } catch (error) {
-      toast.error('فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.');
-    }
-  }, [login, onClose]);
-
-  useEffect(() => {
-    if (initialized.current || !googleButtonRef.current) return;
-
-    const initGoogle = () => {
-      if (window.google && googleButtonRef.current) {
-        initialized.current = true;
-        window.google.accounts.id.initialize({
-          client_id: '543687035134-d64j2ncr5bcfuv7s9e61psp7qb2dj276.apps.googleusercontent.com',
-          callback: handleGoogleLogin,
-        });
-        window.google.accounts.id.renderButton(googleButtonRef.current, {
-          type: 'standard',
-          shape: 'pill',
-          theme: 'outline',
-          text: 'signin_with',
-          size: 'large',
-          logo_alignment: 'center',
-        });
-      }
-    };
-
-    if (window.google) {
-      initGoogle();
-    } else {
-      const interval = setInterval(() => {
-        if (window.google) { clearInterval(interval); initGoogle(); }
-      }, 100);
-      setTimeout(() => clearInterval(interval), 10000);
-    }
-  }, [handleGoogleLogin]);
-
-  return (
-    <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-[2000] backdrop-blur-sm px-4" dir="rtl">
-      <div className="bg-white rounded-[28px] shadow-[0_20px_60px_rgba(0,0,0,0.2)] w-full max-w-[420px] p-10 text-center flex flex-col items-center gap-5 relative overflow-hidden border border-black/[0.04]">
-        <div className="absolute top-0 left-0 w-full h-1.5 bg-primary" />
-        <button
-          onClick={onClose}
-          className="absolute top-4 left-4 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-red-100 text-slate-500 hover:text-red-500 transition-all text-lg"
-          aria-label="إغلاق"
-        >
-          <i className="fas fa-times" />
-        </button>
-
-        <div className="flex flex-col items-center gap-3 z-[1]">
-          <img
-            src="/logo.png"
-            alt="شعار منصة كله بيتعلم"
-            width="80" height="80"
-            className="rounded-[16px] shadow-md"
-          />
-          <h2 className="text-[22px] font-bold text-primary">سجّل دخولك للاشتراك</h2>
-        </div>
-
-        <p className="text-[14px] text-text-muted leading-relaxed">
-          عشان تشترك في الكورس وتوصل للمحتوى، سجّل دخولك بحسابك على جوجل.
-        </p>
-
-        <div className="w-full h-px bg-slate-200 relative">
-          <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-4 text-primary text-[13px] font-bold">
-            ابدأ مجاناً
-          </span>
-        </div>
-
-        <div ref={googleButtonRef} className="w-full flex justify-center mt-1" />
-
-        <p className="text-[12px] text-slate-400">
-          بتسجيل دخولك، أنت توافق على{' '}
-          <Link to="/privacy" className="text-primary font-bold hover:underline" onClick={onClose}>
-            سياسة الخصوصية
-          </Link>
-        </p>
-      </div>
-    </div>
-  );
-}
 
 // ============================================================================
 // الصفحة الرئيسية — Courses (عامة للجميع)
@@ -109,10 +15,7 @@ export default function Courses() {
   const [isLoading, setIsLoading] = useState(true);
   const [walletBalance, setWalletBalance] = useState<number>(0);
 
-  // نافذة تسجيل الدخول
-  const [showLoginModal, setShowLoginModal] = useState(false);
-
-  // Payment Modal
+  // Payment Modal (للمستخدمين المسجلين فقط لتأكيد الدفع)
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
 
@@ -181,9 +84,9 @@ export default function Courses() {
 
   // دالة الاشتراك
   const handleEnroll = async (courseId: number, coursePrice: number = 0) => {
-    // لو مش مسجل دخول → نفتح نافذة اللوجن
+    // لو مش مسجل دخول → يتم توجيهه لصفحة تسجيل الدخول
     if (!isAuthenticated || !token) {
-      setShowLoginModal(true);
+      navigate('/login');
       return;
     }
 
@@ -204,8 +107,9 @@ export default function Courses() {
   };
 
   const openPaymentModal = (course: Course) => {
+    // لو مش مسجل دخول → يتم توجيهه لصفحة تسجيل الدخول بدلاً من المودال
     if (!isAuthenticated || !token) {
-      setShowLoginModal(true);
+      navigate('/login');
       return;
     }
     setSelectedCourse(course);
@@ -304,7 +208,7 @@ export default function Courses() {
       <div className="min-h-screen bg-page-bg flex flex-col" dir="rtl">
 
         {/* ============================================================ */}
-        {/* Header                                                        */}
+        {/* Header                                                       */}
         {/* ============================================================ */}
         <header className="bg-white py-4 px-[5%] flex justify-between items-center shadow-[0_4px_20px_rgba(0,0,0,0.03)] sticky top-0 z-[100] border-b-[3px] border-b-primary">
           <Link to="/" className="flex items-center gap-4 no-underline">
@@ -351,9 +255,9 @@ export default function Courses() {
                 </button>
               </>
             ) : (
-              /* غير مسجل دخول → يظهر زر تسجيل الدخول */
+              /* غير مسجل دخول → يتم التوجيه لصفحة تسجيل الدخول */
               <button
-                onClick={() => setShowLoginModal(true)}
+                onClick={() => navigate('/login')}
                 className="bg-primary text-white py-2.5 px-6 rounded-xl font-bold transition-all hover:bg-primary/90 hover:shadow-[0_4px_12px_rgba(1,86,105,0.3)] flex items-center gap-2"
               >
                 <i className="fas fa-sign-in-alt" /> سجّل دخولك
@@ -363,7 +267,7 @@ export default function Courses() {
         </header>
 
         {/* ============================================================ */}
-        {/* Hero Section                                                  */}
+        {/* Hero Section                                                 */}
         {/* ============================================================ */}
         <section className="bg-gradient-to-br from-primary to-[#013d4a] text-white py-16 px-[5%] text-center relative overflow-hidden">
           <div
@@ -384,7 +288,7 @@ export default function Courses() {
             </p>
             {!isAuthenticated && (
               <button
-                onClick={() => setShowLoginModal(true)}
+                onClick={() => navigate('/login')}
                 className="mt-6 bg-white text-primary py-3 px-8 rounded-xl font-bold text-base transition-all hover:shadow-[0_5px_20px_rgba(0,0,0,0.2)] hover:-translate-y-0.5 inline-flex items-center gap-2"
               >
                 <i className="fas fa-rocket" /> ابدأ التعلم مجاناً
@@ -483,7 +387,7 @@ export default function Courses() {
         </main>
 
         {/* ============================================================ */}
-        {/* Payment Modal                                                 */}
+        {/* Payment Modal                                                */}
         {/* ============================================================ */}
         {showPaymentModal && selectedCourse && (
           <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-[1000] backdrop-blur-sm px-4">
@@ -543,7 +447,7 @@ export default function Courses() {
         )}
 
         {/* ============================================================ */}
-        {/* Phone Modal                                                   */}
+        {/* Phone Modal                                                  */}
         {/* ============================================================ */}
         {showPhoneModal && (
           <div className="fixed top-0 left-0 w-full h-full bg-slate-900/60 flex justify-center items-center z-[9999] backdrop-blur-sm px-4">
@@ -581,11 +485,6 @@ export default function Courses() {
             </div>
           </div>
         )}
-
-        {/* ============================================================ */}
-        {/* Login Modal (يظهر عند محاولة الاشتراك بدون لوجن)             */}
-        {/* ============================================================ */}
-        {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
 
         {/* Footer */}
         <footer className="bg-white text-center py-6 border-t border-border text-text-muted mt-auto">
