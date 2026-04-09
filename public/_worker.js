@@ -32,7 +32,6 @@ const SITEMAP_XML = `<?xml version="1.0" encoding="UTF-8"?>
         xmlns:xhtml="http://www.w3.org/1999/xhtml"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 
-  <!-- الصفحة الرئيسية = قائمة الكورسات (عامة للجميع) -->
   <url>
     <loc>https://kollobeit3alem.pages.dev/</loc>
     <lastmod>2026-04-09</lastmod>
@@ -46,7 +45,6 @@ const SITEMAP_XML = `<?xml version="1.0" encoding="UTF-8"?>
     </image:image>
   </url>
 
-  <!-- /courses = نفس الصفحة الرئيسية (للتوافق) -->
   <url>
     <loc>https://kollobeit3alem.pages.dev/courses</loc>
     <lastmod>2026-04-09</lastmod>
@@ -54,7 +52,6 @@ const SITEMAP_XML = `<?xml version="1.0" encoding="UTF-8"?>
     <priority>0.9</priority>
   </url>
 
-  <!-- صفحة الخصوصية — متاحة للعموم -->
   <url>
     <loc>https://kollobeit3alem.pages.dev/privacy</loc>
     <lastmod>2026-04-09</lastmod>
