@@ -11,7 +11,7 @@ import Assistant from '@/pages/Assistant';
 import Privacy from '@/pages/Privacy';
 
 // ============================================================================
-// ProtectedRoute — للصفحات التي تتطلب تسجيل دخول (profile, course, admin...)
+// ProtectedRoute — للصفحات التي تتطلب تسجيل دخول (profile, admin...)
 // ============================================================================
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
   const { isAuthenticated, user, isLoading } = useAuth();
@@ -70,15 +70,11 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
 
       {/* ================================================================ */}
-      {/* صفحة الكورس — تتطلب تسجيل دخول (المحتوى خاص)                   */}
+      {/* صفحة الكورس — 💡 عامة للجميع للمعاينة، والمحتوى الداخلي محمي     */}
       {/* ================================================================ */}
       <Route
         path="/course"
-        element={
-          <ProtectedRoute>
-            <Course />
-          </ProtectedRoute>
-        }
+        element={<Course />}
       />
 
       {/* ================================================================ */}
