@@ -388,6 +388,14 @@ export default function Instructor() {
         </div>
         
         <nav className="flex flex-col gap-2.5 flex-1">
+          {/* تمت إضافة زر الصفحة الرئيسية هنا */}
+          <button 
+            onClick={() => navigate('/')}
+            className={`${navBtnBaseStyles} !text-[#0284c7] hover:!bg-[#e0f2fe]`}
+          >
+            <i className="fas fa-home text-xl w-6 text-center"></i> الصفحة الرئيسية
+          </button>
+
           <button 
             onClick={() => setActiveTab('courses')}
             className={`${navBtnBaseStyles} ${activeTab === 'courses' ? navBtnActiveStyles : ''}`}
@@ -430,12 +438,23 @@ export default function Instructor() {
             <img src="/logo.png" alt="Logo" className="h-10 rounded-lg" />
             <strong className="text-[#015669]">لوحة المدرس</strong>
           </div>
-          <button 
-            onClick={() => setSidebarOpen(true)}
-            className="bg-[#015669] text-white border-none py-2.5 px-4 rounded-xl text-xl cursor-pointer"
-          >
-            <i className="fas fa-bars"></i>
-          </button>
+          
+          {/* تمت إضافة أيقونة الرئيسية بجوار أيقونة السايد بار هنا */}
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => navigate('/')}
+              className="bg-[#e0f2fe] text-[#0284c7] border-none py-2.5 px-4 rounded-xl text-xl cursor-pointer transition-all hover:bg-[#0284c7] hover:text-white"
+              title="العودة للصفحة الرئيسية"
+            >
+              <i className="fas fa-home"></i>
+            </button>
+            <button 
+              onClick={() => setSidebarOpen(true)}
+              className="bg-[#015669] text-white border-none py-2.5 px-4 rounded-xl text-xl cursor-pointer"
+            >
+              <i className="fas fa-bars"></i>
+            </button>
+          </div>
         </div>
 
         {/* Courses Tab */}
