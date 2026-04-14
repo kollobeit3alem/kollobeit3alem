@@ -268,33 +268,22 @@ export async function handleAdminRoutes(request, env, path, url, adminUser) {
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...ch } });
   }
 
-  // 8. توليد أكواد التفعيل
-  if (path === "/api/admin/codes" && request.method === "POST") {
-    const body = await request.json();
-    const amount = parseFloat(body.amount) || 0;
-    const count = parseInt(body.count) || 1;
+  // 8. جلب العمليات المالية (تقارير بيموب)
+  if (path === "/api/admin/transactions" && request.method === "GET") {
+    try {
+      const transactions = await env.DB.prepare(`
+        SELECT t.*, u.name as student_name, u.phone, c.title as course_title 
+        FROM transactions t
+        LEFT JOIN users u ON t.user_id = u.id
+        LEFT JOIN courses c ON t.course_id = c.id
+        ORDER BY t.created_at DESC
+        LIMIT 200
+      `).all();
 
-    if (amount <= 0) {
-      return new Response(JSON.stringify({ error: "قيمة الشحن يجب أن تكون رقماً موجباً أكبر من الصفر" }), { status: 400, headers: { "Content-Type": "application/json", ...ch } });
+      return new Response(JSON.stringify(transactions.results), { headers: { "Content-Type": "application/json", ...ch } });
+    } catch (e) {
+      return new Response(JSON.stringify({ error: "خطأ في جلب العمليات المالية" }), { status: 500, headers: { "Content-Type": "application/json", ...ch } });
     }
-    if (count <= 0 || count > 1000) {
-      return new Response(JSON.stringify({ error: "عدد الأكواد يجب أن يكون رقم صحيح موجب (بحد أقصى 1000 كود في المرة)" }), { status: 400, headers: { "Content-Type": "application/json", ...ch } });
-    }
-
-    const codes = [];
-
-    for (let i = 0; i < count; i++) {
-      const code = Math.random().toString(36).substring(2, 10).toUpperCase();
-      await env.DB.prepare("INSERT INTO activation_codes (code, course_id, amount) VALUES (?, 0, ?)").bind(code, amount).run();
-      codes.push(code);
-    }
-    return new Response(JSON.stringify({ success: true, codes }), { headers: { "Content-Type": "application/json", ...ch } });
-  }
-
-  // جلب الأكواد
-  if (path.match(/^\/api\/admin\/codes(\/\d+)?$/) && request.method === "GET") {
-    const codes = await env.DB.prepare("SELECT * FROM activation_codes ORDER BY id DESC").all();
-    return new Response(JSON.stringify(codes.results), { headers: { "Content-Type": "application/json", ...ch } });
   }
 
   // 9. جلب الامتحانات المعلقة
