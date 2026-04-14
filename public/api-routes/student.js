@@ -294,6 +294,11 @@ export async function handleStudentRoutes(request, env, path, url) {
     const authCheck = await verifyStudentSession(request, env);
     if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...ch } });
 
+    // إضافة حماية قوية: منع أي شخص رتبته ليست "طالب" من الاشتراك في الكورسات
+    if (authCheck.role !== 'student') {
+      return new Response(JSON.stringify({ error: "عذراً، غير مسموح للمعلمين أو الإدارة بالاشتراك في الدورات." }), { status: 403, headers: { "Content-Type": "application/json", ...ch } });
+    }
+
     const userId = authCheck.userId;
     const body = await request.json();
     const course_id = body.course_id;
