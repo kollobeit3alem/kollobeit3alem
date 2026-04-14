@@ -63,9 +63,6 @@ export default function Course() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentReference, setPaymentReference] = useState('');
 
-  // Session Expiry State
-  const [sessionExpired, setSessionExpired] = useState(false);
-
   // Video Inline State
   const [activeLessonId, setActiveLessonId] = useState<number | null>(null);
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
@@ -108,10 +105,16 @@ export default function Course() {
   
   const courseId = searchParams.get('id');
 
+  // 💡 التعديل هنا: التحول الصامت لوضع الزائر بدون رسايل مزعجة
   const handleApiError = useCallback((error: any) => {
     const errorMsg = error?.message || '';
-    if (errorMsg.includes('جهاز آخر') || errorMsg.includes('Session') || errorMsg.includes('Unauthorized')) {
-      setSessionExpired(true);
+    if (errorMsg.includes('جهاز آخر') || errorMsg.includes('Session') || errorMsg.includes('Unauthorized') || errorMsg.includes('Invalid Token')) {
+      // إزالة بيانات الجلسة من المتصفح في صمت
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('user_info');
+      setIsUserEnrolled(false);
+      // إعادة تحميل صامتة للصفحة لكي يقوم السياق (Context) بتحديث الواجهة وتحويلها لزائر
+      window.location.reload();
     } else {
       console.error(error);
     }
@@ -180,7 +183,7 @@ export default function Course() {
     saveProgressLocally();
   }, [completedLessons, completedVideos, saveProgressLocally]);
 
-  // التعديل 1: استخدام publicApiCall لجلب بيانات الكورس للجميع
+  // استخدام publicApiCall لجلب بيانات الكورس للجميع
   const fetchCourseDetails = useCallback(async () => {
     if (!courseId) return;
     try {
@@ -192,7 +195,7 @@ export default function Course() {
     }
   }, [courseId, handleApiError]);
 
-  // التعديل 2: جلب المحاضرات للجميع (الزوار والمشتركين)
+  // جلب المحاضرات للجميع (الزوار والمشتركين)
   const fetchLessons = useCallback(async () => {
     if (!courseId) return;
     try {
@@ -223,13 +226,12 @@ export default function Course() {
     }
   }, [courseId, token, handleApiError]);
 
-  // التعديل 3: إزالة شرط الطرد للمستخدمين غير المسجلين
   useEffect(() => {
-    if (courseId && !sessionExpired) {
+    if (courseId) {
       fetchCourseDetails();
       fetchLessons();
     }
-  }, [courseId, fetchCourseDetails, fetchLessons, sessionExpired]);
+  }, [courseId, fetchCourseDetails, fetchLessons]);
 
   useEffect(() => {
     const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
@@ -250,7 +252,6 @@ export default function Course() {
     }
   }, [activeLessonId]);
 
-  // إظهار مودال تأكيد الاشتراك (بدلاً من الألرت المزعج)
   const handleEnrollClick = () => {
     if (!isAuthenticated) {
       toast.info('يرجى تسجيل الدخول أولاً للاشتراك في هذه الدورة.');
@@ -678,13 +679,6 @@ export default function Course() {
     }
   };
 
-  const handleForceLogout = () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user_info');
-    navigate('/login');
-    window.location.reload();
-  };
-
   useEffect(() => {
     return () => {
       if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
@@ -723,27 +717,6 @@ export default function Course() {
 
   return (
     <div className="min-h-screen bg-page-bg flex flex-col relative" id="top-section" onContextMenu={(e) => e.preventDefault()}>
-      
-      {/* مودال انتهاء الصلاحية الأنيق */}
-      {sessionExpired && (
-        <div className="fixed top-0 left-0 w-full h-full bg-slate-900/60 flex justify-center items-center z-[9999] backdrop-blur-sm">
-          <div className="bg-white p-8 rounded-3xl w-[90%] max-w-[420px] text-center shadow-[0_20px_60px_rgba(0,0,0,0.2)] animate-fade-in border border-border">
-            <div className="w-24 h-24 rounded-full border-[5px] border-orange-100 bg-orange-50 flex items-center justify-center mx-auto mb-6">
-              <span className="text-orange-400 text-5xl font-bold">!</span>
-            </div>
-            <h2 className="text-[22px] text-slate-800 font-bold mb-3">تم انتهاء صلاحية تسجيل دخولك</h2>
-            <p className="text-slate-500 mb-8 text-[15px] leading-relaxed">
-              في حد دخل على حسابك من جهاز تاني، أو انتهت جلستك. يرجى إعادة تسجيل الدخول لمتابعة التعلم.
-            </p>
-            <button
-              onClick={handleForceLogout}
-              className="bg-[#38bdf8] text-white border-none py-3.5 px-8 rounded-xl font-bold text-lg cursor-pointer w-full hover:bg-[#0284c7] transition-all shadow-[0_5px_15px_rgba(56,189,248,0.3)] hover:-translate-y-0.5"
-            >
-              تسجيل الدخول مجدداً
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Header */}
       <header className="bg-white py-4 px-[5%] flex justify-between items-center shadow-[0_4px_20px_rgba(0,0,0,0.04)] sticky top-0 z-[100] border-b-[3px] border-b-primary">
@@ -1009,7 +982,7 @@ export default function Course() {
       </div>
 
       {/* ============================================================ */}
-      {/* 🛡️ Modal تأكيد الاشتراك (بدلاً من الألرت المزعج)              */}
+      {/* 🛡️ Modal تأكيد الاشتراك                                      */}
       {/* ============================================================ */}
       {showEnrollConfirmModal && course && (
         <div className="fixed inset-0 bg-slate-900/60 flex justify-center items-center z-[9999] backdrop-blur-sm px-4">
@@ -1043,27 +1016,35 @@ export default function Course() {
       )}
 
       {/* ============================================================ */}
-      {/* 🛡️ Modal عرض كود فوري (Paymob Kiosk)                            */}
+      {/* 🛡️ Modal عرض كود فوري (تفاصيل محسنة جداً)                     */}
       {/* ============================================================ */}
       {showPaymentModal && paymentReference && (
         <div className="fixed inset-0 bg-slate-900/60 flex justify-center items-center z-[9999] backdrop-blur-sm px-4">
-          <div className="bg-white p-8 rounded-[24px] w-full max-w-[450px] text-center shadow-[0_20px_60px_rgba(0,0,0,0.2)] animate-fade-in border border-border relative overflow-hidden">
+          <div className="bg-white p-8 rounded-[24px] w-full max-w-[480px] text-center shadow-[0_20px_60px_rgba(0,0,0,0.2)] animate-fade-in border border-border relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-2 bg-amber-500" />
             <div className="w-20 h-20 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-5 text-amber-500 text-[32px]">
               <i className="fas fa-file-invoice-dollar" />
             </div>
-            <h2 className="text-[24px] text-slate-800 font-bold mb-2">كود الدفع (فوري)</h2>
-            <p className="text-text-muted mb-6 text-[15px]">يرجى استخدام هذا الكود للدفع في أي ماكينة فوري أو أمان (كود خدمة بيموب).</p>
+            <h2 className="text-[24px] text-slate-800 font-bold mb-2">كود الدفع (بيموب / فوري)</h2>
+            <p className="text-text-muted mb-6 text-[15px]">يرجى التوجه لأي منفذ فوري أو أمان واطلب الدفع لخدمة (بيموب / Paymob) باستخدام هذا الكود المرجعي.</p>
             
             <div className="bg-slate-100 border-2 border-dashed border-slate-300 rounded-2xl p-5 mb-6">
               <span className="text-4xl font-black text-primary tracking-widest">{paymentReference}</span>
             </div>
 
-            <div className="bg-blue-50 text-blue-700 p-4 rounded-xl mb-8 text-sm font-bold flex items-start gap-3 border border-blue-100 text-right">
-              <i className="fas fa-info-circle mt-1 text-lg" />
-              <p className="m-0 leading-relaxed">
-                الكود صالح لمدة 24 ساعة فقط. بمجرد إتمام عملية الدفع في الماكينة، قم بعمل تحديث (Refresh) لهذه الصفحة وسيتم فتح الكورس لك تلقائياً.
-              </p>
+            <div className="flex flex-col gap-3 mb-8 text-right">
+              <div className="bg-blue-50 text-blue-700 p-4 rounded-xl text-sm font-bold flex items-start gap-3 border border-blue-100">
+                <i className="fas fa-info-circle mt-1 text-lg flex-shrink-0" />
+                <p className="m-0 leading-relaxed">
+                  الكود صالح لمدة 24 ساعة فقط. يمكنك الدفع عبر أي ماكينة فوري، أمان، مصاري، أو من خلال المحافظ الإلكترونية (كود خدمة بيموب).
+                </p>
+              </div>
+              <div className="bg-amber-50 text-amber-700 p-4 rounded-xl text-[13px] font-bold flex items-start gap-3 border border-amber-100">
+                 <i className="fas fa-clock mt-0.5 text-base flex-shrink-0" />
+                 <p className="m-0 leading-relaxed">
+                    ملاحظة هامة: بعد إتمام الدفع، قد تستغرق العملية من 5 إلى 30 دقيقة لتسميع البيانات في سيرفراتنا. بمجرد التأكيد، سيتحول الكورس إلى "تم الاشتراك بنجاح" ويمكنك متابعة التعلم فوراً عند تحديث الصفحة.
+                 </p>
+              </div>
             </div>
 
             <button
@@ -1087,7 +1068,7 @@ export default function Course() {
 
           <div className="bg-white py-5 px-[5%] flex justify-between items-center border-b border-border shadow-[0_4px_15px_rgba(0,0,0,0.02)]">
             <h2 className="text-primary text-[22px] font-bold"><i className="fas fa-pen-to-square ml-2"></i> اختبار: {activeExamLesson.title}</h2>
-            <button onClick={closeExam} disabled={isGrading} className="bg-red-50 text-red-500 border-none py-2.5 px-5 rounded-xl font-bold cursor-pointer flex items-center gap-2 hover:bg-red-500 hover:text-white transition-all disabled:opacity-50"><i className="fas fa-xmark"></i> إغلاق مؤقت</button>
+            <button onClick={closeExam} disabled={isGrading} className="bg-red-50 text-red-500 border-none py-2.5 px-5 rounded-xl font-bold cursor-pointer flex items-center gap-2 hover:bg-red-50 hover:text-white transition-all disabled:opacity-50"><i className="fas fa-xmark"></i> إغلاق مؤقت</button>
           </div>
 
           <div className="flex-1 overflow-y-auto py-8 px-[5%] flex flex-col items-center">
