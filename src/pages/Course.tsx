@@ -55,6 +55,9 @@ export default function Course() {
   const [expandedLesson, setExpandedLesson] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
+  // حالة جديدة للتحقق مما إذا كان الطالب مشتركاً في هذا الكورس
+  const [isUserEnrolled, setIsUserEnrolled] = useState(false);
+
   // Session Expiry State
   const [sessionExpired, setSessionExpired] = useState(false);
 
@@ -67,7 +70,7 @@ export default function Course() {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   
-  // 🛡️ التعديل: حالة العلامة المائية المتحركة
+  // 🛡️ حالة العلامة المائية المتحركة
   const [watermarkPos, setWatermarkPos] = useState({ top: 10, left: 10 });
 
   // Exam Modal State
@@ -113,35 +116,38 @@ export default function Course() {
     const verifyAndLoadProgress = async () => {
       if (user && token && courseId) {
         try {
+          let enrolled = true;
+          // التحقق من اشتراك الطالب
           if (user.role !== 'admin' && user.role !== 'instructor') {
             const enrolledIds = (await apiCall('/api/my-enrollments', token)) as number[];
-            if (!enrolledIds.includes(parseInt(courseId as string))) {
-              toast.error('غير مصرح لك بمشاهدة المحتوى! يرجى الاشتراك في الكورس أولاً.');
-              navigate('/courses');
-              return;
+            enrolled = enrolledIds.includes(parseInt(courseId as string));
+          }
+          
+          setIsUserEnrolled(enrolled);
+
+          // نجلب التقدم فقط لو كان مشترك بالفعل
+          if (enrolled) {
+            const savedVideoProgress = localStorage.getItem(`video_progress_${user.id}`);
+            if (savedVideoProgress) setCompletedVideos(new Set(JSON.parse(savedVideoProgress)));
+
+            const savedLessonProgress = localStorage.getItem(`progress_${user.id}`);
+            if (savedLessonProgress) setCompletedLessons(new Set(JSON.parse(savedLessonProgress)));
+
+            const data: any = await apiCall(`/api/courses/${courseId}/progress`, token);
+            if (data && data.completedLessons && Array.isArray(data.completedLessons)) {
+              setCompletedLessons(prev => {
+                const merged = new Set([...prev, ...data.completedLessons]);
+                localStorage.setItem(`progress_${user.id}`, JSON.stringify(Array.from(merged)));
+                return merged;
+              });
             }
-          }
-
-          const savedVideoProgress = localStorage.getItem(`video_progress_${user.id}`);
-          if (savedVideoProgress) setCompletedVideos(new Set(JSON.parse(savedVideoProgress)));
-
-          const savedLessonProgress = localStorage.getItem(`progress_${user.id}`);
-          if (savedLessonProgress) setCompletedLessons(new Set(JSON.parse(savedLessonProgress)));
-
-          const data: any = await apiCall(`/api/courses/${courseId}/progress`, token);
-          if (data && data.completedLessons && Array.isArray(data.completedLessons)) {
-            setCompletedLessons(prev => {
-              const merged = new Set([...prev, ...data.completedLessons]);
-              localStorage.setItem(`progress_${user.id}`, JSON.stringify(Array.from(merged)));
-              return merged;
-            });
-          }
-          if (data && data.completedVideos && Array.isArray(data.completedVideos)) {
-            setCompletedVideos(prev => {
-              const merged = new Set([...prev, ...data.completedVideos]);
-              localStorage.setItem(`video_progress_${user.id}`, JSON.stringify(Array.from(merged)));
-              return merged;
-            });
+            if (data && data.completedVideos && Array.isArray(data.completedVideos)) {
+              setCompletedVideos(prev => {
+                const merged = new Set([...prev, ...data.completedVideos]);
+                localStorage.setItem(`video_progress_${user.id}`, JSON.stringify(Array.from(merged)));
+                return merged;
+              });
+            }
           }
         } catch (error) {
           handleApiError(error);
@@ -149,14 +155,14 @@ export default function Course() {
       }
     };
     verifyAndLoadProgress();
-  }, [user, token, courseId, navigate, handleApiError]);
+  }, [user, token, courseId, handleApiError]);
 
   const saveProgressLocally = useCallback(() => {
-    if (user) {
+    if (user && isUserEnrolled) {
       localStorage.setItem(`progress_${user.id}`, JSON.stringify(Array.from(completedLessons)));
       localStorage.setItem(`video_progress_${user.id}`, JSON.stringify(Array.from(completedVideos)));
     }
-  }, [completedLessons, completedVideos, user]);
+  }, [completedLessons, completedVideos, user, isUserEnrolled]);
 
   useEffect(() => {
     if (isInitialMount.current) {
@@ -222,15 +228,45 @@ export default function Course() {
     if (activeLessonId !== null) {
       const interval = setInterval(() => {
         setWatermarkPos({
-          top: Math.floor(Math.random() * 80) + 10, // بين 10% و 90%
-          left: Math.floor(Math.random() * 70) + 10, // بين 10% و 80% لتجنب الخروج عن الشاشة
+          top: Math.floor(Math.random() * 80) + 10, 
+          left: Math.floor(Math.random() * 70) + 10, 
         });
-      }, 4000); // تغيير المكان كل 4 ثواني
+      }, 4000); 
       return () => clearInterval(interval);
     }
   }, [activeLessonId]);
 
+  // دالة الاشتراك في الكورس من داخل الصفحة
+  const handleEnroll = async () => {
+    if (!token || !course) return;
+    
+    const confirmMsg = course.is_free === 1 
+      ? 'هل أنت متأكد من رغبتك في الاشتراك في هذا الكورس (مجاناً)؟' 
+      : `هل أنت متأكد من رغبتك في شراء الكورس وسيتم خصم (${course.price} ج.م) من محفظتك؟`;
+      
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      await apiCall('/api/enroll', token, 'POST', { course_id: course.id });
+      toast.success('تم الاشتراك بنجاح! جاري تحميل المحتوى...');
+      setIsUserEnrolled(true);
+      // إعادة تحميل الصفحة لجلب الروابط الحقيقية بدلاً من الروابط المحجوبة
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch(err: any) {
+      const errorMsg = err.message || 'حدث خطأ غير معروف.';
+      toast.error(errorMsg);
+      if (errorMsg.includes('رصيد المحفظة غير كافٍ')) {
+        setTimeout(() => navigate('/profile'), 2000);
+      }
+    }
+  };
+
   const isLessonLocked = (lesson: Lesson, index: number): { locked: boolean; message: string } => {
+    // إذا كان غير مشترك، المحاضرة لا تعتبر مغلقة تتابعياً بل فقط تتطلب اشتراك
+    if (!isUserEnrolled) return { locked: false, message: '' };
+    
     if (lesson.is_admin_locked === 1) return { locked: true, message: 'هذه المحاضرة مغلقة حالياً من الإدارة.' };
     if (index > 0) {
       const prevLesson = lessons[index - 1];
@@ -257,6 +293,11 @@ export default function Course() {
   };
 
   const openVideo = (lesson: Lesson, videoUrl: string, vIdx: number, vTotal: number) => {
+    if (!isUserEnrolled) {
+      toast.error('يرجى الاشتراك في الكورس أولاً لتتمكن من مشاهدة الفيديوهات.');
+      return;
+    }
+
     ytDataRef.current = { lesson, vIdx, vTotal };
     
     setActiveLessonId(lesson.id);
@@ -471,12 +512,17 @@ export default function Course() {
   };
 
   const openExam = (lesson: Lesson) => {
+    if (!isUserEnrolled) {
+      toast.error('يرجى الاشتراك في الكورس أولاً لفتح الامتحان.');
+      return;
+    }
+
     if (completedLessons.has(lesson.id)) {
       toast.info('لقد اجتزت هذا الاختبار مسبقاً بنجاح!');
       return;
     }
 
-    const videoUrls = lesson.video_url.split(/[,|\s]+/).filter(url => url.trim() !== '');
+    const videoUrls = lesson.video_url ? lesson.video_url.split(/[,|\s]+/).filter(url => url.trim() !== '') : [];
     let allVideosWatched = true;
     for (let i = 0; i < videoUrls.length; i++) {
       if (!completedVideos.has(`${lesson.id}_${i}`)) {
@@ -708,9 +754,19 @@ export default function Course() {
             )}
 
             <div className="flex flex-wrap justify-center items-center gap-4">
-              <div className="bg-primary text-white border-none py-3 px-8 rounded-xl text-base font-bold inline-block">
-                <i className="fas fa-graduation-cap ml-2"></i> أنت مشترك في هذا الكورس
-              </div>
+              {/* زر الاشتراك أو الشراء إذا لم يكن مشتركاً */}
+              {isUserEnrolled ? (
+                <div className="bg-primary text-white border-none py-3 px-8 rounded-xl text-base font-bold inline-block">
+                  <i className="fas fa-graduation-cap ml-2"></i> أنت مشترك في هذا الكورس
+                </div>
+              ) : (
+                <button 
+                  onClick={handleEnroll}
+                  className="bg-emerald-500 text-white border-none py-3 px-8 rounded-xl text-base font-bold inline-block cursor-pointer hover:bg-emerald-600 transition-all shadow-[0_5px_15px_rgba(16,185,129,0.3)] hover:-translate-y-0.5"
+                >
+                  <i className="fas fa-cart-plus ml-2"></i> اشترك الآن {course?.is_free === 1 ? '(مجاناً)' : `(${course?.price || 0} ج.م)`}
+                </button>
+              )}
               
               {course?.instructor_contact && (
                 <a 
@@ -813,25 +869,27 @@ export default function Course() {
             const isCompleted = completedLessons.has(lesson.id);
             const isExpanded = expandedLesson === lesson.id;
             
-            const videoUrls = lesson.video_url.split(/[,|\s]+/).filter(url => url.trim() !== '');
+            // في حالة عدم الاشتراك، سيكون video_url فارغاً من السيرفر. نضع رابطاً وهمياً لكي يظهر عنصر واحد مغلق بدلاً من لا شيء.
+            const rawVideoUrls = lesson.video_url ? lesson.video_url.split(/[,|\s]+/).filter(url => url.trim() !== '') : [];
+            const displayVideoUrls = rawVideoUrls.length > 0 ? rawVideoUrls : ['LOCKED'];
             
             return (
               <div 
                 key={lesson.id}
                 className={`bg-white rounded-2xl shadow-[0_4px_15px_rgba(0,0,0,0.05)] overflow-hidden transition-all border-2 ${
-                  isCompleted ? 'border-success' : locked ? 'border-slate-300 opacity-70' : 'border-transparent hover:-translate-y-0.5 hover:shadow-[0_8px_25px_rgba(0,0,0,0.08)]'
+                  isCompleted ? 'border-success' : locked && isUserEnrolled ? 'border-slate-300 opacity-70' : 'border-transparent hover:-translate-y-0.5 hover:shadow-[0_8px_25px_rgba(0,0,0,0.08)]'
                 }`}
               >
                 <div 
                   className={`p-6 flex justify-between items-center cursor-pointer transition-all select-none ${
-                    isCompleted ? 'bg-success/5' : locked ? 'bg-slate-50 cursor-not-allowed' : 'bg-white'
+                    isCompleted ? 'bg-success/5' : locked && isUserEnrolled ? 'bg-slate-50 cursor-not-allowed' : 'bg-white'
                   }`}
                   onClick={() => toggleAccordion(lesson.id, index)}
                 >
                   <div className="flex flex-col gap-1.5 flex-1 pl-4">
                     <div className="text-2xl font-bold text-text-main flex items-center gap-2.5">
-                      <i className={`${locked ? 'fas fa-lock' : 'fas fa-border-all'} ${isCompleted ? 'text-success' : locked ? 'text-text-muted' : 'text-red-500'} text-[35px] ml-4 opacity-80`}></i>
-                      المحاضرة {index + 1} {locked && <span className="text-danger text-sm">({lesson.is_admin_locked === 1 ? 'مغلقة من الإدارة' : 'مقفولة تتابعياً'})</span>}
+                      <i className={`${locked && isUserEnrolled ? 'fas fa-lock' : 'fas fa-border-all'} ${isCompleted ? 'text-success' : locked && isUserEnrolled ? 'text-text-muted' : 'text-red-500'} text-[35px] ml-4 opacity-80`}></i>
+                      المحاضرة {index + 1} {locked && isUserEnrolled && <span className="text-danger text-sm">({lesson.is_admin_locked === 1 ? 'مغلقة من الإدارة' : 'مقفولة تتابعياً'})</span>}
                     </div>
                     <div className="text-[15px] text-text-muted leading-relaxed">{lesson.title}</div>
                   </div>
@@ -842,28 +900,31 @@ export default function Course() {
                 
                 <div className={`overflow-hidden transition-all duration-400 ${isExpanded ? 'max-h-[1000px]' : 'max-h-0'}`}>
                   <div className="p-5 flex flex-col gap-4 bg-[#fdfdfd] border-t border-border">
-                    {videoUrls.map((vUrl, vIdx) => {
-                      const isVideoCompleted = completedVideos.has(`${lesson.id}_${vIdx}`) || isCompleted;
-                      const isActiveVideo = ytDataRef.current.lesson?.id === lesson.id && ytDataRef.current.vIdx === vIdx && activeLessonId !== null;
+                    {displayVideoUrls.map((vUrl, vIdx) => {
+                      const isVideoCompleted = isUserEnrolled && (completedVideos.has(`${lesson.id}_${vIdx}`) || isCompleted);
+                      const isActiveVideo = isUserEnrolled && (ytDataRef.current.lesson?.id === lesson.id && ytDataRef.current.vIdx === vIdx && activeLessonId !== null);
                       
                       return (
                         <div 
                           key={vIdx}
-                          onClick={() => locked ? toast.warning(message) : openVideo(lesson, vUrl, vIdx, videoUrls.length)}
+                          onClick={() => !isUserEnrolled ? toast.warning('يرجى الاشتراك في الكورس لمشاهدة المحاضرات.') : locked ? toast.warning(message) : openVideo(lesson, vUrl, vIdx, displayVideoUrls.length)}
                           className={`p-4 px-6 rounded-xl flex justify-between items-center cursor-pointer transition-all hover:-translate-x-1 font-bold text-lg ${
-                            isVideoCompleted 
-                              ? 'bg-success/10 border border-success/30 text-success' 
-                              : isActiveVideo 
-                                ? 'bg-primary/10 border border-primary text-primary shadow-[0_5px_15px_rgba(1,86,105,0.15)]'
-                                : 'bg-warning/10 border border-warning/30 hover:shadow-[0_5px_15px_rgba(245,158,11,0.15)] text-red-500'
+                            !isUserEnrolled 
+                              ? 'bg-slate-100 border border-slate-200 text-slate-500'
+                              : isVideoCompleted 
+                                ? 'bg-success/10 border border-success/30 text-success' 
+                                : isActiveVideo 
+                                  ? 'bg-primary/10 border border-primary text-primary shadow-[0_5px_15px_rgba(1,86,105,0.15)]'
+                                  : 'bg-warning/10 border border-warning/30 hover:shadow-[0_5px_15px_rgba(245,158,11,0.15)] text-red-500'
                           }`}
                         >
                           <div className="flex items-center gap-4">
-                            <i className={`${isVideoCompleted ? 'fas fa-circle-check' : isActiveVideo ? 'fas fa-circle-play fa-fade' : 'fas fa-video'} text-2xl`}></i>
-                            <span>جزء الشرح والتدريبات{videoUrls.length > 1 ? ` (الجزء ${vIdx + 1})` : ''}</span>
+                            <i className={`${!isUserEnrolled ? 'fas fa-lock' : isVideoCompleted ? 'fas fa-circle-check' : isActiveVideo ? 'fas fa-circle-play fa-fade' : 'fas fa-video'} text-2xl`}></i>
+                            <span>جزء الشرح والتدريبات{displayVideoUrls.length > 1 ? ` (الجزء ${vIdx + 1})` : ''}</span>
                           </div>
                           <span className="text-sm text-text-main bg-white py-1.5 px-3 rounded-lg border border-border flex items-center gap-1.5">
-                            {isVideoCompleted ? 'تمت المشاهدة' : isActiveVideo ? 'يتم العرض الآن' : 'مشاهدة الفيديو'} {isVideoCompleted ? '' : <i className="fas fa-play text-xs"></i>}
+                            {!isUserEnrolled ? 'مغلق للمشتركين' : isVideoCompleted ? 'تمت المشاهدة' : isActiveVideo ? 'يتم العرض الآن' : 'مشاهدة الفيديو'} 
+                            {isUserEnrolled && !isVideoCompleted && <i className="fas fa-play text-xs"></i>}
                           </span>
                         </div>
                       );
@@ -871,15 +932,19 @@ export default function Course() {
                     
                     {lesson.hasQuiz && (
                       <div 
-                        onClick={() => locked ? toast.warning(message) : openExam(lesson)}
-                        className={`bg-danger/10 border border-danger/30 p-4 px-6 rounded-xl flex justify-between items-center cursor-pointer transition-all hover:-translate-x-1 hover:shadow-[0_5px_15px_rgba(239,68,68,0.15)] font-bold text-red-500 text-lg ${isCompleted ? 'bg-success/10 border-success/30 text-success' : ''}`}
+                        onClick={() => !isUserEnrolled ? toast.warning('يرجى الاشتراك في الكورس لفتح الامتحان.') : locked ? toast.warning(message) : openExam(lesson)}
+                        className={`p-4 px-6 rounded-xl flex justify-between items-center cursor-pointer transition-all hover:-translate-x-1 font-bold text-lg ${
+                          !isUserEnrolled ? 'bg-slate-100 border border-slate-200 text-slate-500' :
+                          isCompleted ? 'bg-success/10 border border-success/30 text-success' :
+                          'bg-danger/10 border border-danger/30 hover:shadow-[0_5px_15px_rgba(239,68,68,0.15)] text-red-500'
+                        }`}
                       >
                         <div className="flex items-center gap-4">
-                          <i className={`${isCompleted ? 'fas fa-circle-check' : 'fas fa-file-pen'} text-2xl`}></i>
+                          <i className={`${!isUserEnrolled ? 'fas fa-lock' : isCompleted ? 'fas fa-circle-check' : 'fas fa-file-pen'} text-2xl`}></i>
                           <span>امتحان المحاضرة</span>
                         </div>
                         <span className="text-sm text-text-main bg-white py-1.5 px-3 rounded-lg border border-border flex items-center gap-1.5">
-                          {isCompleted ? 'مكتمل' : 'دخول الامتحان'}
+                          {!isUserEnrolled ? 'مغلق للمشتركين' : isCompleted ? 'مكتمل' : 'دخول الامتحان'}
                         </span>
                       </div>
                     )}
@@ -892,7 +957,7 @@ export default function Course() {
       </div>
 
       {/* Exam Modal */}
-      {showExamModal && activeExamLesson && (
+      {showExamModal && activeExamLesson && isUserEnrolled && (
         <div className="fixed top-0 left-0 w-full h-full bg-slate-50/95 z-[2000] flex flex-col overflow-hidden select-none">
           <div id="anti-cheat-overlay" className="absolute top-0 left-0 w-full h-full bg-black text-white z-[3000] hidden flex-col justify-center items-center text-center p-5" onClick={(e) => { (e.currentTarget as HTMLDivElement).style.display = 'none'; }}>
             <i className="fas fa-shield-halved text-[80px] text-red-500 mb-5"></i>
@@ -926,11 +991,9 @@ export default function Course() {
                 )}
                 
                 <div className="grid grid-cols-1 gap-4 w-full max-w-[600px]">
-                  {/* 💡 التعديل هنا: التوافق مع أسئلة (الصح والخطأ) أو (الاختياري من 4) ديناميكياً */}
+                  {/* 💡 التوافق مع أسئلة (الصح والخطأ) أو (الاختياري من 4) ديناميكياً */}
                   {(() => {
                     const currentQ = quizQuestions[currentQIndex];
-                    // تحديد ما إذا كان السؤال يحتوي على خيارين فقط (مثلاً صح وخطأ) 
-                    // إما من خلال حقل type أو من خلال عدم وجود بيانات في الخيار C و D
                     const isTrueFalse = (currentQ as any)?.type === 'true_false' || (!currentQ?.option_c && !currentQ?.option_d);
                     const optionsList = isTrueFalse ? ['A', 'B'] : ['A', 'B', 'C', 'D'];
 
