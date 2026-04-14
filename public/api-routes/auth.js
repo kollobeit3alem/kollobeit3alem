@@ -189,12 +189,14 @@ export async function verifyStudentSession(request, env) {
         return { userId: sessionData.userId, role: cached.role };
       }
       if (cached && cached.sessionId !== sessionData.sessionId) {
+        // الإشارة السرية للتحول لوضع زائر
         return { error: "تم تسجيل الدخول من جهاز آخر.", status: 403, invalidSession: true };
       }
     }
 
     const user = await env.DB.prepare("SELECT role, session_id FROM users WHERE id = ?").bind(sessionData.userId).first();
     if (!user || user.session_id !== sessionData.sessionId) {
+      // الإشارة السرية للتحول لوضع زائر
       return { error: "تم تسجيل الدخول من جهاز آخر.", status: 403, invalidSession: true };
     }
 
@@ -231,7 +233,7 @@ export async function handleAuthRoutes(request, env, path, url) {
     let user = await env.DB.prepare("SELECT * FROM users WHERE email = ?").bind(payload.email).first();
 
     if (!user) {
-      // 🛡️ التعديل هنا: تمت إزالة wallet_balance من عملية الإدخال
+      // 🛡️ تم الإدخال بدون wallet_balance
       const insertInfo = await env.DB.prepare(
         "INSERT INTO users (google_id, name, email, avatar_url, session_id) VALUES (?, ?, ?, ?, ?) RETURNING *"
       ).bind(payload.sub, payload.name, payload.email, payload.picture, newSessionId).first();
