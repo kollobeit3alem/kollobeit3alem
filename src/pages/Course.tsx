@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { useAuth, apiCall } from '@/contexts/AuthContext';
+import { useAuth, apiCall, publicApiCall } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { Course, Lesson, QuizQuestion } from '@/types';
 
@@ -157,6 +157,9 @@ export default function Course() {
         } catch (error) {
           handleApiError(error);
         }
+      } else {
+        // لو مش مسجل دخول، أكيد مش مشترك
+        setIsUserEnrolled(false);
       }
     };
     verifyAndLoadProgress();
@@ -177,27 +180,36 @@ export default function Course() {
     saveProgressLocally();
   }, [completedLessons, completedVideos, saveProgressLocally]);
 
+  // التعديل 1: استخدام publicApiCall لجلب بيانات الكورس للجميع
   const fetchCourseDetails = useCallback(async () => {
-    if (!token || !courseId) return;
+    if (!courseId) return;
     try {
-      const courses = (await apiCall('/api/courses', token)) as Course[];
+      const courses = (await publicApiCall('/api/courses')) as Course[];
       const foundCourse = courses.find(c => c.id === parseInt(courseId as string));
       if (foundCourse) setCourse(foundCourse);
     } catch (error) {
       handleApiError(error);
     }
-  }, [token, courseId, handleApiError]);
+  }, [courseId, handleApiError]);
 
+  // التعديل 2: جلب المحاضرات للجميع (الزوار والمشتركين)
   const fetchLessons = useCallback(async () => {
-    if (!token || !courseId) return;
+    if (!courseId) return;
     try {
-      const lessonsData = (await apiCall(`/api/courses/${courseId}/lessons`, token)) as Lesson[];
+      // جلب المحاضرات كزائر أو مستخدم حسب المتاح
+      const fetcher = token ? (url: string) => apiCall(url, token) : publicApiCall;
+      const lessonsData = (await fetcher(`/api/courses/${courseId}/lessons`)) as Lesson[];
       
       const lessonsWithQuiz = await Promise.all(
         lessonsData.map(async (lesson) => {
           try {
-            const quizData = (await apiCall(`/api/lessons/${lesson.id}/quiz`, token)) as QuizQuestion[];
-            return { ...lesson, hasQuiz: quizData.length > 0, quizData };
+            if (token) {
+              const quizData = (await apiCall(`/api/lessons/${lesson.id}/quiz`, token)) as QuizQuestion[];
+              return { ...lesson, hasQuiz: quizData.length > 0, quizData };
+            } else {
+              // لو زائر، نفترض أن هناك امتحان لعرض الزر للتشويق (سيُطلب منه الدخول عند الضغط)
+              return { ...lesson, hasQuiz: true, quizData: [] };
+            }
           } catch {
             return { ...lesson, hasQuiz: false, quizData: [] };
           }
@@ -209,18 +221,15 @@ export default function Course() {
     } finally {
       setIsLoading(false);
     }
-  }, [token, courseId, handleApiError]);
+  }, [courseId, token, handleApiError]);
 
+  // التعديل 3: إزالة شرط الطرد للمستخدمين غير المسجلين
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/');
-      return;
-    }
     if (courseId && !sessionExpired) {
       fetchCourseDetails();
       fetchLessons();
     }
-  }, [isAuthenticated, courseId, navigate, fetchCourseDetails, fetchLessons, sessionExpired]);
+  }, [courseId, fetchCourseDetails, fetchLessons, sessionExpired]);
 
   useEffect(() => {
     const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
@@ -243,6 +252,11 @@ export default function Course() {
 
   // إظهار مودال تأكيد الاشتراك (بدلاً من الألرت المزعج)
   const handleEnrollClick = () => {
+    if (!isAuthenticated) {
+      toast.info('يرجى تسجيل الدخول أولاً للاشتراك في هذه الدورة.');
+      navigate('/login');
+      return;
+    }
     if (!token || !course) return;
     setShowEnrollConfirmModal(true);
   };
@@ -282,7 +296,7 @@ export default function Course() {
 
   const isLessonLocked = (lesson: Lesson, index: number): { locked: boolean; message: string } => {
     // إذا كان غير مشترك، المحاضرة لا تعتبر مغلقة تتابعياً بل فقط تتطلب اشتراك
-    if (!isUserEnrolled) return { locked: false, message: '' };
+    if (!isAuthenticated || !isUserEnrolled) return { locked: false, message: '' };
     
     if (lesson.is_admin_locked === 1) return { locked: true, message: 'هذه المحاضرة مغلقة حالياً من الإدارة.' };
     if (index > 0) {
@@ -310,6 +324,11 @@ export default function Course() {
   };
 
   const openVideo = (lesson: Lesson, videoUrl: string, vIdx: number, vTotal: number) => {
+    if (!isAuthenticated) {
+      toast.info('يرجى تسجيل الدخول والاشتراك في الكورس لمشاهدة المحاضرات.');
+      navigate('/login');
+      return;
+    }
     if (!isUserEnrolled) {
       toast.error('يرجى الاشتراك في الكورس أولاً لتتمكن من مشاهدة الفيديوهات.');
       return;
@@ -529,6 +548,11 @@ export default function Course() {
   };
 
   const openExam = (lesson: Lesson) => {
+    if (!isAuthenticated) {
+      toast.info('يرجى تسجيل الدخول والاشتراك في الكورس لفتح الامتحان.');
+      navigate('/login');
+      return;
+    }
     if (!isUserEnrolled) {
       toast.error('يرجى الاشتراك في الكورس أولاً لفتح الامتحان.');
       return;
@@ -657,7 +681,7 @@ export default function Course() {
   const handleForceLogout = () => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_info');
-    navigate('/');
+    navigate('/login');
     window.location.reload();
   };
 
@@ -697,8 +721,6 @@ export default function Course() {
     // تجاهل الخطأ في حالة عدم وجود بيانات إضافية
   }
 
-  if (!user) return null;
-
   return (
     <div className="min-h-screen bg-page-bg flex flex-col relative" id="top-section" onContextMenu={(e) => e.preventDefault()}>
       
@@ -729,10 +751,21 @@ export default function Course() {
           <img src="/logo.png" alt="شعار المنصة" className="h-10 rounded-lg" />
           <h1 className="text-xl text-primary font-bold">كله بيتعلم</h1>
         </Link>
-        <div className="flex items-center gap-2.5 font-bold text-text-main bg-page-bg py-1.5 px-4 pl-1.5 rounded-[30px] border border-border">
-          <span>{user.name.split(' ')[0]}</span>
-          {user.avatar_url && (
-            <img src={user.avatar_url} alt="الصورة الشخصية" className="w-9 h-9 rounded-full border-2 border-primary object-cover" />
+        <div className="flex items-center gap-3 md:gap-4">
+          {isAuthenticated && user ? (
+            <div className="flex items-center gap-2.5 font-bold text-text-main bg-page-bg py-1.5 px-4 pl-1.5 rounded-[30px] border border-border">
+              <span>{user.name.split(' ')[0]}</span>
+              {user.avatar_url && (
+                <img src={user.avatar_url} alt="الصورة الشخصية" className="w-9 h-9 rounded-full border-2 border-primary object-cover" />
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={() => navigate('/login')}
+              className="bg-primary text-white py-2 px-6 rounded-xl font-bold transition-all hover:bg-primary/90 flex items-center gap-2"
+            >
+              <i className="fas fa-sign-in-alt" /> سجّل دخولك
+            </button>
           )}
         </div>
       </header>
@@ -831,7 +864,7 @@ export default function Course() {
                   textShadow: '1px 1px 2px rgba(0,0,0,0.1)' 
                 }}
               >
-                {user.email}
+                {user?.email || 'زائر'}
               </div>
 
               {/* طبقة حماية شفافة لالتقاط نقرات التشغيل/الإيقاف وحماية الفيديو من السرقة */}
@@ -926,7 +959,7 @@ export default function Course() {
                       return (
                         <div 
                           key={vIdx}
-                          onClick={() => !isUserEnrolled ? toast.warning('يرجى الاشتراك في الكورس لمشاهدة المحاضرات.') : locked ? toast.warning(message) : openVideo(lesson, vUrl, vIdx, displayVideoUrls.length)}
+                          onClick={() => !isAuthenticated ? toast.info('يرجى تسجيل الدخول والاشتراك لمشاهدة المحاضرات.') : !isUserEnrolled ? toast.warning('يرجى الاشتراك في الكورس لمشاهدة المحاضرات.') : locked ? toast.warning(message) : openVideo(lesson, vUrl, vIdx, displayVideoUrls.length)}
                           className={`p-4 px-6 rounded-xl flex justify-between items-center cursor-pointer transition-all hover:-translate-x-1 font-bold text-lg ${
                             !isUserEnrolled 
                               ? 'bg-slate-100 border border-slate-200 text-slate-500'
@@ -951,7 +984,7 @@ export default function Course() {
                     
                     {lesson.hasQuiz && (
                       <div 
-                        onClick={() => !isUserEnrolled ? toast.warning('يرجى الاشتراك في الكورس لفتح الامتحان.') : locked ? toast.warning(message) : openExam(lesson)}
+                        onClick={() => !isAuthenticated ? toast.info('يرجى تسجيل الدخول والاشتراك لفتح الامتحان.') : !isUserEnrolled ? toast.warning('يرجى الاشتراك في الكورس لفتح الامتحان.') : locked ? toast.warning(message) : openExam(lesson)}
                         className={`p-4 px-6 rounded-xl flex justify-between items-center cursor-pointer transition-all hover:-translate-x-1 font-bold text-lg ${
                           !isUserEnrolled ? 'bg-slate-100 border border-slate-200 text-slate-500' :
                           isCompleted ? 'bg-success/10 border border-success/30 text-success' :
