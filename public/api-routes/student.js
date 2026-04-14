@@ -2,85 +2,6 @@ import { getCorsHeaders } from './utils.js';
 import { verifyStudentSession } from './auth.js';
 
 // ============================================================================
-// التحسين: Two-Tier Rate Limiter (استراتيجية Gemini)
-// الطبقة 1: ذاكرة الـ Worker (مجانية تماماً) — تمسك الـ Spam في 10 ثواني
-// الطبقة 2: KV (مرجع مشترك بين كل الـ instances) — تطبق الحظر الفعلي
-// بهذا الأسلوب: Bot يضغط 100 مرة = نمسكه من الذاكرة بدون إرسال أي طلب لـ KV
-// ============================================================================
-const memoryAttempts = new Map(); // الطبقة 1: ذاكرة مؤقتة سريعة ومجانية
-const MAX_ATTEMPTS = 5;
-const LOCKOUT_SECONDS = 15 * 60; // 15 دقيقة
-const MEMORY_WINDOW_MS = 10 * 1000; // 10 ثواني — نافذة الذاكرة المحلية
-
-// ============================================================================
-// دالة فحص Rate Limit — الطبقتين معاً
-// ============================================================================
-async function checkRateLimit(userId, env) {
-  const now = Date.now();
-  const memKey = `${userId}`;
-
-  // --- الطبقة 1: فحص الذاكرة المحلية (مجاني تماماً) ---
-  const memData = memoryAttempts.get(memKey) || { count: 0, firstAttempt: now, blocked: false };
-
-  // لو الـ instance المحلي شايفه محظور خلال الـ 10 ثواني الأخيرة، نرفضه فوراً
-  if (memData.blocked && (now - memData.blockTime) < MEMORY_WINDOW_MS) {
-    return { allowed: false, source: 'memory', minutesLeft: Math.ceil(LOCKOUT_SECONDS / 60) };
-  }
-
-  // لو فات أكتر من 10 ثواني، نصفر العداد المحلي
-  if ((now - memData.firstAttempt) > MEMORY_WINDOW_MS) {
-    memoryAttempts.delete(memKey);
-  }
-
-  // --- الطبقة 2: فحص KV (المرجع الموثوق المشترك بين كل الـ instances) ---
-  if (env.COURSES_CACHE) {
-    const kvData = await env.COURSES_CACHE.get(`rate_limit:charge:${userId}`, { type: 'json' });
-    if (kvData && kvData.lockoutUntil > now) {
-      const minutesLeft = Math.ceil((kvData.lockoutUntil - now) / 60000);
-      // نحدث الذاكرة المحلية عشان الطلبات الجاية تتمسك من الذاكرة مجاناً
-      memoryAttempts.set(memKey, { count: MAX_ATTEMPTS, firstAttempt: now, blocked: true, blockTime: now });
-      return { allowed: false, source: 'kv', minutesLeft };
-    }
-  }
-
-  return { allowed: true };
-}
-
-// دالة تسجيل محاولة خاطئة
-async function recordFailedAttempt(userId, env) {
-  const now = Date.now();
-  const memKey = `${userId}`;
-
-  // تحديث الذاكرة المحلية
-  const memData = memoryAttempts.get(memKey) || { count: 0, firstAttempt: now, blocked: false };
-  memData.count += 1;
-
-  // إذا تجاوز الحد في الذاكرة، نسجل في KV ونطبق الحظر الفعلي
-  if (memData.count >= MAX_ATTEMPTS) {
-    memData.blocked = true;
-    memData.blockTime = now;
-    if (env.COURSES_CACHE) {
-      await env.COURSES_CACHE.put(
-        `rate_limit:charge:${userId}`,
-        JSON.stringify({ lockoutUntil: now + (LOCKOUT_SECONDS * 1000), count: MAX_ATTEMPTS }),
-        { expirationTtl: LOCKOUT_SECONDS + 60 }
-      );
-    }
-  }
-
-  memoryAttempts.set(memKey, memData);
-  return memData.count;
-}
-
-// دالة مسح محاولات المستخدم بعد نجاح الشحن
-async function clearRateLimit(userId, env) {
-  memoryAttempts.delete(`${userId}`);
-  if (env.COURSES_CACHE) {
-    await env.COURSES_CACHE.delete(`rate_limit:charge:${userId}`);
-  }
-}
-
-// ============================================================================
 // دالة مساعدة: Cache API (استراتيجية Gemini) — لكاش البيانات العامة مجاناً
 // Cloudflare Cache API مجانية تماماً وتعمل على كل الـ CDN nodes
 // ============================================================================
@@ -199,7 +120,7 @@ export async function handleStudentRoutes(request, env, path, url) {
 
     const userId = authCheck.userId;
 
-    // التحسين: Cache API للـ dashboard (بيانات شخصية لا تتغير كثيراً)
+    // التحسين: Cache API للـ dashboard
     const dashCacheKey = `https://cache.internal/dashboard/${userId}`;
     const cachedDash = await getCacheAPIResponse(dashCacheKey);
     if (cachedDash) {
@@ -207,8 +128,8 @@ export async function handleStudentRoutes(request, env, path, url) {
       return new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json", ...ch } });
     }
 
-    const userRecord = await env.DB.prepare("SELECT wallet_balance FROM users WHERE id = ?").bind(userId).first();
-    const walletBalance = userRecord ? userRecord.wallet_balance : 0;
+    // أبقينا على متغير المحفظة بـ 0 حتى لا يحدث خطأ في الواجهة الأمامية
+    const walletBalance = 0; 
 
     const enrollments = await env.DB.prepare("SELECT course_id FROM enrollments WHERE user_id = ?").bind(userId).all();
     const totalCourses = enrollments.results.length;
@@ -231,62 +152,10 @@ export async function handleStudentRoutes(request, env, path, url) {
       enrolledCourses: enrolledCourses.results
     };
 
-    // كاش الـ dashboard لمدة 2 دقيقة (120 ثانية) — مجاناً عبر Cache API
+    // كاش الـ dashboard لمدة 2 دقيقة (120 ثانية)
     await putCacheAPIResponse(dashCacheKey, dashData, 120);
 
     return new Response(JSON.stringify(dashData), { headers: { "Content-Type": "application/json", ...ch } });
-  }
-
-  // ============================================================================
-  // شحن المحفظة بالأكواد — محمي بـ Two-Tier Rate Limiter
-  // ============================================================================
-  if (path === "/api/wallet/charge" && request.method === "POST") {
-    const authCheck = await verifyStudentSession(request, env);
-    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...ch } });
-
-    const userId = authCheck.userId;
-
-    // فحص الـ Rate Limit بالطبقتين
-    const rateCheck = await checkRateLimit(userId, env);
-    if (!rateCheck.allowed) {
-      return new Response(JSON.stringify({
-        error: `لقد تجاوزت الحد الأقصى للمحاولات الخاطئة. يرجى المحاولة بعد ${rateCheck.minutesLeft} دقيقة.`
-      }), { status: 429, headers: { "Content-Type": "application/json", ...ch } });
-    }
-
-    const body = await request.json();
-    const code = body.code;
-
-    if (!code) return new Response(JSON.stringify({ error: "كود الشحن مطلوب" }), { status: 400, headers: { "Content-Type": "application/json", ...ch } });
-
-    // Atomic Update — يحمي من Race Condition
-    const activationCode = await env.DB.prepare(`
-      UPDATE activation_codes 
-      SET is_used = 1, used_by = ?, used_at = CURRENT_TIMESTAMP 
-      WHERE code = ? AND is_used = 0 
-      RETURNING id, amount
-    `).bind(userId, code).first();
-
-    if (!activationCode) {
-      const attemptCount = await recordFailedAttempt(userId, env);
-      const remaining = Math.max(0, MAX_ATTEMPTS - attemptCount);
-      const errorMsg = remaining === 0
-        ? `تم حظر ميزة الشحن لمدة 15 دقيقة بسبب كثرة المحاولات الخاطئة.`
-        : `الكود غير صحيح أو تم استخدامه مسبقاً. (يتبقى لك ${remaining} محاولات)`;
-
-      return new Response(JSON.stringify({ error: errorMsg }), { status: 400, headers: { "Content-Type": "application/json", ...ch } });
-    }
-
-    // نجاح: تصفير عداد المحاولات
-    await clearRateLimit(userId, env);
-
-    await env.DB.prepare(
-      "UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?"
-    ).bind(activationCode.amount, userId).run();
-
-    const updatedUser = await env.DB.prepare("SELECT wallet_balance FROM users WHERE id = ?").bind(userId).first();
-
-    return new Response(JSON.stringify({ success: true, newBalance: updatedUser.wallet_balance, addedAmount: activationCode.amount }), { headers: { "Content-Type": "application/json", ...ch } });
   }
 
   // ============================================================================
