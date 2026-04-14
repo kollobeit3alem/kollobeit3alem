@@ -15,16 +15,10 @@ export default function Courses() {
   const [isLoading, setIsLoading] = useState(true);
   const [walletBalance, setWalletBalance] = useState<number>(0);
 
-  // Payment Modal (للمستخدمين المسجلين فقط لتأكيد الدفع)
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-
   // Phone Modal
   const [showPhoneModal, setShowPhoneModal] = useState(false);
   const [phoneInput, setPhoneInput] = useState('');
   const [isSavingPhone, setIsSavingPhone] = useState(false);
-
-  const [isEnrolling, setIsEnrolling] = useState(false);
 
   // إظهار مودال التليفون إذا كان المستخدم مسجل دخول ولا يملك رقم هاتف
   useEffect(() => {
@@ -82,45 +76,6 @@ export default function Courses() {
     }
   }, [token, fetchEnrollments, fetchWalletData]);
 
-  // دالة الاشتراك
-  const handleEnroll = async (courseId: number, coursePrice: number = 0) => {
-    // لو مش مسجل دخول → يتم توجيهه لصفحة تسجيل الدخول
-    if (!isAuthenticated || !token) {
-      navigate('/login');
-      return;
-    }
-
-    setIsEnrolling(true);
-    try {
-      await apiCall('/api/enroll', token, 'POST', { course_id: courseId });
-      setEnrolledCourseIds(prev => [...prev, courseId]);
-      if (coursePrice > 0) {
-        setWalletBalance(prev => prev - coursePrice);
-      }
-      toast.success('تم الاشتراك بنجاح!');
-      navigate(`/course?id=${courseId}`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'فشل الاشتراك. تأكد من رصيد محفظتك.');
-    } finally {
-      setIsEnrolling(false);
-    }
-  };
-
-  const openPaymentModal = (course: Course) => {
-    // لو مش مسجل دخول → يتم توجيهه لصفحة تسجيل الدخول بدلاً من المودال
-    if (!isAuthenticated || !token) {
-      navigate('/login');
-      return;
-    }
-    setSelectedCourse(course);
-    setShowPaymentModal(true);
-  };
-
-  const closePaymentModal = () => {
-    setShowPaymentModal(false);
-    setSelectedCourse(null);
-  };
-
   const handleSavePhone = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) return;
@@ -145,7 +100,7 @@ export default function Courses() {
     }
   };
 
-  // تحديد زر الكورس بناءً على حالة الاشتراك
+  // 💡 التعديل هنا: توجيه كل الكروت لصفحة الكورس للسماح بتصفح الفهرس
   const getCourseAction = (course: Course) => {
     const isEnrolled = isAuthenticated && enrolledCourseIds.includes(course.id);
     const isFree = course.is_free === 1;
@@ -153,31 +108,28 @@ export default function Courses() {
     if (isEnrolled) {
       return {
         badge: <span className="badge-enrolled absolute top-4 right-4 shadow-lg z-10"><i className="fas fa-check-circle ml-1" /> مشترك</span>,
-        button: <button className="bg-primary/10 text-primary px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all group-hover:bg-primary group-hover:text-white">دخول الكورس <i className="fas fa-arrow-left" /></button>,
+        button: <button className="bg-primary/10 text-primary px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all group-hover:bg-primary group-hover:text-white">متابعة التعلم <i className="fas fa-arrow-left" /></button>,
         action: () => navigate(`/course?id=${course.id}`),
       };
     } else if (isFree) {
       return {
         badge: <span className="badge-free absolute top-4 right-4 shadow-lg z-10">مجاني</span>,
         button: (
-          <button
-            disabled={isEnrolling}
-            className="bg-emerald-100 text-emerald-600 px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all group-hover:bg-emerald-500 group-hover:text-white disabled:opacity-50"
-          >
-            {!isAuthenticated ? <><i className="fas fa-lock ml-1" />اشترك مجاناً</> : <>اشترك مجاناً <i className="fas fa-bolt" /></>}
+          <button className="bg-emerald-100 text-emerald-600 px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all group-hover:bg-emerald-500 group-hover:text-white">
+            تصفح الكورس <i className="fas fa-eye ml-1" />
           </button>
         ),
-        action: () => !isEnrolling && handleEnroll(course.id, 0),
+        action: () => navigate(`/course?id=${course.id}`),
       };
     } else {
       return {
         badge: <span className="badge-paid absolute top-4 right-4 shadow-lg z-10">{course.price || 0} ج.م</span>,
         button: (
           <button className="bg-amber-100 text-amber-600 px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all group-hover:bg-amber-500 group-hover:text-white">
-            {!isAuthenticated ? <><i className="fas fa-lock ml-1" />شراء الكورس</> : <>شراء الكورس <i className="fas fa-shopping-cart" /></>}
+            تصفح الكورس <i className="fas fa-eye ml-1" />
           </button>
         ),
-        action: () => openPaymentModal(course),
+        action: () => navigate(`/course?id=${course.id}`),
       };
     }
   };
@@ -385,66 +337,6 @@ export default function Courses() {
             </div>
           )}
         </main>
-
-        {/* ============================================================ */}
-        {/* Payment Modal                                                */}
-        {/* ============================================================ */}
-        {showPaymentModal && selectedCourse && (
-          <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-[1000] backdrop-blur-sm px-4">
-            <div className="bg-white p-6 md:p-8 rounded-[20px] w-full max-w-[500px] shadow-modal relative">
-              <div className="flex justify-between items-center mb-5 pb-4 border-b border-border">
-                <h3 className="text-primary text-xl font-bold"><i className="fas fa-shopping-cart ml-2" /> تأكيد الاشتراك</h3>
-                <button onClick={closePaymentModal} className="bg-none border-none text-2xl text-red-500 cursor-pointer hover:text-red-600">
-                  <i className="fas fa-times" />
-                </button>
-              </div>
-              <div>
-                <div className="bg-slate-50 p-5 rounded-xl mb-6 border border-slate-200 shadow-sm">
-                  <div className="flex justify-between items-center mb-3">
-                    <span className="text-slate-600 font-bold">اسم الدورة:</span>
-                    <span className="text-primary font-bold text-left">{selectedCourse.title}</span>
-                  </div>
-                  <div className="flex justify-between items-center mb-3">
-                    <span className="text-slate-600 font-bold">تكلفة الدورة:</span>
-                    <span className="text-amber-600 font-bold text-lg">{selectedCourse.price || 0} ج.م</span>
-                  </div>
-                  <div className="flex justify-between items-center border-t border-slate-200 pt-3 mt-3">
-                    <span className="text-slate-600 font-bold">رصيد محفظتك الحالي:</span>
-                    <span className={`${walletBalance >= (selectedCourse.price || 0) ? 'text-emerald-600' : 'text-red-500'} font-bold text-lg`}>
-                      {walletBalance} ج.م
-                    </span>
-                  </div>
-                </div>
-                {walletBalance >= (selectedCourse.price || 0) ? (
-                  <div>
-                    <p className="text-sm text-slate-500 mb-4 text-center">سيتم خصم المبلغ من محفظتك فوراً وتفعيل الكورس على حسابك.</p>
-                    <button
-                      onClick={() => { handleEnroll(selectedCourse.id, selectedCourse.price || 0); closePaymentModal(); }}
-                      disabled={isEnrolling}
-                      className="bg-primary text-white border-none py-4 rounded-xl font-bold cursor-pointer text-base transition-all hover:shadow-[0_5px_15px_var(--primary-light)] hover:-translate-y-0.5 flex items-center justify-center gap-2 w-full disabled:opacity-50"
-                    >
-                      {isEnrolling ? <i className="fas fa-circle-notch fa-spin" /> : <i className="fas fa-check-circle" />}
-                      {isEnrolling ? 'جاري تأكيد الاشتراك...' : 'تأكيد الخصم والاشتراك'}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="animate-fade-in">
-                    <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-5 text-sm font-bold flex items-start gap-3 border border-red-100">
-                      <i className="fas fa-exclamation-triangle mt-1 text-lg" />
-                      <p className="m-0 leading-relaxed">عذراً، رصيد محفظتك لا يكفي. يرجى شحن المحفظة أولاً من صفحة حسابك.</p>
-                    </div>
-                    <Link
-                      to="/profile"
-                      className="bg-emerald-500 text-white border-none py-4 rounded-xl font-bold cursor-pointer text-base transition-all hover:bg-emerald-600 hover:-translate-y-0.5 shadow-sm flex items-center justify-center gap-2 w-full no-underline"
-                    >
-                      <i className="fas fa-wallet" /> الذهاب لشحن المحفظة
-                    </Link>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* ============================================================ */}
         {/* Phone Modal                                                  */}
