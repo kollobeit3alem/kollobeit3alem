@@ -40,61 +40,27 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
   return <>{children}</>;
 }
 
-// ============================================================================
-// AdminRedirectRoute — المسؤولون يُوجَّهون مباشرة للوحة التحكم إذا دخلوا /
-// ============================================================================
-function AdminRedirectRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user, isLoading } = useAuth();
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-page-bg">
-        <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  // لو مسجل دخول وعنده رتبة إدارية → وجّهه للوحة التحكم
-  if (isAuthenticated && user) {
-    if (user.role === 'admin') return <Navigate to="/admin" replace />;
-    if (user.role === 'instructor') return <Navigate to="/instructor" replace />;
-    if (user.role === 'assistant') return <Navigate to="/assistant" replace />;
-    // الطالب يبقى في صفحة الكورسات العامة عادي
-  }
-
-  return <>{children}</>;
-}
-
 function AppRoutes() {
   return (
     <Routes>
       {/* ================================================================ */}
-      {/* الصفحة الرئيسية = Courses (عامة للجميع بدون تسجيل دخول)         */}
-      {/* المسؤولون (admin/instructor/assistant) يُوجَّهون للوحة التحكم  */}
+      {/* الصفحة الرئيسية = Courses (عامة للجميع بدون طرد إجباري للمدرسين) */}
       {/* ================================================================ */}
       <Route
         path="/"
-        element={
-          <AdminRedirectRoute>
-            <Courses />
-          </AdminRedirectRoute>
-        }
+        element={<Courses />}
       />
 
       {/* ================================================================ */}
-      {/* /courses = نفس الصفحة الرئيسية (للتوافق مع الروابط القديمة)     */}
+      {/* /courses = نفس الصفحة الرئيسية (للتوافق مع الروابط القديمة)      */}
       {/* ================================================================ */}
       <Route
         path="/courses"
-        element={
-          <AdminRedirectRoute>
-            <Courses />
-          </AdminRedirectRoute>
-        }
+        element={<Courses />}
       />
 
       {/* ================================================================ */}
-      {/* صفحة الخصوصية — عامة للجميع وللروبوتات                          */}
+      {/* صفحة الخصوصية — عامة للجميع وللروبوتات                           */}
       {/* ================================================================ */}
       <Route path="/privacy" element={<Privacy />} />
 
@@ -116,7 +82,7 @@ function AppRoutes() {
       />
 
       {/* ================================================================ */}
-      {/* صفحة البروفايل — تتطلب تسجيل دخول                               */}
+      {/* صفحة البروفايل — تتطلب تسجيل دخول                                */}
       {/* ================================================================ */}
       <Route
         path="/profile"
