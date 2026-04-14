@@ -46,7 +46,7 @@ interface YTPlayer {
 export default function Course() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, token, isAuthenticated } = useAuth();
+  const { user, token, isAuthenticated, logout } = useAuth();
   
   const [course, setCourse] = useState<Course | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -62,6 +62,9 @@ export default function Course() {
   const [showEnrollConfirmModal, setShowEnrollConfirmModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentReference, setPaymentReference] = useState('');
+
+  // Session Expiry State
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   // Video Inline State
   const [activeLessonId, setActiveLessonId] = useState<number | null>(null);
@@ -105,20 +108,19 @@ export default function Course() {
   
   const courseId = searchParams.get('id');
 
-  // 💡 التعديل هنا: التحول الصامت لوضع الزائر بدون رسايل مزعجة
+  // 💡 التعديل هنا: التحول الصامت لوضع الزائر بدون أي ريفرش نهائياً
   const handleApiError = useCallback((error: any) => {
     const errorMsg = error?.message || '';
     if (errorMsg.includes('جهاز آخر') || errorMsg.includes('Session') || errorMsg.includes('Unauthorized') || errorMsg.includes('Invalid Token')) {
-      // إزالة بيانات الجلسة من المتصفح في صمت
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('user_info');
-      setIsUserEnrolled(false);
-      // إعادة تحميل صامتة للصفحة لكي يقوم السياق (Context) بتحديث الواجهة وتحويلها لزائر
-      window.location.reload();
+      if (token) {
+        // بمجرد استدعاء logout سيتم تحديث الواجهة فوراً وستتحول لزائر دون إعادة تحميل
+        logout();
+        setIsUserEnrolled(false);
+      }
     } else {
       console.error(error);
     }
-  }, []);
+  }, [token, logout]);
 
   useEffect(() => {
     const verifyAndLoadProgress = async () => {
