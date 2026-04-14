@@ -63,9 +63,6 @@ export default function Course() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentReference, setPaymentReference] = useState('');
 
-  // Session Expiry State
-  const [sessionExpired, setSessionExpired] = useState(false);
-
   // Video Inline State
   const [activeLessonId, setActiveLessonId] = useState<number | null>(null);
   const [activeVideoIndex, setActiveVideoIndex] = useState(0);
@@ -108,14 +105,14 @@ export default function Course() {
   
   const courseId = searchParams.get('id');
 
-  // 💡 التعديل هنا: التحول الصامت لوضع الزائر بدون أي ريفرش نهائياً
+  // معالجة الأخطاء وتنفيذ تسجيل الخروج الفوري عند اكتشاف جهاز آخر
   const handleApiError = useCallback((error: any) => {
     const errorMsg = error?.message || '';
     if (errorMsg.includes('جهاز آخر') || errorMsg.includes('Session') || errorMsg.includes('Unauthorized') || errorMsg.includes('Invalid Token')) {
       if (token) {
-        // بمجرد استدعاء logout سيتم تحديث الواجهة فوراً وستتحول لزائر دون إعادة تحميل
         logout();
         setIsUserEnrolled(false);
+        toast.error("تم فتح حسابك من جهاز آخر. تم تسجيل الخروج لحماية حسابك.");
       }
     } else {
       console.error(error);
