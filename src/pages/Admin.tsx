@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState, useCallback } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth, apiCall } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import type { Course, Lesson, QuizQuestion, User, ActivationCode } from '@/types';
+import type { Course, Lesson, QuizQuestion, User } from '@/types';
 
-// 💡 التعديل: إضافة نوع التبويب الجديد (failedExams)
-type TabType = 'courses' | 'lessons' | 'quizzes' | 'users' | 'staff' | 'codes' | 'failedExams';
+// 💡 التعديل: إزالة 'codes' وإضافة 'transactions' للتقارير المالية
+type TabType = 'courses' | 'lessons' | 'quizzes' | 'users' | 'staff' | 'transactions' | 'failedExams';
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -17,9 +17,10 @@ export default function Admin() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [codes, setCodes] = useState<ActivationCode[]>([]);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
-  // 💡 التعديل: حالة الامتحانات المعلقة
+  
+  // 💡 التعديل: حالات التقارير المالية والامتحانات المعلقة
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [failedExams, setFailedExams] = useState<any[]>([]);
   
   // Pagination & Search States
@@ -87,13 +88,25 @@ export default function Admin() {
     }
   }, [activeTab, token]);
 
+  // 💡 التعديل: جلب التقارير المالية
+  const loadTransactions = async () => {
+    if (!token) return;
+    try {
+      const data = await apiCall('/api/admin/transactions', token) as any[];
+      setTransactions(data);
+    } catch (error) {
+      console.error('Failed to load transactions:', error);
+      toast.error('فشل جلب التقارير المالية');
+    }
+  };
+
   useEffect(() => {
-    if (token && activeTab === 'codes') {
-      loadCodes();
+    if (token && activeTab === 'transactions') {
+      loadTransactions();
     }
   }, [activeTab, token]);
 
-  // 💡 التعديل: جلب بيانات الامتحانات المعلقة
+  // جلب بيانات الامتحانات المعلقة
   useEffect(() => {
     if (token && activeTab === 'failedExams') {
       loadFailedExams();
@@ -120,16 +133,6 @@ export default function Admin() {
     }
   };
 
-  const loadCodes = async () => {
-    if (!token) return;
-    try {
-      const data = await apiCall(`/api/admin/codes`, token) as ActivationCode[];
-      setCodes(data);
-    } catch (error) {
-      console.error('Failed to load codes:', error);
-    }
-  };
-
   const loadQuestions = async (lessonId: string) => {
     if (!token || !lessonId) return;
     try {
@@ -140,7 +143,6 @@ export default function Admin() {
     }
   };
 
-  // 💡 التعديل: دالة جلب الامتحانات المعلقة
   const loadFailedExams = async () => {
     if (!token) return;
     try {
@@ -288,29 +290,6 @@ export default function Admin() {
     }
   };
 
-  // Code handlers
-  const handleGenerateCodes = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!token) return;
-    const form = e.currentTarget;
-    const formData = new FormData(form);
-    try {
-      const count = parseInt(formData.get('count') as string);
-      const amount = parseFloat(formData.get('amount') as string);
-      
-      const res = await apiCall('/api/admin/codes', token, 'POST', {
-        amount: amount,
-        count: count,
-      }) as { codes: string[] };
-      
-      toast.success(`تم توليد ${count} كارت شحن بنجاح!\n\nيمكنك نسخها من الجدول بالأسفل.\n\nمثال لأحد الأكواد: ${res.codes[0]}`);
-      form.reset();
-      loadCodes();
-    } catch (error) {
-      toast.error('فشل توليد الأكواد');
-    }
-  };
-
   // User handlers
   const handleSearchUsers = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -442,7 +421,7 @@ export default function Admin() {
     <div className="min-h-screen bg-[#f4f7f9] flex overflow-x-hidden text-[#1e293b]" dir="rtl">
       {/* Sidebar */}
       <aside className={`w-[280px] bg-white border-l border-[#e2e8f0] flex flex-col py-[30px] px-5 shadow-[-5px_0_30px_rgba(0,0,0,0.02)] z-[100] transition-all duration-300 lg:relative fixed h-screen overflow-y-auto top-0 right-0 ${sidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`}>
-        <div className="flex items-center gap-4 mb-10 pb-5 border-b border-[#e2e8f0] justify-between">
+        <div className="flex items-center gap-4 mb-8 pb-5 border-b border-[#e2e8f0] justify-between">
           <div className="flex items-center gap-2.5">
             <img src="/logo.png" alt="Logo" className="w-[50px] rounded-xl" />
             <h2 className="text-[#015669] text-[22px] font-bold">الإدارة المركزية</h2>
@@ -451,6 +430,11 @@ export default function Admin() {
             <i className="fas fa-times"></i>
           </button>
         </div>
+        
+        {/* 💡 التعديل: زرار معاينة المنصة الجديد */}
+        <Link to="/" className="bg-[#e0f2fe] text-[#0284c7] border-none text-right p-4 rounded-xl cursor-pointer text-[15px] font-bold flex items-center gap-3 transition-all hover:bg-[#0284c7] hover:text-white mb-6 no-underline shadow-sm hover:shadow-md">
+          <i className="fas fa-external-link-alt text-xl w-6 text-center"></i> معاينة المنصة (كطالب)
+        </Link>
         
         <nav className="flex flex-col gap-2.5 flex-1">
           <button onClick={() => setActiveTab('courses')} className={`${navBtnBaseStyles} ${activeTab === 'courses' ? navBtnActiveStyles : ''}`}>
@@ -462,19 +446,23 @@ export default function Admin() {
           <button onClick={() => setActiveTab('quizzes')} className={`${navBtnBaseStyles} ${activeTab === 'quizzes' ? navBtnActiveStyles : ''}`}>
             <i className="fas fa-spell-check text-xl w-6 text-center"></i> الامتحانات
           </button>
+          
+          {/* 💡 التعديل: زرار التقارير المالية بدل كروت الشحن */}
+          <button onClick={() => setActiveTab('transactions')} className={`${navBtnBaseStyles} ${activeTab === 'transactions' ? navBtnActiveStyles : ''}`}>
+            <i className="fas fa-money-bill-wave text-xl w-6 text-center text-emerald-500"></i> التقارير المالية
+          </button>
+
           <button onClick={() => setActiveTab('users')} className={`${navBtnBaseStyles} ${activeTab === 'users' ? navBtnActiveStyles : ''}`}>
             <i className="fas fa-users text-xl w-6 text-center"></i> الطلاب والتقارير
           </button>
           <button onClick={() => setActiveTab('staff')} className={`${navBtnBaseStyles} ${activeTab === 'staff' ? navBtnActiveStyles : ''}`}>
             <i className="fas fa-user-tie text-xl w-6 text-center"></i> فريق العمل
           </button>
-          <button onClick={() => setActiveTab('codes')} className={`${navBtnBaseStyles} ${activeTab === 'codes' ? navBtnActiveStyles : ''}`}>
-            <i className="fas fa-wallet text-xl w-6 text-center"></i> كروت الشحن
-          </button>
-          {/* 💡 التعديل: زر الامتحانات المعلقة في الشريط الجانبي */}
+          
           <button onClick={() => setActiveTab('failedExams')} className={`${navBtnBaseStyles} ${activeTab === 'failedExams' ? navBtnActiveStyles : ''}`}>
-            <i className="fas fa-exclamation-triangle text-xl w-6 text-center"></i> درج العزل
+            <i className="fas fa-exclamation-triangle text-xl w-6 text-center text-amber-500"></i> درج العزل
           </button>
+
           <button onClick={handleLogout} className={`${navBtnBaseStyles} mt-auto !bg-[#fff1f2] !text-[#ef4444] hover:!bg-[#ef4444] hover:!text-white`}>
             <i className="fas fa-sign-out-alt text-xl w-6 text-center"></i> تسجيل الخروج
           </button>
@@ -885,64 +873,63 @@ export default function Admin() {
           </section>
         )}
 
-        {/* Codes Tab */}
-        {activeTab === 'codes' && (
+        {/* 💡 التعديل: تبويب التقارير المالية */}
+        {activeTab === 'transactions' && (
           <section className="animate-fade-in block">
             <h1 className="text-[28px] text-[#015669] mb-[30px] flex items-center gap-2.5">
-              <i className="fas fa-wallet"></i> إدارة كروت الشحن (المحفظة)
+              <i className="fas fa-money-bill-wave text-emerald-500"></i> التقارير المالية (بيموب)
             </h1>
-            <div className="bg-white p-[30px] rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] mb-[30px] border border-[rgba(0,0,0,0.02)]">
+            <div className="bg-white p-[30px] rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.02)] overflow-x-auto">
               <h3 className="text-[#015669] mb-[25px] text-[20px] border-r-4 border-[#015669] pr-2.5">
-                <i className="fas fa-plus-circle"></i> توليد كروت شحن جديدة
+                <i className="fas fa-list"></i> سجل العمليات الشرائية
               </h3>
-              <form onSubmit={handleGenerateCodes} className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                  <label className="block mb-2 font-bold text-[#1e293b]">قيمة كارت الشحن (بالجنيه)</label>
-                  <input type="number" name="amount" defaultValue="100" min="1" required className={inputStyles} />
-                </div>
-                <div>
-                  <label className="block mb-2 font-bold text-[#1e293b]">عدد الكروت المطلوبة</label>
-                  <input type="number" name="count" defaultValue="1" min="1" max="100" required className={inputStyles} />
-                </div>
-                <div className="md:col-span-2 mt-2">
-                  <button type="submit" className={btnSubmitStyles}><i className="fas fa-print"></i> توليد الكروت</button>
-                </div>
-              </form>
-            </div>
-            
-            <div className="bg-white p-[30px] rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.02)]">
-              <h3 className="text-[#015669] mb-[25px] text-[20px] border-r-4 border-[#015669] pr-2.5">
-                <i className="fas fa-list"></i> الكروت الحالية
-              </h3>
+              <p className="text-gray-500 mb-4 text-sm">
+                هذه القائمة تعرض أحدث عمليات الدفع التي تمت عبر بوابة (Paymob/فوري). يمكنك متابعة الحالات (قيد الانتظار أو ناجحة).
+              </p>
               
-              <div className="mt-[20px] overflow-x-auto">
-                <table className="w-full border-collapse mt-2.5">
-                  <thead>
-                    <tr>
-                      <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">كود الشحن</th>
-                      <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">القيمة</th>
-                      <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">الحالة</th>
-                      <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">تاريخ الاستخدام</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {codes.length === 0 ? (
-                      <tr><td colSpan={4} className="text-center p-[15px]">لا توجد أكواد حالياً.</td></tr>
-                    ) : (
-                      codes.map((code: any) => (
-                        <tr key={code.id} className="hover:bg-[#f8fafc] transition-colors">
-                          <td className="p-[15px] border-b border-[#e2e8f0]"><strong className="tracking-[2px] font-mono text-[16px]">{code.code}</strong></td>
-                          <td className="p-[15px] border-b border-[#e2e8f0] text-[#10b981] font-bold">{code.amount || 0} ج.م</td>
-                          <td className="p-[15px] border-b border-[#e2e8f0]">
-                            {code.is_used === 1 ? <span className="px-3 py-1.5 rounded-full text-[13px] font-bold bg-[#fef2f2] text-[#ef4444]">مُستخدم بواسطة ({code.used_by})</span> : <span className="px-3 py-1.5 rounded-full text-[13px] font-bold bg-[#ecfdf5] text-[#10b981]">متاح للاستخدام</span>}
-                          </td>
-                          <td className="p-[15px] border-b border-[#e2e8f0] text-[#64748b]">{code.used_at ? new Date(code.used_at).toLocaleDateString('ar-EG') : '-'}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <table className="w-full border-collapse mt-2.5">
+                <thead>
+                  <tr>
+                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">رقم الطلب (بيموب)</th>
+                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">الطالب</th>
+                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">الدورة التدريبية</th>
+                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">المبلغ</th>
+                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-center">الحالة</th>
+                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">التاريخ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.length === 0 ? (
+                    <tr><td colSpan={6} className="text-center p-[15px]">لا يوجد عمليات مالية حتى الآن.</td></tr>
+                  ) : (
+                    transactions.map((tx: any) => (
+                      <tr key={tx.id} className="hover:bg-[#f8fafc] transition-colors">
+                        <td className="p-[15px] border-b border-[#e2e8f0] font-mono text-sm tracking-wide">{tx.paymob_order_id || 'غير متوفر'}</td>
+                        <td className="p-[15px] border-b border-[#e2e8f0]">
+                          <strong>{tx.student_name || 'طالب محذوف'}</strong>
+                          <br /><span className="text-xs text-gray-500">{tx.phone || 'بدون رقم'}</span>
+                        </td>
+                        <td className="p-[15px] border-b border-[#e2e8f0] text-[#015669] font-bold">{tx.course_title || 'كورس محذوف'}</td>
+                        <td className="p-[15px] border-b border-[#e2e8f0] text-[#10b981] font-bold">{tx.amount} ج.م</td>
+                        <td className="p-[15px] border-b border-[#e2e8f0] text-center">
+                          {tx.status === 'success' ? (
+                            <span className="px-3 py-1.5 rounded-full text-[13px] font-bold bg-[#ecfdf5] text-[#10b981] flex items-center justify-center gap-1 w-fit mx-auto">
+                              <i className="fas fa-check-circle"></i> تم الدفع
+                            </span>
+                          ) : (
+                            <span className="px-3 py-1.5 rounded-full text-[13px] font-bold bg-[#fffbeb] text-[#f59e0b] flex items-center justify-center gap-1 w-fit mx-auto">
+                              <i className="fas fa-clock"></i> قيد الانتظار
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-[15px] border-b border-[#e2e8f0] text-[#64748b] text-sm" dir="ltr">
+                          {new Date(tx.created_at).toLocaleString('ar-EG')}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </section>
         )}
@@ -951,7 +938,7 @@ export default function Admin() {
         {activeTab === 'failedExams' && (
           <section className="animate-fade-in block">
             <h1 className="text-[28px] text-[#015669] mb-[30px] flex items-center gap-2.5">
-              <i className="fas fa-exclamation-triangle text-red-500"></i> الامتحانات المعلقة (درج العزل)
+              <i className="fas fa-exclamation-triangle text-amber-500"></i> الامتحانات المعلقة (درج العزل)
             </h1>
             <div className="bg-white p-[30px] rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.02)] overflow-x-auto">
               <h3 className="text-[#015669] mb-[25px] text-[20px] border-r-4 border-[#015669] pr-2.5">
