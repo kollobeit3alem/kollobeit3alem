@@ -268,21 +268,27 @@ export async function handleAdminRoutes(request, env, path, url, adminUser) {
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...ch } });
   }
 
-  // 8. جلب العمليات المالية (تقارير بيموب)
-  if (path === "/api/admin/transactions" && request.method === "GET") {
+  // 8. 💡 جلب إحصائيات المبيعات (التقارير المالية المجمعة للرسم البياني)
+  if (path === "/api/admin/transactions/stats" && request.method === "GET") {
     try {
-      const transactions = await env.DB.prepare(`
-        SELECT t.*, u.name as student_name, u.phone, c.title as course_title 
-        FROM transactions t
-        LEFT JOIN users u ON t.user_id = u.id
-        LEFT JOIN courses c ON t.course_id = c.id
-        ORDER BY t.created_at DESC
-        LIMIT 200
+      const stats = await env.DB.prepare(`
+        SELECT 
+          c.title as course_title,
+          c.price,
+          COUNT(CASE WHEN t.status = 'success' THEN 1 END) as successful_sales,
+          COUNT(CASE WHEN t.status = 'pending' THEN 1 END) as pending_sales,
+          SUM(CASE WHEN t.status = 'success' THEN CAST(t.amount AS DECIMAL) ELSE 0 END) as total_revenue
+        FROM courses c
+        LEFT JOIN transactions t ON c.id = t.course_id
+        WHERE c.is_free = 0
+        GROUP BY c.id, c.title, c.price
+        ORDER BY total_revenue DESC
       `).all();
 
-      return new Response(JSON.stringify(transactions.results), { headers: { "Content-Type": "application/json", ...ch } });
+      return new Response(JSON.stringify(stats.results), { headers: { "Content-Type": "application/json", ...ch } });
     } catch (e) {
-      return new Response(JSON.stringify({ error: "خطأ في جلب العمليات المالية" }), { status: 500, headers: { "Content-Type": "application/json", ...ch } });
+      console.error(e);
+      return new Response(JSON.stringify({ error: "خطأ في جلب إحصائيات المبيعات" }), { status: 500, headers: { "Content-Type": "application/json", ...ch } });
     }
   }
 
