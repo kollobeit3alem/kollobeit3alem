@@ -116,25 +116,31 @@ export async function handleCourseRoutes(request, env, path, url) {
     }
   }
 
-  // 🛡️ التعديل هنا: جدار الحماية للمحاضرات (Data Masking بدلاً من الحظر الكامل)
+  // 🛡️ التعديل هنا: فتح مسار المحاضرات للعامة (Data Masking)
   if (path.match(/^\/api\/courses\/\d+\/lessons$/) && request.method === "GET") {
     const courseId = path.split("/")[3];
 
-    const authCheck = await verifyStudentSession(request, env);
-    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...ch } });
+    // نجرب التحقق من الجلسة (لو موجودة)
+    let authCheck = null;
+    const authH = request.headers.get("Authorization");
+    if (authH && authH.startsWith("Bearer ")) {
+       authCheck = await verifyStudentSession(request, env);
+    }
 
-    let hasFullAccess = true;
+    let hasFullAccess = false; // الوضع الافتراضي: مقفول (ماسكينج)
 
-    // فحص ما إذا كان للمستخدم حق الوصول الكامل للروابط
-    if (authCheck.role === 'student') {
-      const isEnrolled = await env.DB.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").bind(authCheck.userId, courseId).first();
-      if (!isEnrolled) {
-        hasFullAccess = false; // الطالب غير مشترك: نمنع الروابط ونكتفي بالعناوين
-      }
-    } else if (authCheck.role === 'instructor') {
-      const isOwner = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND instructor_id = ?").bind(courseId, authCheck.userId).first();
-      if (!isOwner) {
-        hasFullAccess = false; // المدرس لا يملك الكورس: نمنع الروابط ونكتفي بالعناوين
+    // فحص ما إذا كان للمستخدم حق الوصول الكامل للروابط (مسجل واشترك)
+    if (authCheck && !authCheck.error) {
+      if (authCheck.role === 'student') {
+        const isEnrolled = await env.DB.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").bind(authCheck.userId, courseId).first();
+        if (isEnrolled) {
+          hasFullAccess = true; 
+        }
+      } else if (authCheck.role === 'instructor') {
+        const isOwner = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND instructor_id = ?").bind(courseId, authCheck.userId).first();
+        if (isOwner) {
+          hasFullAccess = true;
+        }
       }
     }
 
@@ -144,7 +150,7 @@ export async function handleCourseRoutes(request, env, path, url) {
 
     let results = lessons.results;
 
-    // حجب البيانات الحساسة (Data Masking)
+    // حجب البيانات الحساسة (Data Masking للزوار والمستخدمين غير المشتركين)
     if (!hasFullAccess) {
       results = results.map(lesson => ({
         ...lesson,
@@ -155,27 +161,33 @@ export async function handleCourseRoutes(request, env, path, url) {
     return new Response(JSON.stringify(results), { headers: { "Content-Type": "application/json", ...ch } });
   }
 
-  // 🛡️ التعديل هنا: جدار الحماية للامتحانات (Data Masking بدلاً من الحظر الكامل)
+  // 🛡️ التعديل هنا: فتح مسار الامتحانات للعامة (Data Masking)
   if (path.match(/^\/api\/lessons\/\d+\/quiz$/) && request.method === "GET") {
     const lessonId = path.split("/")[3];
 
-    const authCheck = await verifyStudentSession(request, env);
-    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...ch } });
+    // نجرب التحقق من الجلسة (لو موجودة)
+    let authCheck = null;
+    const authH = request.headers.get("Authorization");
+    if (authH && authH.startsWith("Bearer ")) {
+       authCheck = await verifyStudentSession(request, env);
+    }
 
     const lesson = await env.DB.prepare("SELECT course_id FROM lessons WHERE id = ?").bind(lessonId).first();
-    if (!lesson) return new Response(JSON.stringify([])), { headers: { "Content-Type": "application/json", ...ch } };
+    if (!lesson) return new Response(JSON.stringify([]), { headers: { "Content-Type": "application/json", ...ch } });
 
-    let hasFullAccess = true;
+    let hasFullAccess = false; // الوضع الافتراضي: مقفول (ماسكينج)
 
-    if (authCheck.role === 'student') {
-      const isEnrolled = await env.DB.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").bind(authCheck.userId, lesson.course_id).first();
-      if (!isEnrolled) {
-        hasFullAccess = false; // الطالب غير مشترك: نمنع أسئلة الامتحان الحقيقية
-      }
-    } else if (authCheck.role === 'instructor') {
-      const isOwner = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND instructor_id = ?").bind(lesson.course_id, authCheck.userId).first();
-      if (!isOwner) {
-        hasFullAccess = false; // المدرس لا يملك الكورس: نمنع أسئلة الامتحان الحقيقية
+    if (authCheck && !authCheck.error) {
+      if (authCheck.role === 'student') {
+        const isEnrolled = await env.DB.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").bind(authCheck.userId, lesson.course_id).first();
+        if (isEnrolled) {
+          hasFullAccess = true; 
+        }
+      } else if (authCheck.role === 'instructor') {
+        const isOwner = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND instructor_id = ?").bind(lesson.course_id, authCheck.userId).first();
+        if (isOwner) {
+          hasFullAccess = true;
+        }
       }
     }
 
@@ -185,7 +197,7 @@ export async function handleCourseRoutes(request, env, path, url) {
 
     let results = quiz.results || [];
 
-    // حجب البيانات الحساسة (Data Masking)
+    // حجب البيانات الحساسة (Data Masking للزوار والمستخدمين غير المشتركين)
     if (!hasFullAccess) {
       // نرسل فقط الـ id لإعلام الواجهة الأمامية بأن هناك أسئلة (ليظهر زر الامتحان)، لكن بدون النص والإجابات
       results = results.map(q => ({
