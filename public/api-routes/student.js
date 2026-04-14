@@ -289,12 +289,193 @@ export async function handleStudentRoutes(request, env, path, url) {
     return new Response(JSON.stringify({ success: true, newBalance: updatedUser.wallet_balance, addedAmount: activationCode.amount }), { headers: { "Content-Type": "application/json", ...ch } });
   }
 
-  // الاشتراك في الكورس
+  // ============================================================================
+  // 💡 مسار Paymob 1: إنشاء أوردر وجلب الكود المرجعي لفوري
+  // ============================================================================
+  if (path === "/api/paymob/init" && request.method === "POST") {
+    const authCheck = await verifyStudentSession(request, env);
+    if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...ch } });
+
+    const userId = authCheck.userId;
+    const body = await request.json();
+    const courseId = body.course_id;
+
+    if (!courseId) return new Response(JSON.stringify({ error: "بيانات الكورس مطلوبة" }), { status: 400, headers: { "Content-Type": "application/json", ...ch } });
+
+    try {
+      // 1. التحقق من الكورس وقيمته
+      const course = await env.DB.prepare("SELECT * FROM courses WHERE id = ?").bind(courseId).first();
+      if (!course) return new Response(JSON.stringify({ error: "الكورس غير موجود" }), { status: 404, headers: { "Content-Type": "application/json", ...ch } });
+      if (course.is_free === 1 || course.price <= 0) {
+        return new Response(JSON.stringify({ error: "هذا الكورس مجاني، لا يحتاج للدفع ويمكنك الاشتراك مباشرة" }), { status: 400, headers: { "Content-Type": "application/json", ...ch } });
+      }
+
+      const user = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(userId).first();
+
+      // 2. Authentication مع Paymob
+      const authRes = await fetch("https://accept.paymob.com/api/auth/tokens", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ api_key: env.PAYMOB_API_KEY })
+      });
+      const authData = await authRes.json();
+      const token = authData.token;
+
+      // 3. إنشاء أوردر (Order Registration)
+      // هندمج رقم الطالب والكورس في الـ merchant_order_id عشان نرجع نستخدمهم في الويب هوك
+      const merchantOrderId = `U${userId}_C${courseId}_${Date.now()}`;
+      const amountCents = Math.round(course.price * 100).toString(); // السعر بالقروش
+      
+      const orderRes = await fetch("https://accept.paymob.com/api/ecommerce/orders", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          auth_token: token,
+          delivery_needed: "false",
+          amount_cents: amountCents,
+          currency: "EGP",
+          merchant_order_id: merchantOrderId,
+          items: []
+        })
+      });
+      const orderData = await orderRes.json();
+      const paymobOrderId = orderData.id;
+
+      // 4. طلب مفتاح الدفع (Payment Key Request) الخاص بـ Kiosk
+      const keyRes = await fetch("https://accept.paymob.com/api/acceptance/payment_keys", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          auth_token: token,
+          amount_cents: amountCents,
+          expiration: 3600 * 24, // الكود هيفضل صالح لمدة 24 ساعة
+          order_id: paymobOrderId,
+          billing_data: {
+            apartment: "NA", email: user.email || "test@test.com", floor: "NA", first_name: user.name?.split(" ")[0] || "Student",
+            street: "NA", building: "NA", phone_number: user.phone || "01000000000", shipping_method: "NA",
+            postal_code: "NA", city: "NA", country: "NA", last_name: user.name?.split(" ")[1] || "NA", state: "NA"
+          },
+          currency: "EGP",
+          integration_id: parseInt(env.PAYMOB_INTEGRATION_ID) // المتغير الخاص برقم دمج فوري
+        })
+      });
+      const keyData = await keyRes.json();
+      const paymentToken = keyData.token;
+
+      // 5. استخراج الكود المرجعي لفوري (Kiosk Pay Request)
+      const kioskRes = await fetch("https://accept.paymob.com/api/acceptance/payments/pay", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source: { identifier: "AGGREGATOR", subtype: "AGGREGATOR" },
+          payment_token: paymentToken
+        })
+      });
+      const kioskData = await kioskRes.json();
+      const billReference = kioskData.data?.bill_reference;
+
+      if (!billReference) throw new Error("فشل في استخراج الكود المرجعي من بيموب");
+
+      // 6. تسجيل العملية كـ "قيد الانتظار" في قاعدة البيانات
+      await env.DB.prepare(
+        "INSERT INTO transactions (user_id, course_id, paymob_order_id, amount, status) VALUES (?, ?, ?, ?, 'pending')"
+      ).bind(userId, courseId, paymobOrderId.toString(), course.price).run();
+
+      return new Response(JSON.stringify({ success: true, bill_reference: billReference }), { headers: { "Content-Type": "application/json", ...ch } });
+
+    } catch (error) {
+      console.error("Paymob Init Error:", error);
+      return new Response(JSON.stringify({ error: "تعذر إنشاء كود الدفع حالياً، يرجى المحاولة لاحقاً." }), { status: 500, headers: { "Content-Type": "application/json", ...ch } });
+    }
+  }
+
+  // ============================================================================
+  // 💡 مسار Paymob 2: الـ Webhook (يستقبل التأكيد من بيموب لتفعيل الكورس)
+  // ============================================================================
+  if (path === "/api/paymob/webhook" && request.method === "POST") {
+    try {
+      const bodyText = await request.text();
+      const body = JSON.parse(bodyText);
+      
+      // جلب הـ hmac من الرابط (بيموب ترسله في الـ Query Parameters)
+      const urlParams = new URL(request.url).searchParams;
+      const receivedHmac = urlParams.get("hmac");
+
+      if (body.type === "TRANSACTION") {
+        const obj = body.obj;
+        
+        // بناء نص الـ HMAC بناءً على توثيق Paymob للتأكد من الموثوقية
+        const fields = [
+          'amount_cents', 'created_at', 'currency', 'error_occured',
+          'has_parent_transaction', 'id', 'integration_id', 'is_3d_secure',
+          'is_auth', 'is_capture', 'is_refunded', 'is_standalone_payment',
+          'is_voided', 'order.id', 'owner', 'pending', 'source_data.pan',
+          'source_data.sub_type', 'source_data.type', 'success'
+        ];
+        
+        const getValue = (obj, path) => path.split('.').reduce((acc, part) => acc && acc[part], obj);
+        
+        let hmacString = '';
+        fields.forEach(field => {
+          let val = getValue(obj, field);
+          if (typeof val === 'boolean') val = val.toString().toLowerCase(); // تحويل البوليان لنص לפי توثيق بيموب
+          hmacString += (val !== undefined && val !== null) ? val.toString() : '';
+        });
+
+        // تشفير النص باستخدام الـ HMAC Secret بتاعنا
+        const encoder = new TextEncoder();
+        const key = await crypto.subtle.importKey(
+            "raw", encoder.encode(env.PAYMOB_HMAC_SECRET),
+            { name: "HMAC", hash: "SHA-512" }, false, ["sign"]
+        );
+        const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(hmacString));
+        const hashArray = Array.from(new Uint8Array(signature));
+        const calculatedHmac = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+        // التحقق من أن الرسالة أصلية من بيموب ولم يتم التلاعب بها
+        if (calculatedHmac !== receivedHmac) {
+          console.error("Webhook: Invalid HMAC signature!");
+          return new Response("Invalid HMAC", { status: 401 });
+        }
+
+        // إذا كانت العملية ناجحة (تم الدفع الفعلي)
+        if (obj.success === true && obj.pending === false) {
+          const paymobOrderId = obj.order.id.toString();
+          const merchantOrderId = obj.order.merchant_order_id; // مثال: U5_C10_1612345678
+          
+          // استخراج رقم الطالب والكورس من الـ merchant_order_id
+          const parts = merchantOrderId.split('_');
+          const userId = parseInt(parts[0].substring(1));
+          const courseId = parseInt(parts[1].substring(1));
+
+          // التأكد من أن العملية موجودة في جدولنا ومعلقة (لم يتم تفعيلها مسبقاً)
+          const tx = await env.DB.prepare("SELECT * FROM transactions WHERE paymob_order_id = ?").bind(paymobOrderId).first();
+          
+          if (tx && tx.status === 'pending') {
+            // 1. تحديث حالة الفاتورة لـ "success"
+            await env.DB.prepare("UPDATE transactions SET status = 'success', updated_at = CURRENT_TIMESTAMP WHERE paymob_order_id = ?").bind(paymobOrderId).run();
+            
+            // 2. تفعيل الكورس للطالب أوتوماتيكياً (إضافته لجدول الاشتراكات)
+            try {
+              await env.DB.prepare("INSERT INTO enrollments (user_id, course_id) VALUES (?, ?)").bind(userId, courseId).run();
+            } catch(e) {
+              // لو الطالب مشترك مسبقاً بطريقة ما نتجاهل الخطأ
+            }
+          }
+        }
+      }
+      // لازم نرد بـ 200 OK عشان بيموب تعرف إننا استلمنا الإشعار ومتبعتوش تاني
+      return new Response("OK", { status: 200 }); 
+    } catch (error) {
+      console.error("Webhook Internal Error:", error);
+      return new Response("Server Error", { status: 500 });
+    }
+  }
+
+  // ============================================================================
+  // الاشتراك المباشر في الكورس (الآن يعمل للكورسات المجانية فقط)
+  // ============================================================================
   if (path === "/api/enroll" && request.method === "POST") {
     const authCheck = await verifyStudentSession(request, env);
     if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...ch } });
 
-    // إضافة حماية قوية: منع أي شخص رتبته ليست "طالب" من الاشتراك في الكورسات
+    // منع المعلمين أو الإدارة من الاشتراك
     if (authCheck.role !== 'student') {
       return new Response(JSON.stringify({ error: "عذراً، غير مسموح للمعلمين أو الإدارة بالاشتراك في الدورات." }), { status: 403, headers: { "Content-Type": "application/json", ...ch } });
     }
@@ -307,6 +488,7 @@ export async function handleStudentRoutes(request, env, path, url) {
     if (!course) return new Response(JSON.stringify({ error: "الكورس غير موجود" }), { status: 404, headers: { "Content-Type": "application/json", ...ch } });
 
     if (course.is_free === 1) {
+      // الكورس مجاني -> اشترك مباشرة
       try {
         await env.DB.prepare("INSERT INTO enrollments (user_id, course_id) VALUES (?, ?)").bind(userId, course_id).run();
         return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...ch } });
@@ -314,22 +496,8 @@ export async function handleStudentRoutes(request, env, path, url) {
         return new Response(JSON.stringify({ error: "أنت مشترك بالفعل في هذا الكورس" }), { status: 400, headers: { "Content-Type": "application/json", ...ch } });
       }
     } else {
-      const user = await env.DB.prepare("SELECT wallet_balance FROM users WHERE id = ?").bind(userId).first();
-
-      if (user.wallet_balance < course.price) {
-        return new Response(JSON.stringify({ error: "رصيد المحفظة غير كافٍ. يرجى شحن رصيدك أولاً من صفحة حسابك." }), { status: 402, headers: { "Content-Type": "application/json", ...ch } });
-      }
-
-      try {
-        await env.DB.batch([
-          env.DB.prepare("UPDATE users SET wallet_balance = wallet_balance - ? WHERE id = ?").bind(course.price, userId),
-          env.DB.prepare("INSERT INTO enrollments (user_id, course_id) VALUES (?, ?)").bind(userId, course_id)
-        ]);
-
-        return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json", ...ch } });
-      } catch (e) {
-        return new Response(JSON.stringify({ error: "أنت مشترك بالفعل في هذا الكورس" }), { status: 400, headers: { "Content-Type": "application/json", ...ch } });
-      }
+      // الكورس مدفوع -> امنعه من الاشتراك المباشر ووجهه للدفع
+      return new Response(JSON.stringify({ error: "هذا الكورس مدفوع. يرجى إتمام عملية الدفع للحصول على الكورس." }), { status: 402, headers: { "Content-Type": "application/json", ...ch } });
     }
   }
 
@@ -443,7 +611,6 @@ export async function handleStudentRoutes(request, env, path, url) {
 
       return new Response(JSON.stringify({ success: true, score: actualScore, gradedAnswers: finalAnswers }), { headers: { "Content-Type": "application/json", ...ch } });
     } catch (e) {
-      // Circuit Breaker: عند ضغط الـ DB نحول للطابور
       if (env.EXAMS_QUEUE) {
         try {
           await env.EXAMS_QUEUE.send({
