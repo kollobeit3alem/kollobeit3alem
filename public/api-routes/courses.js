@@ -116,32 +116,46 @@ export async function handleCourseRoutes(request, env, path, url) {
     }
   }
 
-  // جدار الحماية للمحاضرات
+  // 🛡️ التعديل هنا: جدار الحماية للمحاضرات (Data Masking بدلاً من الحظر الكامل)
   if (path.match(/^\/api\/courses\/\d+\/lessons$/) && request.method === "GET") {
     const courseId = path.split("/")[3];
 
     const authCheck = await verifyStudentSession(request, env);
     if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...ch } });
 
+    let hasFullAccess = true;
+
+    // فحص ما إذا كان للمستخدم حق الوصول الكامل للروابط
     if (authCheck.role === 'student') {
       const isEnrolled = await env.DB.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").bind(authCheck.userId, courseId).first();
       if (!isEnrolled) {
-        return new Response(JSON.stringify({ error: "Access Denied: يجب الاشتراك في الكورس أولاً." }), { status: 403, headers: { "Content-Type": "application/json", ...ch } });
+        hasFullAccess = false; // الطالب غير مشترك: نمنع الروابط ونكتفي بالعناوين
       }
     } else if (authCheck.role === 'instructor') {
       const isOwner = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND instructor_id = ?").bind(courseId, authCheck.userId).first();
       if (!isOwner) {
-        return new Response(JSON.stringify({ error: "Access Denied: غير مصرح لك." }), { status: 403, headers: { "Content-Type": "application/json", ...ch } });
+        hasFullAccess = false; // المدرس لا يملك الكورس: نمنع الروابط ونكتفي بالعناوين
       }
     }
 
     const lessons = await env.DB.prepare(
       "SELECT * FROM lessons WHERE course_id = ? ORDER BY order_num ASC"
     ).bind(courseId).all();
-    return new Response(JSON.stringify(lessons.results), { headers: { "Content-Type": "application/json", ...ch } });
+
+    let results = lessons.results;
+
+    // حجب البيانات الحساسة (Data Masking)
+    if (!hasFullAccess) {
+      results = results.map(lesson => ({
+        ...lesson,
+        video_url: "" // تفريغ رابط الفيديو لضمان حمايته وعدم وصوله لمتصفح المستخدم إطلاقاً
+      }));
+    }
+
+    return new Response(JSON.stringify(results), { headers: { "Content-Type": "application/json", ...ch } });
   }
 
-  // جدار الحماية للامتحانات
+  // 🛡️ التعديل هنا: جدار الحماية للامتحانات (Data Masking بدلاً من الحظر الكامل)
   if (path.match(/^\/api\/lessons\/\d+\/quiz$/) && request.method === "GET") {
     const lessonId = path.split("/")[3];
 
@@ -149,17 +163,19 @@ export async function handleCourseRoutes(request, env, path, url) {
     if (authCheck.error) return new Response(JSON.stringify({ error: authCheck.error, invalidSession: authCheck.invalidSession }), { status: authCheck.status, headers: { "Content-Type": "application/json", ...ch } });
 
     const lesson = await env.DB.prepare("SELECT course_id FROM lessons WHERE id = ?").bind(lessonId).first();
-    if (!lesson) return new Response(JSON.stringify([]), { headers: { "Content-Type": "application/json", ...ch } });
+    if (!lesson) return new Response(JSON.stringify([])), { headers: { "Content-Type": "application/json", ...ch } };
+
+    let hasFullAccess = true;
 
     if (authCheck.role === 'student') {
       const isEnrolled = await env.DB.prepare("SELECT id FROM enrollments WHERE user_id = ? AND course_id = ?").bind(authCheck.userId, lesson.course_id).first();
       if (!isEnrolled) {
-        return new Response(JSON.stringify({ error: "Access Denied: يجب الاشتراك في الكورس أولاً." }), { status: 403, headers: { "Content-Type": "application/json", ...ch } });
+        hasFullAccess = false; // الطالب غير مشترك: نمنع أسئلة الامتحان الحقيقية
       }
     } else if (authCheck.role === 'instructor') {
       const isOwner = await env.DB.prepare("SELECT id FROM courses WHERE id = ? AND instructor_id = ?").bind(lesson.course_id, authCheck.userId).first();
       if (!isOwner) {
-        return new Response(JSON.stringify({ error: "Access Denied: غير مصرح لك." }), { status: 403, headers: { "Content-Type": "application/json", ...ch } });
+        hasFullAccess = false; // المدرس لا يملك الكورس: نمنع أسئلة الامتحان الحقيقية
       }
     }
 
@@ -167,7 +183,17 @@ export async function handleCourseRoutes(request, env, path, url) {
       "SELECT * FROM quizzes WHERE lesson_id = ?"
     ).bind(lessonId).all();
 
-    return new Response(JSON.stringify(quiz.results || []), {
+    let results = quiz.results || [];
+
+    // حجب البيانات الحساسة (Data Masking)
+    if (!hasFullAccess) {
+      // نرسل فقط الـ id لإعلام الواجهة الأمامية بأن هناك أسئلة (ليظهر زر الامتحان)، لكن بدون النص والإجابات
+      results = results.map(q => ({
+        id: q.id
+      }));
+    }
+
+    return new Response(JSON.stringify(results), {
       headers: { "Content-Type": "application/json", ...ch }
     });
   }
