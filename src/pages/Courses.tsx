@@ -13,12 +13,14 @@ export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [walletBalance, setWalletBalance] = useState<number>(0);
 
   // Phone Modal
   const [showPhoneModal, setShowPhoneModal] = useState(false);
   const [phoneInput, setPhoneInput] = useState('');
   const [isSavingPhone, setIsSavingPhone] = useState(false);
+
+  // Logout Modal (لإلغاء رسائل المتصفح الافتراضية)
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // إظهار مودال التليفون إذا كان المستخدم مسجل دخول ولا يملك رقم هاتف
   useEffect(() => {
@@ -26,17 +28,6 @@ export default function Courses() {
       setShowPhoneModal(true);
     }
   }, [user]);
-
-  // جلب رصيد المحفظة (فقط لو مسجل دخول)
-  const fetchWalletData = useCallback(async () => {
-    if (!token) return;
-    try {
-      const data = await apiCall('/api/my-dashboard', token) as any;
-      setWalletBalance(data.stats?.walletBalance || 0);
-    } catch (error) {
-      console.error('Failed to load wallet balance:', error);
-    }
-  }, [token]);
 
   // جلب الاشتراكات (فقط لو مسجل دخول)
   const fetchEnrollments = useCallback(async () => {
@@ -69,12 +60,11 @@ export default function Courses() {
   }, [fetchCourses]);
 
   useEffect(() => {
-    // نجلب الاشتراكات والمحفظة فقط لو في توكن
+    // نجلب الاشتراكات فقط لو في توكن (لغينا المحفظة من هنا)
     if (token) {
-      fetchWalletData();
       fetchEnrollments();
     }
-  }, [token, fetchEnrollments, fetchWalletData]);
+  }, [token, fetchEnrollments]);
 
   const handleSavePhone = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,13 +84,16 @@ export default function Courses() {
     }
   };
 
-  const handleLogout = () => {
-    if (confirm('هل تريد تسجيل الخروج حقاً ؟')) {
-      logout();
-    }
+  const handleLogoutClick = () => {
+    setShowLogoutModal(true);
   };
 
-  // 💡 التعديل هنا: توجيه كل الكروت لصفحة الكورس للسماح بتصفح الفهرس
+  const confirmLogout = () => {
+    setShowLogoutModal(false);
+    logout();
+  };
+
+  // توجيه كل الكروت لصفحة الكورس للسماح بتصفح الفهرس
   const getCourseAction = (course: Course) => {
     const isEnrolled = isAuthenticated && enrolledCourseIds.includes(course.id);
     const isFree = course.is_free === 1;
@@ -170,16 +163,8 @@ export default function Courses() {
 
           <div className="flex items-center gap-3 md:gap-4">
             {isAuthenticated && user ? (
-              /* مسجل دخول → يظهر المحفظة والبروفايل وزر الخروج */
+              /* مسجل دخول → يظهر البروفايل وزر الخروج فقط (بدون محفظة) */
               <>
-                <div
-                  className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 py-1.5 px-3 md:px-4 rounded-xl font-bold shadow-sm"
-                  title="رصيد محفظتك"
-                >
-                  <i className="fas fa-wallet text-lg" />
-                  <span className="text-[14px] md:text-base">{walletBalance} ج.م</span>
-                </div>
-
                 <Link
                   to="/profile"
                   className="flex items-center gap-2.5 font-bold text-text-main bg-page-bg py-1.5 px-4 pl-1.5 rounded-[30px] border border-border transition-all hover:border-primary hover:shadow-[0_4px_10px_var(--primary-light)] no-underline"
@@ -199,7 +184,7 @@ export default function Courses() {
                 </Link>
 
                 <button
-                  onClick={handleLogout}
+                  onClick={handleLogoutClick}
                   className="bg-red-100 text-red-500 border-none py-2.5 px-4 rounded-xl cursor-pointer font-bold transition-all hover:bg-red-500 hover:text-white flex items-center gap-2"
                   title="تسجيل خروج"
                 >
@@ -339,10 +324,42 @@ export default function Courses() {
         </main>
 
         {/* ============================================================ */}
+        {/* Logout Modal                                                 */}
+        {/* ============================================================ */}
+        {showLogoutModal && (
+          <div className="fixed inset-0 bg-slate-900/60 flex justify-center items-center z-[9999] backdrop-blur-sm px-4">
+            <div className="bg-white p-8 rounded-[24px] w-full max-w-[400px] text-center shadow-[0_20px_60px_rgba(0,0,0,0.2)] animate-fade-in border border-border relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-2 bg-red-500" />
+              <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-5 text-red-500 text-[32px]">
+                <i className="fas fa-sign-out-alt" />
+              </div>
+              <h2 className="text-[22px] text-slate-800 font-bold mb-3">تسجيل الخروج</h2>
+              <p className="text-text-muted mb-8 text-[15px] leading-relaxed px-2">
+                هل أنت متأكد أنك تريد تسجيل الخروج من حسابك؟
+              </p>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setShowLogoutModal(false)}
+                  className="flex-1 bg-slate-100 text-slate-700 py-3.5 rounded-xl font-bold text-base cursor-pointer hover:bg-slate-200 transition-all"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={confirmLogout}
+                  className="flex-1 bg-red-500 text-white border-none py-3.5 rounded-xl font-bold text-base cursor-pointer hover:bg-red-600 transition-all shadow-[0_5px_15px_rgba(239,68,68,0.2)] hover:-translate-y-0.5"
+                >
+                  خروج
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ============================================================ */}
         {/* Phone Modal                                                  */}
         {/* ============================================================ */}
         {showPhoneModal && (
-          <div className="fixed top-0 left-0 w-full h-full bg-slate-900/60 flex justify-center items-center z-[9999] backdrop-blur-sm px-4">
+          <div className="fixed inset-0 bg-slate-900/60 flex justify-center items-center z-[9999] backdrop-blur-sm px-4">
             <div className="bg-white p-8 rounded-[24px] w-full max-w-[420px] text-center shadow-[0_20px_60px_rgba(0,0,0,0.2)] animate-fade-in border border-border relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-2 bg-primary" />
               <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-5 text-primary text-[32px]">
