@@ -135,7 +135,8 @@ export default {
           path.startsWith("/api/enroll") ||
           path.startsWith("/api/wallet") ||
           path.startsWith("/api/progress") ||
-          path.match(/^\/api\/courses\/\d+\/progress$/)
+          path.match(/^\/api\/courses\/\d+\/progress$/) ||
+          path.startsWith("/api/paymob") // 💡 السطر المضاف لتمرير طلبات الدفع إلى ملف الطلاب
         ) {
           apiResponse = await handleStudentRoutes(request, env, path, url);
         } else if (
