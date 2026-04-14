@@ -2,7 +2,28 @@ import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth, apiCall } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+// استيراد مكتبات الرسم البياني
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import { Bar } from 'react-chartjs-2';
 import type { Course, Lesson, QuizQuestion, User } from '@/types';
+
+// تسجيل إضافات الرسم البياني
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 // 💡 التعديل: إزالة 'codes' وإضافة 'transactions' للتقارير المالية
 type TabType = 'courses' | 'lessons' | 'quizzes' | 'users' | 'staff' | 'transactions' | 'failedExams';
@@ -19,8 +40,8 @@ export default function Admin() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   
-  // 💡 التعديل: حالات التقارير المالية والامتحانات المعلقة
-  const [transactions, setTransactions] = useState<any[]>([]);
+  // 💡 التعديل: حالة الإحصائيات المالية المجمعة (بدل العمليات الفردية)
+  const [salesStats, setSalesStats] = useState<any[]>([]);
   const [failedExams, setFailedExams] = useState<any[]>([]);
   
   // Pagination & Search States
@@ -88,21 +109,21 @@ export default function Admin() {
     }
   }, [activeTab, token]);
 
-  // 💡 التعديل: جلب التقارير المالية
-  const loadTransactions = async () => {
+  // 💡 التعديل: جلب الإحصائيات المجمعة من السيرفر مباشرة
+  const loadSalesStats = async () => {
     if (!token) return;
     try {
-      const data = await apiCall('/api/admin/transactions', token) as any[];
-      setTransactions(data);
+      const data = await apiCall('/api/admin/transactions/stats', token) as any[];
+      setSalesStats(data);
     } catch (error) {
-      console.error('Failed to load transactions:', error);
-      toast.error('فشل جلب التقارير المالية');
+      console.error('Failed to load sales stats:', error);
+      toast.error('فشل جلب إحصائيات المبيعات');
     }
   };
 
   useEffect(() => {
     if (token && activeTab === 'transactions') {
-      loadTransactions();
+      loadSalesStats();
     }
   }, [activeTab, token]);
 
@@ -410,6 +431,71 @@ export default function Admin() {
     navigate('/');
   };
 
+  // تجهيز بيانات المخطط البياني (Chart Data)
+  const processChartData = () => {
+    const labels = salesStats.map(s => s.course_title);
+    const successData = salesStats.map(s => s.successful_sales);
+    const pendingData = salesStats.map(s => s.pending_sales);
+    const revenues = salesStats.map(s => s.total_revenue);
+
+    return {
+      labels,
+      revenues,
+      datasets: [
+        {
+          label: 'مبيعات ناجحة',
+          data: successData,
+          backgroundColor: 'rgba(16, 185, 129, 0.7)', // أخضر
+          borderColor: 'rgb(16, 185, 129)',
+          borderWidth: 1,
+        },
+        {
+          label: 'عمليات معلقة',
+          data: pendingData,
+          backgroundColor: 'rgba(245, 158, 11, 0.7)', // برتقالي
+          borderColor: 'rgb(245, 158, 11)',
+          borderWidth: 1,
+        },
+      ],
+    };
+  };
+
+  const chartData = activeTab === 'transactions' && salesStats.length > 0 ? processChartData() : null;
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+        labels: {
+          font: { family: 'inherit', size: 14 }
+        }
+      },
+      title: {
+        display: false,
+      },
+      tooltip: {
+        callbacks: {
+          afterBody: function(context: any) {
+            // عرض إجمالي الأرباح في الـ Tooltip
+            const index = context[0].dataIndex;
+            const revenue = chartData?.revenues[index] || 0;
+            return `إجمالي الإيرادات: ${revenue} ج.م`;
+          }
+        },
+        titleFont: { family: 'inherit', size: 14 },
+        bodyFont: { family: 'inherit', size: 13 },
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: { stepSize: 1 }
+      }
+    }
+  };
+
   if (!user || user.role !== 'admin') return null;
 
   const inputStyles = "w-full p-4 border-[1.5px] border-[#e2e8f0] rounded-xl text-[15px] text-[#1e293b] bg-[#f4f7f9] focus:bg-white focus:border-[#015669] focus:outline-none transition-colors";
@@ -431,7 +517,7 @@ export default function Admin() {
           </button>
         </div>
         
-        {/* 💡 التعديل: زرار معاينة المنصة الجديد */}
+        {/* زرار معاينة المنصة الجديد */}
         <Link to="/" className="bg-[#e0f2fe] text-[#0284c7] border-none text-right p-4 rounded-xl cursor-pointer text-[15px] font-bold flex items-center gap-3 transition-all hover:bg-[#0284c7] hover:text-white mb-6 no-underline shadow-sm hover:shadow-md">
           <i className="fas fa-external-link-alt text-xl w-6 text-center"></i> معاينة المنصة (كطالب)
         </Link>
@@ -447,9 +533,9 @@ export default function Admin() {
             <i className="fas fa-spell-check text-xl w-6 text-center"></i> الامتحانات
           </button>
           
-          {/* 💡 التعديل: زرار التقارير المالية بدل كروت الشحن */}
+          {/* زرار التقارير المالية والتحليل */}
           <button onClick={() => setActiveTab('transactions')} className={`${navBtnBaseStyles} ${activeTab === 'transactions' ? navBtnActiveStyles : ''}`}>
-            <i className="fas fa-money-bill-wave text-xl w-6 text-center text-emerald-500"></i> التقارير المالية
+            <i className="fas fa-chart-simple text-xl w-6 text-center text-emerald-500"></i> مبيعات الدورات
           </button>
 
           <button onClick={() => setActiveTab('users')} className={`${navBtnBaseStyles} ${activeTab === 'users' ? navBtnActiveStyles : ''}`}>
@@ -873,64 +959,100 @@ export default function Admin() {
           </section>
         )}
 
-        {/* 💡 التعديل: تبويب التقارير المالية */}
+        {/* 💡 التعديل: Dashboard Chart */}
         {activeTab === 'transactions' && (
           <section className="animate-fade-in block">
             <h1 className="text-[28px] text-[#015669] mb-[30px] flex items-center gap-2.5">
-              <i className="fas fa-money-bill-wave text-emerald-500"></i> التقارير المالية (بيموب)
+              <i className="fas fa-chart-simple text-emerald-500"></i> مبيعات الدورات
             </h1>
-            <div className="bg-white p-[30px] rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.02)] overflow-x-auto">
+            
+            {/* Overview Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+              <div className="bg-white p-6 rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.02)] flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500 text-2xl">
+                  <i className="fas fa-sack-dollar"></i>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-sm font-bold mb-1">إجمالي الإيرادات</p>
+                  <h3 className="text-2xl font-black text-[#015669]">
+                    {salesStats.reduce((sum, curr) => sum + (curr.total_revenue || 0), 0)} <span className="text-sm font-normal">ج.م</span>
+                  </h3>
+                </div>
+              </div>
+              <div className="bg-white p-6 rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.02)] flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 text-2xl">
+                  <i className="fas fa-cart-shopping"></i>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-sm font-bold mb-1">العمليات الناجحة</p>
+                  <h3 className="text-2xl font-black text-[#015669]">
+                    {salesStats.reduce((sum, curr) => sum + (curr.successful_sales || 0), 0)} <span className="text-sm font-normal">طالب</span>
+                  </h3>
+                </div>
+              </div>
+              <div className="bg-white p-6 rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.02)] flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center text-amber-500 text-2xl">
+                  <i className="fas fa-clock-rotate-left"></i>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-sm font-bold mb-1">العمليات المعلقة</p>
+                  <h3 className="text-2xl font-black text-[#015669]">
+                    {salesStats.reduce((sum, curr) => sum + (curr.pending_sales || 0), 0)} <span className="text-sm font-normal">عملية</span>
+                  </h3>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white p-[30px] rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.02)]">
               <h3 className="text-[#015669] mb-[25px] text-[20px] border-r-4 border-[#015669] pr-2.5">
-                <i className="fas fa-list"></i> سجل العمليات الشرائية
+                <i className="fas fa-chart-bar"></i> تحليل أداء الدورات المدفوعة
               </h3>
-              <p className="text-gray-500 mb-4 text-sm">
-                هذه القائمة تعرض أحدث عمليات الدفع التي تمت عبر بوابة (Paymob/فوري). يمكنك متابعة الحالات (قيد الانتظار أو ناجحة).
+              <p className="text-gray-500 mb-6 text-sm">
+                هذا المخطط البياني يعرض عدد الاشتراكات الناجحة والمعلقة لكل دورة. قم بتمرير الماوس فوق الأعمدة لرؤية تفاصيل الإيرادات.
               </p>
               
-              <table className="w-full border-collapse mt-2.5">
-                <thead>
-                  <tr>
-                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">رقم الطلب (بيموب)</th>
-                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">الطالب</th>
-                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">الدورة التدريبية</th>
-                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">المبلغ</th>
-                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-center">الحالة</th>
-                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">التاريخ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {transactions.length === 0 ? (
-                    <tr><td colSpan={6} className="text-center p-[15px]">لا يوجد عمليات مالية حتى الآن.</td></tr>
-                  ) : (
-                    transactions.map((tx: any) => (
-                      <tr key={tx.id} className="hover:bg-[#f8fafc] transition-colors">
-                        <td className="p-[15px] border-b border-[#e2e8f0] font-mono text-sm tracking-wide">{tx.paymob_order_id || 'غير متوفر'}</td>
-                        <td className="p-[15px] border-b border-[#e2e8f0]">
-                          <strong>{tx.student_name || 'طالب محذوف'}</strong>
-                          <br /><span className="text-xs text-gray-500">{tx.phone || 'بدون رقم'}</span>
-                        </td>
-                        <td className="p-[15px] border-b border-[#e2e8f0] text-[#015669] font-bold">{tx.course_title || 'كورس محذوف'}</td>
-                        <td className="p-[15px] border-b border-[#e2e8f0] text-[#10b981] font-bold">{tx.amount} ج.م</td>
-                        <td className="p-[15px] border-b border-[#e2e8f0] text-center">
-                          {tx.status === 'success' ? (
-                            <span className="px-3 py-1.5 rounded-full text-[13px] font-bold bg-[#ecfdf5] text-[#10b981] flex items-center justify-center gap-1 w-fit mx-auto">
-                              <i className="fas fa-check-circle"></i> تم الدفع
-                            </span>
-                          ) : (
-                            <span className="px-3 py-1.5 rounded-full text-[13px] font-bold bg-[#fffbeb] text-[#f59e0b] flex items-center justify-center gap-1 w-fit mx-auto">
-                              <i className="fas fa-clock"></i> قيد الانتظار
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-[15px] border-b border-[#e2e8f0] text-[#64748b] text-sm" dir="ltr">
-                          {new Date(tx.created_at).toLocaleString('ar-EG')}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+              {salesStats.length === 0 ? (
+                <div className="text-center py-10">
+                  <i className="fas fa-chart-area text-[50px] text-slate-300 mb-4 block"></i>
+                  <p className="text-lg text-text-muted">لا يوجد بيانات للمبيعات حتى الآن.</p>
+                </div>
+              ) : chartData ? (
+                <div className="w-full h-[400px]">
+                  <Bar data={chartData} options={chartOptions} />
+                </div>
+              ) : null}
             </div>
+            
+            {/* Table Detail View (Optional, just for quick check) */}
+            {salesStats.length > 0 && (
+              <div className="bg-white p-[30px] rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] mt-[30px] border border-[rgba(0,0,0,0.02)] overflow-x-auto">
+                <h3 className="text-[#015669] mb-[25px] text-[20px] border-r-4 border-[#015669] pr-2.5">
+                  <i className="fas fa-table"></i> تفاصيل الإيرادات بالدورة
+                </h3>
+                <table className="w-full border-collapse mt-2.5">
+                  <thead>
+                    <tr>
+                      <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">اسم الدورة</th>
+                      <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">السعر</th>
+                      <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">عمليات ناجحة</th>
+                      <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">عمليات معلقة</th>
+                      <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">إجمالي الإيرادات</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {salesStats.map((s, index) => (
+                      <tr key={index} className="hover:bg-[#f8fafc] transition-colors">
+                        <td className="p-[15px] border-b border-[#e2e8f0] font-bold text-[#015669]">{s.course_title}</td>
+                        <td className="p-[15px] border-b border-[#e2e8f0]">{s.price} ج.م</td>
+                        <td className="p-[15px] border-b border-[#e2e8f0] text-emerald-600 font-bold">{s.successful_sales}</td>
+                        <td className="p-[15px] border-b border-[#e2e8f0] text-amber-500 font-bold">{s.pending_sales}</td>
+                        <td className="p-[15px] border-b border-[#e2e8f0] text-[#015669] font-black">{s.total_revenue} ج.م</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
         )}
 
