@@ -159,7 +159,7 @@ export async function handleStudentRoutes(request, env, path, url) {
   }
 
   // ============================================================================
-  // 💡 مسار Paymob 1: إنشاء أوردر وجلب الكود المرجعي لفوري
+  // 💡 مسار Paymob 1: إنشاء أوردر وجلب (الكود المرجعي لفوري) أو (رابط الفيزا)
   // ============================================================================
   if (path === "/api/paymob/init" && request.method === "POST") {
     const authCheck = await verifyStudentSession(request, env);
@@ -168,6 +168,7 @@ export async function handleStudentRoutes(request, env, path, url) {
     const userId = authCheck.userId;
     const body = await request.json();
     const courseId = body.course_id;
+    const paymentMethod = body.method || 'kiosk'; // نستقبل الطريقة (kiosk أو card)
 
     if (!courseId) return new Response(JSON.stringify({ error: "بيانات الكورس مطلوبة" }), { status: 400, headers: { "Content-Type": "application/json", ...ch } });
 
@@ -190,7 +191,6 @@ export async function handleStudentRoutes(request, env, path, url) {
       const token = authData.token;
 
       // 3. إنشاء أوردر (Order Registration)
-      // هندمج رقم الطالب والكورس في الـ merchant_order_id عشان نرجع نستخدمهم في الويب هوك
       const merchantOrderId = `U${userId}_C${courseId}_${Date.now()}`;
       const amountCents = Math.round(course.price * 100).toString(); // السعر بالقروش
       
@@ -208,13 +208,18 @@ export async function handleStudentRoutes(request, env, path, url) {
       const orderData = await orderRes.json();
       const paymobOrderId = orderData.id;
 
-      // 4. طلب مفتاح الدفع (Payment Key Request) الخاص بـ Kiosk
+      // 4. تحديد الـ Integration ID بناءً على طريقة الدفع
+      const integrationId = paymentMethod === 'card' 
+        ? parseInt(env.PAYMOB_CARD_INTEGRATION_ID) 
+        : parseInt(env.PAYMOB_KIOSK_INTEGRATION_ID);
+
+      // 5. طلب مفتاح الدفع (Payment Key Request)
       const keyRes = await fetch("https://accept.paymob.com/api/acceptance/payment_keys", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           auth_token: token,
           amount_cents: amountCents,
-          expiration: 3600 * 24, // الكود هيفضل صالح لمدة 24 ساعة
+          expiration: 3600 * 24, // صالح لمدة 24 ساعة
           order_id: paymobOrderId,
           billing_data: {
             apartment: "NA", email: user.email || "test@test.com", floor: "NA", first_name: user.name?.split(" ")[0] || "Student",
@@ -222,35 +227,42 @@ export async function handleStudentRoutes(request, env, path, url) {
             postal_code: "NA", city: "NA", country: "NA", last_name: user.name?.split(" ")[1] || "NA", state: "NA"
           },
           currency: "EGP",
-          integration_id: parseInt(env.PAYMOB_INTEGRATION_ID) // المتغير الخاص برقم دمج فوري
+          integration_id: integrationId
         })
       });
       const keyData = await keyRes.json();
       const paymentToken = keyData.token;
-
-      // 5. استخراج الكود المرجعي لفوري (Kiosk Pay Request)
-      const kioskRes = await fetch("https://accept.paymob.com/api/acceptance/payments/pay", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          source: { identifier: "AGGREGATOR", subtype: "AGGREGATOR" },
-          payment_token: paymentToken
-        })
-      });
-      const kioskData = await kioskRes.json();
-      const billReference = kioskData.data?.bill_reference;
-
-      if (!billReference) throw new Error("فشل في استخراج الكود المرجعي من بيموب");
 
       // 6. تسجيل العملية كـ "قيد الانتظار" في قاعدة البيانات
       await env.DB.prepare(
         "INSERT INTO transactions (user_id, course_id, paymob_order_id, amount, status) VALUES (?, ?, ?, ?, 'pending')"
       ).bind(userId, courseId, paymobOrderId.toString(), course.price).run();
 
-      return new Response(JSON.stringify({ success: true, bill_reference: billReference }), { headers: { "Content-Type": "application/json", ...ch } });
+      // 7. الرد بناءً على طريقة الدفع
+      if (paymentMethod === 'card') {
+        // للدفع بالكارت: نرجع رابط الـ Iframe جاهز
+        const iframeUrl = `https://accept.paymob.com/api/acceptance/iframes/${env.PAYMOB_CARD_IFRAME_ID}?payment_token=${paymentToken}`;
+        return new Response(JSON.stringify({ success: true, iframe_url: iframeUrl }), { headers: { "Content-Type": "application/json", ...ch } });
+      } else {
+        // للدفع بفوري: نطلب الكود المرجعي
+        const kioskRes = await fetch("https://accept.paymob.com/api/acceptance/payments/pay", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            source: { identifier: "AGGREGATOR", subtype: "AGGREGATOR" },
+            payment_token: paymentToken
+          })
+        });
+        const kioskData = await kioskRes.json();
+        const billReference = kioskData.data?.bill_reference;
+
+        if (!billReference) throw new Error("فشل في استخراج الكود المرجعي من بيموب");
+        
+        return new Response(JSON.stringify({ success: true, bill_reference: billReference }), { headers: { "Content-Type": "application/json", ...ch } });
+      }
 
     } catch (error) {
       console.error("Paymob Init Error:", error);
-      return new Response(JSON.stringify({ error: "تعذر إنشاء كود الدفع حالياً، يرجى المحاولة لاحقاً." }), { status: 500, headers: { "Content-Type": "application/json", ...ch } });
+      return new Response(JSON.stringify({ error: "تعذر إنشاء كود/رابط الدفع حالياً، يرجى المحاولة لاحقاً." }), { status: 500, headers: { "Content-Type": "application/json", ...ch } });
     }
   }
 
@@ -262,7 +274,7 @@ export async function handleStudentRoutes(request, env, path, url) {
       const bodyText = await request.text();
       const body = JSON.parse(bodyText);
       
-      // جلب הـ hmac من الرابط (بيموب ترسله في الـ Query Parameters)
+      // جلب الـ hmac من الرابط (بيموب ترسله في الـ Query Parameters)
       const urlParams = new URL(request.url).searchParams;
       const receivedHmac = urlParams.get("hmac");
 
