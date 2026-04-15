@@ -60,6 +60,7 @@ export default function Course() {
   // حالات مودال الدفع والاشتراك
   const [isEnrolling, setIsEnrolling] = useState(false);
   const [showEnrollConfirmModal, setShowEnrollConfirmModal] = useState(false);
+  const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false); // 💡 التعديل: مودال اختيار طريقة الدفع
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentReference, setPaymentReference] = useState('');
 
@@ -251,6 +252,7 @@ export default function Course() {
     }
   }, [activeLessonId]);
 
+  // 💡 التعديل: توجيه المستخدم حسب نوع الدورة (مجانية أو مدفوعة)
   const handleEnrollClick = () => {
     if (!isAuthenticated) {
       toast.info('يرجى تسجيل الدخول أولاً للاشتراك في هذه الدورة.');
@@ -258,33 +260,57 @@ export default function Course() {
       return;
     }
     if (!token || !course) return;
-    setShowEnrollConfirmModal(true);
+
+    if (course.is_free === 1) {
+      // دورة مجانية -> عرض تأكيد الاشتراك البسيط
+      setShowEnrollConfirmModal(true);
+    } else {
+      // دورة مدفوعة -> عرض اختيار طريقة الدفع
+      setShowPaymentMethodModal(true);
+    }
   };
 
-  // تنفيذ عملية الاشتراك أو الدفع
-  const confirmEnrollment = async () => {
+  // 💡 التعديل: تأكيد الاشتراك المجاني
+  const confirmFreeEnrollment = async () => {
     if (!token || !course) return;
     setShowEnrollConfirmModal(false);
     setIsEnrolling(true);
 
     try {
-      if (course.is_free === 1) {
-        // كورس مجاني -> اشتراك مباشر
-        await apiCall('/api/enroll', token, 'POST', { course_id: course.id });
-        toast.success('تم الاشتراك بنجاح! جاري تحميل المحتوى...');
-        setIsUserEnrolled(true);
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
+      await apiCall('/api/enroll', token, 'POST', { course_id: course.id });
+      toast.success('تم الاشتراك بنجاح! جاري تحميل المحتوى...');
+      setIsUserEnrolled(true);
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch(err: any) {
+      toast.error(err.message || 'حدث خطأ أثناء الاشتراك.');
+    } finally {
+      setIsEnrolling(false);
+    }
+  };
+
+  // 💡 التعديل: تنفيذ عملية الدفع حسب الطريقة المختارة (كارت أو فوري)
+  const proceedToPayment = async (method: 'card' | 'kiosk') => {
+    if (!token || !course) return;
+    setShowPaymentMethodModal(false);
+    setIsEnrolling(true);
+
+    try {
+      const response = await apiCall('/api/paymob/init', token, 'POST', { 
+        course_id: course.id,
+        method: method 
+      }) as any;
+
+      if (method === 'card' && response.iframe_url) {
+        // توجيه المستخدم لصفحة دفع بيموب مباشرة
+        window.location.href = response.iframe_url;
+      } else if (method === 'kiosk' && response.bill_reference) {
+        // عرض نافذة الكود المرجعي لفوري
+        setPaymentReference(response.bill_reference);
+        setShowPaymentModal(true);
       } else {
-        // كورس مدفوع -> استخراج كود بيموب
-        const response = await apiCall('/api/paymob/init', token, 'POST', { course_id: course.id }) as any;
-        if (response && response.bill_reference) {
-          setPaymentReference(response.bill_reference);
-          setShowPaymentModal(true);
-        } else {
-          throw new Error("لم يتم إرجاع كود الدفع من الخادم.");
-        }
+        throw new Error("لم يتم إرجاع بيانات الدفع من الخادم.");
       }
     } catch(err: any) {
       const errorMsg = err.message || 'حدث خطأ أثناء الاتصال بخدمة الدفع. يرجى المحاولة لاحقاً.';
@@ -706,12 +732,10 @@ export default function Course() {
   // 💡 استخراج البيانات الديناميكية (Metadata) من الكورس إن وجدت لعرضها كشارات
   let courseSettings: any = {};
   try {
-    // نفترض أن الـ backend يرسل الحقل metadata كـ string JSON
     if ((course as any)?.metadata) {
       courseSettings = JSON.parse((course as any).metadata);
     }
   } catch (e) {
-    // تجاهل الخطأ في حالة عدم وجود بيانات إضافية
   }
 
   return (
@@ -754,7 +778,7 @@ export default function Course() {
             <h2 className="text-[26px] text-primary mb-2.5 font-bold">{course?.title || 'جاري تحميل بيانات الكورس...'}</h2>
             <p className="text-text-muted text-base mb-4">{course?.description || 'دورة تدريبية متميزة'}</p>
             
-            {/* 💡 التعديل هنا: دمج بيانات Metadata الديناميكية كشارات (Tags) */}
+            {/* دمج بيانات Metadata الديناميكية كشارات (Tags) */}
             {(courseSettings.level || courseSettings.language || courseSettings.badge) && (
               <div className="flex flex-wrap justify-center items-center gap-3 mb-6">
                 {courseSettings.level && (
@@ -792,16 +816,27 @@ export default function Course() {
                 </button>
               )}
               
+              {/* 💡 التعديل: تفعيل زر المحاضر للمشتركين فقط */}
               {course?.instructor_contact && (
-                <a 
-                  href={course.instructor_contact} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="bg-[#25D366] text-white border-none py-3 px-8 rounded-xl text-base font-bold inline-flex items-center gap-2 transition-all hover:bg-[#1ebe57] hover:-translate-y-0.5 hover:shadow-md no-underline"
-                  title="تواصل مع المحاضر للاستفسارات"
-                >
-                  <i className="fab fa-whatsapp text-lg"></i> تواصل مع المحاضر
-                </a>
+                isUserEnrolled ? (
+                  <a 
+                    href={course.instructor_contact} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="bg-[#25D366] text-white border-none py-3 px-8 rounded-xl text-base font-bold inline-flex items-center gap-2 transition-all hover:bg-[#1ebe57] hover:-translate-y-0.5 hover:shadow-md no-underline"
+                    title="تواصل مع المحاضر للاستفسارات"
+                  >
+                    <i className="fab fa-whatsapp text-lg"></i> تواصل مع المحاضر
+                  </a>
+                ) : (
+                  <button 
+                    onClick={() => toast.info('يجب الاشتراك في الكورس أولاً لتتمكن من التواصل مع المحاضر.')}
+                    className="bg-slate-200 text-slate-500 border-none py-3 px-8 rounded-xl text-base font-bold inline-flex items-center gap-2 transition-all cursor-not-allowed"
+                    title="مغلق للمشتركين فقط"
+                  >
+                    <i className="fas fa-lock text-lg"></i> تواصل مع المحاضر
+                  </button>
+                )
               )}
             </div>
 
@@ -981,7 +1016,7 @@ export default function Course() {
       </div>
 
       {/* ============================================================ */}
-      {/* 🛡️ Modal تأكيد الاشتراك                                      */}
+      {/* 🛡️ Modal تأكيد الاشتراك (للكورسات المجانية فقط)               */}
       {/* ============================================================ */}
       {showEnrollConfirmModal && course && (
         <div className="fixed inset-0 bg-slate-900/60 flex justify-center items-center z-[9999] backdrop-blur-sm px-4">
@@ -990,11 +1025,9 @@ export default function Course() {
             <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-5 text-primary text-[32px]">
               <i className="fas fa-shopping-cart" />
             </div>
-            <h2 className="text-[22px] text-slate-800 font-bold mb-3">تأكيد {course.is_free === 1 ? 'الاشتراك' : 'الشراء'}</h2>
+            <h2 className="text-[22px] text-slate-800 font-bold mb-3">تأكيد الاشتراك المجاني</h2>
             <p className="text-text-muted mb-8 text-[15px] leading-relaxed px-2">
-              {course.is_free === 1 
-                ? 'هل أنت متأكد من رغبتك في الاشتراك في هذا الكورس مجاناً؟' 
-                : `هل أنت متأكد من رغبتك في شراء الكورس بقيمة ${course.price} ج.م؟`}
+              هل أنت متأكد من رغبتك في الاشتراك في هذا الكورس مجاناً؟
             </p>
             <div className="flex gap-4">
               <button
@@ -1004,10 +1037,11 @@ export default function Course() {
                 إلغاء
               </button>
               <button
-                onClick={confirmEnrollment}
-                className="flex-1 bg-primary text-white border-none py-3.5 rounded-xl font-bold text-base cursor-pointer hover:bg-primary/90 transition-all shadow-[0_5px_15px_rgba(1,86,105,0.2)] hover:-translate-y-0.5"
+                onClick={confirmFreeEnrollment}
+                disabled={isEnrolling}
+                className="flex-1 bg-primary text-white border-none py-3.5 rounded-xl font-bold text-base cursor-pointer hover:bg-primary/90 transition-all shadow-[0_5px_15px_rgba(1,86,105,0.2)] hover:-translate-y-0.5 disabled:opacity-50"
               >
-                تأكيد
+                {isEnrolling ? 'جاري...' : 'تأكيد'}
               </button>
             </div>
           </div>
@@ -1015,7 +1049,48 @@ export default function Course() {
       )}
 
       {/* ============================================================ */}
-      {/* 🛡️ Modal عرض كود فوري (تفاصيل محسنة جداً)                     */}
+      {/* 🛡️ Modal اختيار طريقة الدفع (للكورسات المدفوعة)               */}
+      {/* ============================================================ */}
+      {showPaymentMethodModal && course && (
+        <div className="fixed inset-0 bg-slate-900/60 flex justify-center items-center z-[9999] backdrop-blur-sm px-4">
+          <div className="bg-white p-8 rounded-[24px] w-full max-w-[450px] text-center shadow-[0_20px_60px_rgba(0,0,0,0.2)] animate-fade-in border border-border relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-2 bg-primary" />
+            <h2 className="text-[22px] text-slate-800 font-bold mb-3">اختر طريقة الدفع</h2>
+            <p className="text-text-muted mb-8 text-[15px] leading-relaxed px-2">
+              للاشتراك في الكورس بقيمة <strong className="text-primary">{course.price} ج.م</strong>، يرجى اختيار الطريقة الأنسب لك:
+            </p>
+            
+            <div className="flex flex-col gap-4">
+              <button 
+                onClick={() => proceedToPayment('card')} 
+                disabled={isEnrolling}
+                className="w-full bg-[#015669] text-white border-none py-4 rounded-xl font-bold text-lg cursor-pointer hover:bg-[#014150] transition-all flex items-center justify-center gap-3 shadow-md hover:-translate-y-0.5 disabled:opacity-50"
+              >
+                <i className="fas fa-credit-card text-2xl" /> الدفع بالبطاقة (فيزا / ماستركارد)
+              </button>
+              
+              <button 
+                onClick={() => proceedToPayment('kiosk')} 
+                disabled={isEnrolling}
+                className="w-full bg-[#f59e0b] text-white border-none py-4 rounded-xl font-bold text-lg cursor-pointer hover:bg-[#d97706] transition-all flex items-center justify-center gap-3 shadow-md hover:-translate-y-0.5 disabled:opacity-50"
+              >
+                <i className="fas fa-store text-2xl" /> الدفع كاش (فوري / أمان / محافظ)
+              </button>
+              
+              <button 
+                onClick={() => setShowPaymentMethodModal(false)} 
+                disabled={isEnrolling}
+                className="w-full bg-slate-100 text-slate-700 mt-2 py-3 rounded-xl font-bold text-base cursor-pointer hover:bg-slate-200 transition-all disabled:opacity-50"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* 🛡️ Modal عرض كود فوري (بعد اختيار الدفع الكاش)                 */}
       {/* ============================================================ */}
       {showPaymentModal && paymentReference && (
         <div className="fixed inset-0 bg-slate-900/60 flex justify-center items-center z-[9999] backdrop-blur-sm px-4">
