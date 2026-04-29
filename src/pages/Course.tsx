@@ -7,7 +7,7 @@ import { useAuth, apiCall, publicApiCall } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { Course, Lesson, QuizQuestion } from '@/types';
 
-// ---------- global types ----------
+// ---------- global types --------- -
 declare global {
   interface Window {
     YT: {
