@@ -54,9 +54,8 @@ interface QuizSubmissionResponse {
   score?: number;
 }
 
-interface EnrollResponse {
-  // ممكن تكون فارغة أو تحتوي على رسالة
-}
+// ✅ تصحيح: استخدام type بدلاً من interface فارغة
+type EnrollResponse = Record<string, unknown>;
 
 interface PaymentInitResponse {
   iframe_url?: string;
