@@ -1,0 +1,296 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* تعريف الخط الخاص بالمنصة */
+@font-face {
+  font-family: 'AbdoLogo';
+  src: url('/alfont_com_Abdo.Fonts_Abdo.Logo_.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 215 25% 17%;
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 17%;
+    --primary: 189 98% 21%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 215 25% 17%;
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 189 98% 21%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 189 98% 21%;
+    --radius: 1rem;
+
+    /* Custom Colors */
+    --primary-color: #015669;
+    --primary-light: rgba(1, 86, 105, 0.1);
+    --bg-page: #f4f7f9;
+    --text-main: #1e293b;
+    --text-muted: #64748b;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    font-family: 'AbdoLogo', sans-serif;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-[var(--bg-page)] text-[var(--text-main)] antialiased;
+    min-height: 100vh;
+  }
+}
+
+/* Font Awesome Fix */
+i, .fas, .fab, .far {
+  font-family: "Font Awesome 6 Free", "Font Awesome 6 Brands" !important;
+}
+
+/* Custom Animations */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-spin-slow {
+  animation: spin 1s linear infinite;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease forwards;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease forwards;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-page);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--primary-color);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #013d4a;
+}
+
+/* Video Modal Styles */
+.video-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.95);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  backdrop-filter: blur(10px);
+}
+
+.yt-wrapper {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%;
+  height: 0;
+  overflow: hidden;
+}
+
+.yt-wrapper iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.yt-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+  cursor: pointer;
+}
+
+/* Exam Modal Styles */
+.exam-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(248, 250, 252, 0.98);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+}
+
+.anti-cheat-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: black;
+  color: white;
+  z-index: 3000;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  font-size: 24px;
+  font-weight: bold;
+  text-align: center;
+  padding: 20px;
+}
+
+/* Sidebar Styles */
+.sidebar {
+  width: 280px;
+  background-color: white;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 30px 20px;
+  box-shadow: -5px 0 30px rgba(0,0,0,0.02);
+  z-index: 100;
+  transition: 0.3s;
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    position: fixed;
+    right: -100%;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  .sidebar.open {
+    right: 0;
+  }
+}
+
+/* Tab Content Animation */
+.tab-content {
+  display: none;
+  animation: fadeIn 0.4s ease;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* Card Hover Effects */
+.course-card-hover {
+  transition: all 0.3s ease;
+}
+
+.course-card-hover:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 20px 40px rgba(1, 86, 105, 0.15);
+}
+
+/* Progress Bar Animation */
+.progress-bar-fill {
+  transition: width 1s ease-in-out;
+}
+
+/* Button Styles */
+.btn-primary {
+  @apply bg-[var(--primary-color)] text-white px-6 py-3 rounded-xl font-bold transition-all duration-300;
+}
+
+.btn-primary:hover {
+  @apply shadow-lg;
+  transform: translateY(-2px);
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+/* Form Styles */
+.form-input {
+  @apply w-full px-4 py-3 border-2 border-[var(--border)] rounded-xl text-base transition-all duration-300;
+  background: var(--bg-page);
+}
+
+.form-input:focus {
+  @apply border-[var(--primary-color)] outline-none;
+  background: white;
+}
+
+/* Badge Styles */
+.badge-free {
+  @apply bg-emerald-100 text-emerald-600 px-3 py-1 rounded-full text-sm font-bold;
+}
+
+.badge-paid {
+  @apply bg-amber-100 text-amber-600 px-3 py-1 rounded-full text-sm font-bold;
+}
+
+.badge-enrolled {
+  @apply bg-[var(--primary-color)] text-white px-3 py-1 rounded-full text-sm font-bold;
+}
