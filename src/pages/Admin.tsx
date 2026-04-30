@@ -135,7 +135,7 @@ export default function Admin() {
   const loadCourses = useCallback(async () => {
     if (!token) return;
     try {
-      const data = await apiCall<Course[]>('/api/courses', token);
+      const data = (await apiCall('/api/courses', token)) as Course[];
       setCourses(data);
     } catch {
       // silently ignore
@@ -146,10 +146,10 @@ export default function Admin() {
     async (page: number, search: string, typeParam: string) => {
       if (!token) return;
       try {
-        const data = await apiCall<PaginatedUsers>(
+        const data = (await apiCall(
           `/api/admin/users?page=${page}&limit=${usersLimit}&search=${encodeURIComponent(search)}&type=${typeParam}`,
           token
-        );
+        )) as PaginatedUsers;
         setUsers(data.users || []);
         setUsersTotal(data.total || 0);
         setUsersPage(data.page || 1);
@@ -164,10 +164,10 @@ export default function Admin() {
     async (courseId: string) => {
       if (!token || !courseId) return;
       try {
-        const data = await apiCall<Lesson[]>(
+        const data = (await apiCall(
           `/api/courses/${courseId}/lessons`,
           token
-        );
+        )) as Lesson[];
         setLessons(data);
       } catch {
         // ignore
@@ -180,10 +180,10 @@ export default function Admin() {
     async (lessonId: string) => {
       if (!token || !lessonId) return;
       try {
-        const data = await apiCall<QuizQuestion[]>(
+        const data = (await apiCall(
           `/api/lessons/${lessonId}/quiz`,
           token
-        );
+        )) as QuizQuestion[];
         setQuestions(data);
       } catch {
         // ignore
@@ -195,7 +195,7 @@ export default function Admin() {
   const loadSalesStats = useCallback(async () => {
     if (!token) return;
     try {
-      const data = await apiCall<SalesStat[]>('/api/admin/transactions/stats', token);
+      const data = (await apiCall('/api/admin/transactions/stats', token)) as SalesStat[];
       setSalesStats(data);
     } catch {
       toast.error('فشل جلب إحصائيات المبيعات');
@@ -205,7 +205,7 @@ export default function Admin() {
   const loadFailedExams = useCallback(async () => {
     if (!token) return;
     try {
-      const data = await apiCall<FailedExam[]>('/api/admin/failed-exams', token);
+      const data = (await apiCall('/api/admin/failed-exams', token)) as FailedExam[];
       setFailedExams(data);
     } catch {
       toast.error('فشل جلب الامتحانات المعلقة');
@@ -415,7 +415,7 @@ export default function Admin() {
   const handleViewReport = async (userId: number, userName: string) => {
     if (!token) return;
     try {
-      const data = await apiCall<StudentReport>(`/api/admin/reports/${userId}`, token);
+      const data = (await apiCall(`/api/admin/reports/${userId}`, token)) as StudentReport;
       setReportData(data);
       setReportUserName(userName);
       setShowReportModal(true);
@@ -793,7 +793,7 @@ export default function Admin() {
                           setNewCourseMeta({ ...newCourseMeta, language: e.target.value })
                         }
                         className={inputStyles}
-                      >
+                        >
                         <option value="">بدون تحديد</option>
                         <option value="عربي">عربي</option>
                         <option value="إنجليزي">إنجليزي</option>
