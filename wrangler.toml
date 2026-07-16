@@ -1,0 +1,166 @@
+# ============================================================================
+# الإعدادات الأساسية للمشروع
+# ============================================================================
+name = "kollobeit3alem-api"
+main = "public/_worker.js"
+compatibility_date = "2024-09-23"
+
+# ============================================================================
+# المتغيرات البيئية
+# JWT_SECRET و ALLOWED_ORIGINS و PAYMOB_API_KEY يُضافان من لوحة تحكم
+# Cloudflare من Settings > Variables and Secrets ولا يُكتبان هنا أبداً
+# عشان ما يتعرضوش في الـ source code أو الـ git repository
+# ============================================================================
+[vars]
+ENVIRONMENT = "production"
+# ALLOWED_ORIGINS = "https://kollobeit3alem.pages.dev,https://kollobeit3alem.com"
+# ↑ أضف هذا السطر وعدّله من لوحة التحكم Settings > Variables عند تغيير الدومين
+
+# ============================================================================
+# 1. ربط قاعدة البيانات (D1 Database)
+#
+# read_replication = auto — يوزع طلبات القراءة على أقرب node جغرافياً
+# للطالب تلقائياً بدون أي كود إضافي، مجاني في beta
+#
+# الحد الأقصى لـ D1 في الخطة المدفوعة:
+#   - 50 مليون row read يومياً
+#   - 50 ألف row write يومياً
+#   - حجم قاعدة البيانات: 10 GB
+#
+# لو وصلت لـ 1 مليون طالب يومياً راجع الحد ده وفكر في
+# تقليل الـ DB queries باستخدام الـ KV Cache أكتر
+# ============================================================================
+[[d1_databases]]
+binding = "DB"
+database_name = "kollobeit3alem-db"
+database_id = "71570892-e00b-47f8-8113-e46ed27b845b"
+read_replication = { mode = "auto" }
+
+# ============================================================================
+# 2. ربط KV Cache الأساسي — COURSES_CACHE
+#
+# يُستخدم لـ 5 أغراض:
+#   - كاش الكورسات (all_courses) — TTL 300 ثانية
+#   - جلسات المستخدمين (session:{userId}) — TTL 86400 ثانية
+#   - مفاتيح Google العامة (google_jwks) — TTL 21600 ثانية
+#   - Rate Limiting العام (rl:{endpoint}:{ip}) — TTL 60 ثانية
+#   - Rate Limiting المصادقة (auth_rl:{type}:{identifier}) — TTL 60 ثانية
+#
+# الحد الأقصى لـ KV في الخطة المدفوعة:
+#   - 1 مليار read يومياً
+#   - 1 مليون write يومياً
+#   - حجم القيمة الواحدة: 25 MB
+# ============================================================================
+[[kv_namespaces]]
+binding = "COURSES_CACHE"
+id = "94b10873bf82473b8a553e985d8352ee"
+
+# ============================================================================
+# 3. ربط KV منفصل للـ Rate Limiting — RATE_LIMIT_STORE
+#
+# سبب الفصل:
+#   - الـ Rate Limiting بيعمل write في كل طلب — عدد كبير جداً من الـ writes
+#   - لو اشتركنا مع COURSES_CACHE هنقترب من حد الـ 1 مليون write بسرعة
+#   - الفصل بيخلينا نراقب الاستهلاك بشكل مستقل في لوحة تحكم Cloudflare
+#   - لو احتجنا نمسح كل الـ rate limit keys مش هنأثر على الجلسات أو الكاش
+#
+# خطوات الإنشاء في Cloudflare:
+#   1. روح Workers & Pages > KV
+#   2. اضغط Create namespace
+#   3. اكتب الاسم: kollobeit3alem-rate-limit
+#   4. انسخ الـ ID الجديد واحطه هنا بدل XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+# ============================================================================
+[[kv_namespaces]]
+binding = "RATE_LIMIT_STORE"
+id = "5805c58515ec4b9d9a1de05d297cb68f"
+# ↑ استبدل هذا الـ ID بالـ ID الحقيقي بعد إنشاء الـ namespace في Cloudflare
+
+# ============================================================================
+# 4. ربط طابور الامتحانات (Queues)
+#
+# المنطق:
+#   - لما الطالب يخلص الامتحان بنبعت الإجابات للـ Queue بدل ما نحسبها فوراً
+#   - الـ Worker الخلفي (queue handler) بيحسبها ويحفظها في DB بشكل async
+#   - ده بيقلل وقت استجابة endpoint الامتحان من ~500ms لـ ~50ms
+#
+# max_batch_size = 50 — بيعالج 50 امتحان دفعة واحدة
+# max_batch_timeout = 5 — ينتظر 5 ثواني بحد أقصى قبل ما يشغل الـ batch
+# max_retries = 3 — يحاول 3 مرات لو حصل خطأ قبل ما ينقل للـ failed_exams
+#
+# الحد الأقصى لـ Queues في الخطة المدفوعة:
+#   - 5 مليون message يومياً مجاناً
+#   - بعد كده 0.40$ لكل مليون message إضافية
+# ============================================================================
+[[queues.producers]]
+queue = "exams-queue"
+binding = "EXAMS_QUEUE"
+
+[[queues.consumers]]
+queue = "exams-queue"
+max_batch_size = 50
+max_batch_timeout = 5
+max_retries = 3
+
+# ============================================================================
+# 5. إعدادات الـ Cron Triggers — مهام دورية تلقائية
+#
+# بنضيف مهمتين:
+#
+# المهمة الأولى: تنظيف سجلات الـ Rate Limiting القديمة
+#   - بتشتغل كل ساعة
+#   - بتمسح الـ keys اللي انتهت صلاحيتها يدوياً لو الـ KV ما مسحهاش تلقائياً
+#   - ملاحظة: KV بيمسح الـ expired keys تلقائياً لكن مش فوري، التنظيف اليدوي
+#     بيساعد في إبقاء الـ namespace نظيف ومنظم
+#
+# المهمة الثانية: تنظيف الجلسات المنتهية الصلاحية من DB
+#   - بتشتغل كل يوم الساعة 3 صباحاً (وقت انخفاض الحمل)
+#   - بتمسح session_id من users اللي مش عندهم نشاط من أكتر من 30 يوم
+#   - ده بيقلل حجم الـ DB ويسرع الـ queries
+#
+# عشان تفعّل الـ Cron:
+#   - ضيف الـ handler في _worker.js:
+#     async scheduled(event, env, ctx) { ... }
+#   - أو اتركه كما هو ولو محتاجته بعدين تضيفه
+# ============================================================================
+[triggers]
+crons = [
+  "0 * * * *",
+  "0 3 * * *"
+]
+
+# ============================================================================
+# 6. إعدادات البيئة الـ Preview (للاختبار قبل النشر)
+#
+# بنربط DB و KV منفصلين للـ preview عشان الاختبارات ما تأثرش على بيانات
+# الإنتاج الحقيقية
+#
+# خطوات الإنشاء:
+#   1. D1: روح Workers & Pages > D1 > Create Database
+#      اكتب الاسم: kollobeit3alem-db-preview
+#      انسخ الـ ID واحطه بدل YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY
+#
+#   2. KV: روح Workers & Pages > KV > Create namespace
+#      اكتب الاسم: kollobeit3alem-cache-preview
+#      انسخ الـ ID واحطه بدل ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ
+# ============================================================================
+[env.preview]
+name = "kollobeit3alem-api-preview"
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "kollobeit3alem-db-preview"
+database_id = "1c18f27e-d14b-4aeb-80a4-35326d6fef33"
+# ↑ استبدل بـ ID قاعدة بيانات الـ preview بعد إنشائها
+
+[[env.preview.kv_namespaces]]
+binding = "COURSES_CACHE"
+id = "3ef0d2e04bff44ec83c59e3a43314a5a"
+# ↑ استبدل بـ ID الـ KV namespace للـ preview بعد إنشائه
+
+[[env.preview.kv_namespaces]]
+binding = "RATE_LIMIT_STORE"
+id = "3ef0d2e04bff44ec83c59e3a43314a5a"
+# ↑ ممكن تستخدم نفس الـ preview KV أو تنشئ namespace منفصل للـ rate limit
+
+[env.preview.vars]
+ENVIRONMENT = "preview"
