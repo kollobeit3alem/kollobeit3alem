@@ -126,7 +126,7 @@ export default function Profile() {
       {/* ============================================================ */}
       {/* Hero الملف الشخصي                                             */}
       {/* ============================================================ */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-[var(--primary-color)] to-[var(--primary-dark)] text-white">
+      <section className="relative overflow-hidden text-white" style={{ background: 'linear-gradient(135deg, #015669, #013d4a)' }}>
         <div
           className="pointer-events-none absolute inset-0"
           style={{

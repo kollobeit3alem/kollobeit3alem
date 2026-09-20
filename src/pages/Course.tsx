@@ -1165,7 +1165,7 @@ export default function Course() {
                       ? 'border-2 border-emerald-200'
                       : locked && isUserEnrolled
                         ? 'border-2 border-slate-200/70 opacity-80'
-                        : 'border-2 border-transparent hover:border-[var(--primary-color)]/30'
+                        : 'border-2 border-transparent hover:border-[rgba(1,86,105,0.3)]'
                   }`}
                 >
                   {/* رأس المحاضرة */}
@@ -1243,7 +1243,7 @@ export default function Course() {
                                 : isVideoCompleted
                                   ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
                                   : isActiveVideo
-                                    ? 'border border-[var(--primary-color)]/40 bg-[var(--primary-light)] text-[var(--primary-color)] shadow-[0_5px_15px_rgba(1,86,105,0.12)]'
+                                    ? 'border border-[rgba(1,86,105,0.4)] bg-[var(--primary-light)] text-[var(--primary-color)] shadow-[0_5px_15px_rgba(1,86,105,0.12)]'
                                     : 'border border-amber-200/70 bg-amber-50 text-amber-700'
                             }`}
                           >

@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth, apiCall, publicApiCall } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { Course } from '@/types';
-import type { CSSProperties } from 'react';
 import { SiteHeader, PageFooter, KbModal, Spinner, EmptyState } from '@/components/kb/shared';
 
 export default function Courses() {
@@ -12,50 +11,27 @@ export default function Courses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [enrolledCourseIds, setEnrolledCourseIds] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
   const [showPhoneModal, setShowPhoneModal] = useState(false);
   const [phoneInput, setPhoneInput] = useState('');
   const [isSavingPhone, setIsSavingPhone] = useState(false);
-
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  useEffect(() => {
-    if (user && !user.phone) {
-      setShowPhoneModal(true);
-    }
-  }, [user]);
+  useEffect(() => { if (user && !user.phone) setShowPhoneModal(true); }, [user]);
 
   const fetchEnrollments = useCallback(async () => {
     if (!token) return;
-    try {
-      const data = await apiCall('/api/my-enrollments', token) as number[];
-      setEnrolledCourseIds(data);
-    } catch (error) {
-      console.error('Failed to load enrollments:', error);
-    }
+    try { const d = await apiCall('/api/my-enrollments', token) as number[]; setEnrolledCourseIds(d); }
+    catch (e) { console.error('Failed to load enrollments:', e); }
   }, [token]);
 
   const fetchCourses = useCallback(async () => {
-    try {
-      const data = await publicApiCall('/api/courses') as Course[];
-      setCourses(data);
-    } catch (error) {
-      console.error('Failed to load courses:', error);
-      toast.error('فشل تحميل الدورات');
-    } finally {
-      setIsLoading(false);
-    }
+    try { const d = await publicApiCall('/api/courses') as Course[]; setCourses(d); }
+    catch { toast.error('فشل تحميل الدورات'); }
+    finally { setIsLoading(false); }
   }, []);
 
-  useEffect(() => {
-    fetchCourses();
-  }, [fetchCourses]);
-
-  useEffect(() => {
-    if (token) {
-      fetchEnrollments();
-    }
-  }, [token, fetchEnrollments]);
+  useEffect(() => { fetchCourses(); }, [fetchCourses]);
+  useEffect(() => { if (token) fetchEnrollments(); }, [token, fetchEnrollments]);
 
   const handleSavePhone = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,142 +39,62 @@ export default function Courses() {
     setIsSavingPhone(true);
     try {
       await apiCall('/api/my-profile', token, 'PUT', { phone: phoneInput });
-      toast.success('تم حفظ رقم الواتساب بنجاح!');
-      const updatedUser = { ...user, phone: phoneInput };
-      localStorage.setItem('user_info', JSON.stringify(updatedUser));
+      toast.success('تم حفظ رقم الواتساب بنجاح');
       if (user) user.phone = phoneInput;
+      localStorage.setItem('user_info', JSON.stringify({ ...user, phone: phoneInput }));
       setShowPhoneModal(false);
-    } catch (error) {
-      toast.error('حدث خطأ أثناء الحفظ، يرجى المحاولة لاحقاً.');
-    } finally {
-      setIsSavingPhone(false);
-    }
+    } catch { toast.error('حدث خطأ أثناء الحفظ'); }
+    finally { setIsSavingPhone(false); }
   };
 
-  const handleLogoutClick = () => setShowLogoutModal(true);
-  const confirmLogout = () => {
-    setShowLogoutModal(false);
-    logout();
-  };
-
-  const getCourseAction = (course: Course) => {
-    const isEnrolled = isAuthenticated && enrolledCourseIds.includes(course.id);
-    const isFree = course.is_free === 1;
-
-    if (isEnrolled) {
-      return {
-        badge: (
-          <span className="absolute top-4 right-4 z-10 kb-chip bg-[var(--primary-color)] text-white shadow-lg">
-            <i className="fas fa-check-circle" /> مشترك
-          </span>
-        ),
-        button: (
-          <button className="kb-btn-grad kb-shine px-6 py-2.5 text-sm">
-            متابعة التعلم <i className="fas fa-circle-play" />
-          </button>
-        ),
-        action: () => navigate(`/course?id=${course.id}`),
-      };
-    } else if (isFree) {
-      return {
-        badge: (
-          <span className="kb-chip-green absolute top-4 right-4 z-10 shadow-lg">
-            <i className="fas fa-gift" /> مجاني
-          </span>
-        ),
-        button: (
-          <button className="kb-btn-outline px-6 py-2.5 text-sm">
-            تصفح الكورس <i className="fas fa-eye" />
-          </button>
-        ),
-        action: () => navigate(`/course?id=${course.id}`),
-      };
-    } else {
-      return {
-        badge: (
-          <span className="kb-chip-amber absolute top-4 right-4 z-10 shadow-lg">
-            <i className="fas fa-tag" /> {course.price || 0} ج.م
-          </span>
-        ),
-        button: (
-          <button className="kb-btn-outline px-6 py-2.5 text-sm text-amber-600 border-amber-200 hover:border-amber-500 hover:text-amber-700">
-            تصفح الكورس <i className="fas fa-eye" />
-          </button>
-        ),
-        action: () => navigate(`/course?id=${course.id}`),
-      };
-    }
+  const getCourseAction = (c: Course) => {
+    const enrolled = isAuthenticated && enrolledCourseIds.includes(c.id);
+    const free = c.is_free === 1;
+    if (enrolled) return { badge: <span className="absolute top-4 right-4 z-10 kb-chip kb-chip-teal shadow-lg"><i className="fas fa-check-circle" /> مشترك</span>,
+      button: <button className="kb-btn-grad px-5 py-2 text-sm">متابعة التعلم <i className="fas fa-play" /></button>,
+      action: () => navigate(`/course?id=${c.id}`) };
+    if (free) return { badge: <span className="absolute top-4 right-4 z-10 kb-chip kb-chip-green shadow-lg"><i className="fas fa-gift" /> مجاني</span>,
+      button: <button className="kb-btn-outline px-5 py-2 text-sm">تصفح الكورس <i className="fas fa-eye" /></button>,
+      action: () => navigate(`/course?id=${c.id}`) };
+    return { badge: <span className="absolute top-4 right-4 z-10 kb-chip kb-chip-amber shadow-lg"><i className="fas fa-tag" /> {c.price || 0} ج.م</span>,
+      button: <button className="kb-btn-outline px-5 py-2 text-sm text-amber-600 border-amber-200 hover:border-amber-500">تصفح الكورس <i className="fas fa-eye" /></button>,
+      action: () => navigate(`/course?id=${c.id}`) };
   };
 
   return (
     <>
-      {/* SEO structured data */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "ItemList",
-            "name": "كورسات منصة كله بيتعلم",
-            "description": "قائمة الكورسات الأونلاين المتاحة في منصة كله بيتعلم",
-            "url": "https://kollobeit3alem.pages.dev/",
-            "numberOfItems": courses.length,
-            "itemListElement": courses.slice(0, 10).map((c, i) => ({
-              "@type": "ListItem",
-              "position": i + 1,
-              "name": c.title,
-              "description": c.description || "كورس تدريبي متميز",
-            }))
-          })
-        }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
+        "@context": "https://schema.org", "@type": "ItemList", "name": "كورسات منصة كله بيتعلم",
+        "description": "قائمة الكورسات الأونلاين المتاحة في منصة كله بيتعلم",
+        "url": "https://kollobeit3alem.pages.dev/", "numberOfItems": courses.length,
+        "itemListElement": courses.slice(0, 10).map((c, i) => ({ "@type": "ListItem", "position": i + 1, "name": c.title, "description": c.description || "كورس تدريبي متميز" }))
+      }) }} />
 
       <div className="flex min-h-screen flex-col" dir="rtl">
-        <SiteHeader
-          user={user}
-          loggedIn={isAuthenticated}
-          onLogoutClick={isAuthenticated && user ? handleLogoutClick : undefined}
-        />
+        <SiteHeader user={user} loggedIn={isAuthenticated} onLogoutClick={isAuthenticated && user ? () => setShowLogoutModal(true) : undefined} />
 
-        {/* Hero — لوحة متدرجة تشجّع على المذاكرة */}
-        <section className="relative overflow-hidden bg-[var(--grad-brand-deep)] text-white">
-          <div
-            className="pointer-events-none absolute inset-0"
-            style={{
-              backgroundImage:
-                'radial-gradient(rgba(255,255,255,0.16) 1px, transparent 1px)',
-              backgroundSize: '22px 22px',
-              maskImage: 'radial-gradient(70rem 34rem at 50% 0%, black 25%, transparent 75%)',
-            }}
-            aria-hidden="true"
-          />
-          <div
-            className="pointer-events-none absolute -top-32 left-1/2 h-96 w-[52rem] -translate-x-1/2 rounded-full opacity-70 blur-3xl"
-            style={{ background: 'radial-gradient(30rem 18rem, rgba(31,182,191,0.35), transparent 65%)' }}
-            aria-hidden="true"
-          />
-          <div className="relative mx-auto flex max-w-[1400px] flex-col items-center px-[5%] py-16 text-center md:py-20">
+        {/* Hero */}
+        <section className="relative overflow-hidden text-white" style={{ background: 'linear-gradient(135deg, #013d4a, #015669)' }}>
+          <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.12) 1px, transparent 1px)', backgroundSize: '20px 20px' }} aria-hidden="true" />
+          <div className="pointer-events-none absolute -top-32 left-1/2 h-96 w-[50rem] -translate-x-1/2 rounded-full blur-3xl" style={{ background: 'radial-gradient(30rem 18rem, rgba(31,182,191,0.3), transparent 65%)' }} aria-hidden="true" />
+          <div className="relative mx-auto flex max-w-7xl flex-col items-center px-5 py-16 text-center md:py-20">
             {isAuthenticated && user ? (
-              <h2 className="kb-rise kb-display mb-3 text-[30px] text-white md:text-[42px]">
-                أهلاً يا <span className="text-[#b8f0f3]">{user.name.split(' ')[0]}</span>
-                <span className="block">مستعد تذاكر حاجة جديدة؟</span>
+              <h2 className="kb-display mb-3 text-[30px] text-white md:text-[42px]">
+                أهلاً يا <span className="opacity-80">{user.name.split(' ')[0]}</span>!
+                <span className="block mt-1">مستعد تذاكر حاجة جديدة؟</span>
               </h2>
             ) : (
               <>
                 <span className="kb-eyebrow mb-4 border-white/20 bg-white/10 text-white">
                   <span className="kb-dot-live" /> منصة المذاكرة الأونلاين لطلاب مصر
                 </span>
-                <h2 className="kb-rise kb-display mb-4 text-[32px] text-white md:text-[46px]">
-                  كله بيتعلم، <span className="text-[#b8f0f3]">من غير ما تلاقي حد يقفل عليه الباب</span>
+                <h2 className="kb-display mb-4 max-w-3xl text-[32px] text-white md:text-[46px]">
+                  كله بيتعلم — من غير ما تلاقي حد يقفل عليه الباب
                 </h2>
-                <p className="kb-rise max-w-[620px] text-[16px] leading-relaxed text-white/85 md:text-lg" style={{ '--i': 1 } as CSSProperties}>
+                <p className="mb-8 max-w-xl text-[16px] leading-relaxed text-white/80 md:text-lg">
                   اختر الكورس اللي يناسبك، شاهد الشرح، اكمل الامتحانات، وتابع تقدمك خطوة بخطوة.
                 </p>
-                <button
-                  onClick={() => navigate('/login')}
-                  className="kb-rise kb-btn-grad kb-shine mt-8 px-9 py-4 text-base !bg-white !text-[var(--primary-color)] !shadow-none"
-                  style={{ '--i': 2 } as CSSProperties}
-                >
+                <button onClick={() => navigate('/login')} className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-base font-extrabold transition-all hover:-translate-y-0.5" style={{ color: 'var(--primary)', boxShadow: '0 12px 32px rgba(0,0,0,0.2)' }}>
                   <i className="fas fa-rocket" /> ابدأ التعلم مجاناً
                 </button>
               </>
@@ -207,98 +103,52 @@ export default function Courses() {
         </section>
 
         {/* Courses */}
-        <main className="mx-auto w-full max-w-[1400px] flex-1 px-[5%] py-12">
-          <div className="sr-only" aria-hidden="false">
-            <h2>قائمة كورسات منصة كله بيتعلم الأونلاين</h2>
-            <p>اتعلم مهارات سوق العمل، البرمجة، اللغات، والتطوير الشخصي مع أفضل المدربين في مصر والعالم العربي.</p>
-          </div>
+        <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-12">
+          <div className="sr-only"><h2>قائمة كورسات منصة كله بيتعلم الأونلاين</h2></div>
 
-          <div className="mb-10 flex items-center gap-3">
-            <span className="kb-stat-tile h-11 w-11 rounded-xl">
-              <i className="fas fa-compass" />
-            </span>
+          <div className="mb-8 flex items-center gap-3">
+            <span className="kb-stat-tile h-11 w-11"><i className="fas fa-compass" /></span>
             <div>
-              <h2 className="kb-display text-[24px] text-[var(--text-main)] md:text-[30px]">
+              <h2 className="kb-display text-[24px] md:text-[28px]" style={{ color: 'var(--text-main)' }}>
                 استكشف <span className="kb-grad-text">الدورات المتاحة</span>
               </h2>
-              <p className="text-[13px] font-bold text-[var(--text-muted)]">
-                {courses.length} دورة · هيا بنا نبدأ المذاكرة
-              </p>
+              <p className="text-[13px] font-bold" style={{ color: 'var(--text-muted)' }}>{courses.length} دورة متاحة</p>
             </div>
           </div>
 
-          {isLoading ? (
-            <Spinner size="lg" />
-          ) : courses.length === 0 ? (
-            <EmptyState
-              icon="fa-box-open"
-              title="لا توجد دورات متاحة حالياً"
-              description="سيتم إضافة محتوى جديد قريباً، تابعنا!"
-            />
+          {isLoading ? <Spinner size="lg" /> : courses.length === 0 ? (
+            <EmptyState icon="fa-box-open" title="لا توجد دورات متاحة حالياً" description="سيتم إضافة محتوى جديد قريباً" />
           ) : (
-            <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-              {courses.map((course) => {
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {courses.map(course => {
                 const action = getCourseAction(course);
-
-                let courseSettings: any = {};
-                try {
-                  if ((course as any).metadata) {
-                    courseSettings = JSON.parse((course as any).metadata);
-                  }
-                } catch (e) {}
-
+                let cs: Record<string, string> = {};
+                try { const m = (course as unknown as Record<string, string>).metadata; if (m) cs = JSON.parse(m); } catch {}
                 return (
-                  <article
-                    key={course.id}
-                    onClick={action.action}
-                    className="kb-surface kb-surface-hover kb-rise group flex cursor-pointer flex-col overflow-hidden"
-                    style={{ '--i': course.id % 4 } as CSSProperties}
-                    itemScope
-                    itemType="https://schema.org/Course"
-                  >
+                  <article key={course.id} onClick={action.action}
+                    className="kb-surface kb-surface-hover group flex cursor-pointer flex-col overflow-hidden" itemScope itemType="https://schema.org/Course">
                     <div className="relative h-[190px] w-full overflow-hidden bg-slate-200">
-                      <div className="absolute inset-0 z-[1] bg-gradient-to-t from-[rgba(1,61,74,0.45)] via-transparent to-transparent" aria-hidden="true" />
+                      <div className="absolute inset-0 z-[1]" style={{ background: 'linear-gradient(to top, rgba(1,61,74,0.35), transparent)' }} aria-hidden="true" />
                       {action.badge}
-                      {courseSettings.badge && (
+                      {cs.badge && (
                         <span className="absolute top-4 left-4 z-10 inline-flex items-center gap-1.5 rounded-full bg-orange-500 px-3 py-1.5 text-[13px] font-bold text-white shadow-lg">
-                          <i className="fas fa-star text-[10px]" /> {courseSettings.badge}
+                          <i className="fas fa-star text-[10px]" /> {cs.badge}
                         </span>
                       )}
-                      <img
-                        src={course.image_url || 'https://via.placeholder.com/600x400/015669/FFFFFF?text=كورس+جديد'}
-                        alt={course.title}
-                        loading="lazy"
-                        className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                        itemProp="image"
-                      />
+                      <img src={course.image_url || 'https://via.placeholder.com/600x400/015669/FFFFFF?text=كورس'} alt={course.title} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" itemProp="image" />
                     </div>
-
                     <div className="flex flex-1 flex-col p-6">
-                      <h3 className="mb-2.5 text-xl font-extrabold leading-snug text-[var(--primary-color)]" itemProp="name">
-                        {course.title}
-                      </h3>
-                      <p className="mb-4 line-clamp-3 flex-1 text-sm leading-relaxed text-[var(--text-muted)]" itemProp="description">
+                      <h3 className="mb-2 text-lg font-extrabold leading-snug" style={{ color: 'var(--primary)' }} itemProp="name">{course.title}</h3>
+                      <p className="mb-4 line-clamp-2 flex-1 text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }} itemProp="description">
                         {course.description || 'دورة تدريبية متميزة لتطوير مهاراتك العملية.'}
                       </p>
-
-                      {(courseSettings.level || courseSettings.language) && (
-                        <div className="mb-4 flex flex-wrap items-center gap-2">
-                          {courseSettings.level && (
-                            <span className="kb-chip-blue">
-                              <i className="fas fa-layer-group text-[10px]" /> {courseSettings.level}
-                            </span>
-                          )}
-                          {courseSettings.language && (
-                            <span className="kb-chip-purple">
-                              <i className="fas fa-language text-[10px]" /> {courseSettings.language}
-                            </span>
-                          )}
+                      {(cs.level || cs.language) && (
+                        <div className="mb-3 flex flex-wrap items-center gap-2">
+                          {cs.level && <span className="kb-chip kb-chip-blue"><i className="fas fa-layer-group text-[10px]" /> {cs.level}</span>}
+                          {cs.language && <span className="kb-chip kb-chip-purple"><i className="fas fa-language text-[10px]" /> {cs.language}</span>}
                         </div>
                       )}
-
-                      <div className="mt-auto flex items-center justify-end border-t border-slate-100 pt-4">
-                        {action.button}
-                      </div>
+                      <div className="mt-auto flex items-center justify-end border-t border-slate-100 pt-4">{action.button}</div>
                     </div>
                   </article>
                 );
@@ -307,63 +157,27 @@ export default function Courses() {
           )}
         </main>
 
-        {/* Logout Modal */}
         <KbModal open={showLogoutModal} onClose={() => setShowLogoutModal(false)} accent="red">
           <div className="flex flex-col items-center text-center">
-            <span className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-[26px] text-red-500">
-              <i className="fas fa-sign-out-alt" />
-            </span>
-            <h2 className="mb-2 text-[22px] font-extrabold text-slate-800">تسجيل الخروج</h2>
-            <p className="mb-7 text-[15px] leading-relaxed text-[var(--text-muted)]">
-              هل أنت متأكد أنك تريد تسجيل الخروج من حسابك؟
-            </p>
+            <span className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-50 text-2xl text-red-500"><i className="fas fa-sign-out-alt" /></span>
+            <h2 className="mb-2 text-xl font-extrabold" style={{ color: 'var(--text-main)' }}>تسجيل الخروج</h2>
+            <p className="mb-6 text-sm" style={{ color: 'var(--text-muted)' }}>هل أنت متأكد أنك تريد تسجيل الخروج من حسابك؟</p>
             <div className="flex w-full gap-3">
-              <button
-                onClick={() => setShowLogoutModal(false)}
-                className="kb-btn-ghost flex-1 cursor-pointer"
-              >
-                إلغاء
-              </button>
-              <button
-                onClick={confirmLogout}
-                className="kb-btn-danger flex-1 cursor-pointer"
-              >
-                خروج
-              </button>
+              <button onClick={() => setShowLogoutModal(false)} className="kb-btn-ghost flex-1">إلغاء</button>
+              <button onClick={() => { setShowLogoutModal(false); logout(); }} className="kb-btn-danger flex-1">خروج</button>
             </div>
           </div>
         </KbModal>
 
-        {/* Phone Modal */}
         <KbModal open={showPhoneModal} onClose={() => setShowPhoneModal(false)} accent="teal">
           <div className="flex flex-col items-center text-center">
-            <span className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--primary-light)] text-[28px] text-[var(--primary-color)]">
-              <i className="fab fa-whatsapp" />
-            </span>
-            <h2 className="mb-2 text-[22px] font-extrabold text-slate-800">خطوة أخيرة صغيرة!</h2>
-            <p className="mb-6 text-[15px] leading-relaxed text-[var(--text-muted)]">
-              عشان نقدر نتواصل معاك ونبعتلك تحديثات الكورسات، يرجى إدخال رقم الواتساب الخاص بك.
-            </p>
+            <span className="mb-4 flex h-16 w-16 items-center justify-center rounded-full text-2xl" style={{ background: 'var(--primary-light)', color: 'var(--primary)' }}><i className="fab fa-whatsapp" /></span>
+            <h2 className="mb-2 text-xl font-extrabold" style={{ color: 'var(--text-main)' }}>خطوة أخيرة صغيرة</h2>
+            <p className="mb-6 text-sm" style={{ color: 'var(--text-muted)' }}>يرجى إدخال رقم الواتساب الخاص بك للمتابعة.</p>
             <form onSubmit={handleSavePhone} className="flex w-full flex-col gap-4">
-              <input
-                type="tel"
-                value={phoneInput}
-                onChange={(e) => setPhoneInput(e.target.value)}
-                placeholder="01012345678"
-                required
-                pattern="[0-9]{11}"
-                title="برجاء إدخال رقم هاتف صحيح مكون من 11 رقم"
-                className="kb-field py-4 text-center text-lg font-bold"
-                dir="ltr"
-                disabled={isSavingPhone}
-              />
-              <button
-                type="submit"
-                disabled={isSavingPhone || phoneInput.length < 10}
-                className="kb-btn-primary w-full cursor-pointer py-4 text-lg disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isSavingPhone ? <i className="fas fa-circle-notch fa-spin" /> : <i className="fas fa-check-circle" />}
-                {isSavingPhone ? 'جاري الحفظ...' : 'حفظ والمتابعة'}
+              <input type="tel" value={phoneInput} onChange={e => setPhoneInput(e.target.value)} placeholder="01012345678" required pattern="[0-9]{11}" title="رقم هاتف صحيح مكون من 11 رقم" className="kb-field py-4 text-center text-lg font-bold" dir="ltr" disabled={isSavingPhone} />
+              <button type="submit" disabled={isSavingPhone || phoneInput.length < 10} className="kb-btn-primary w-full py-4 text-lg disabled:cursor-not-allowed disabled:opacity-50">
+                {isSavingPhone ? <><i className="fas fa-circle-notch fa-spin" /> جاري الحفظ...</> : <><i className="fas fa-check-circle" /> حفظ والمتابعة</>}
               </button>
             </form>
           </div>
