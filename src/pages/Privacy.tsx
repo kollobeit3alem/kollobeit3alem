@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { SiteHeader, PageFooter } from '@/components/kb/shared';
 
 export default function Privacy() {
   return (
@@ -48,166 +48,166 @@ export default function Privacy() {
         }}
       />
 
-      <div
-        className="min-h-screen bg-[#f8fafc] py-12 px-5 md:px-8 text-[#1e293b] font-sans relative overflow-hidden"
-        dir="rtl"
-        itemScope
-        itemType="https://schema.org/WebPage"
-      >
-        {/* الدوائر التجميلية في الخلفية */}
-        <div className="absolute top-[-10%] right-[-5%] w-96 h-96 bg-[#015669]/5 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute bottom-[-10%] left-[-5%] w-96 h-96 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="flex min-h-screen flex-col bg-[var(--bg-page)] text-[#1e293b]" dir="rtl">
+        <SiteHeader />
 
-        <div className="max-w-4xl mx-auto relative z-10">
-
-          {/* Header Section */}
-          <header className="bg-gradient-to-br from-[#015669] to-[#013a47] rounded-t-[30px] p-10 text-white text-center relative overflow-hidden shadow-lg border-b-4 border-emerald-400">
-            <div className="absolute inset-0 opacity-10 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-
-            <div className="relative z-10 flex flex-col items-center">
-              <div className="w-24 h-24 bg-white p-2 rounded-2xl shadow-xl mb-5 transform transition-transform hover:scale-105">
-                <img
-                  src="/logo.png"
-                  alt="شعار منصة كله بيتعلم"
-                  title="منصة كله بيتعلم للكورسات الأونلاين"
-                  width="88"
-                  height="88"
-                  loading="lazy"
-                  className="w-full h-full object-cover rounded-xl"
-                  itemProp="image"
-                />
-              </div>
-              {/* SEO: h1 واضح يحتوي على اسم المنصة والصفحة */}
-              <h1 className="text-3xl md:text-4xl font-bold mb-3" itemProp="name">
+        <main className="flex-1" itemScope itemType="https://schema.org/WebPage">
+          {/* ===== Hero ===== */}
+          <section className="relative overflow-hidden border-b border-slate-200 bg-white py-16 md:py-20">
+            <div
+              className="pointer-events-none absolute inset-0 opacity-[0.5]"
+              style={{
+                backgroundImage: 'radial-gradient(var(--primary-color) 1.2px, transparent 1.2px)',
+                backgroundSize: '28px 28px',
+                maskImage: 'radial-gradient(ellipse 70% 90% at 50% 0%, black, transparent)',
+                WebkitMaskImage: 'radial-gradient(ellipse 70% 90% at 50% 0%, black, transparent)',
+              }}
+            />
+            <div className="relative z-10 mx-auto max-w-4xl px-[5%] text-center">
+              <span className="kb-chip kb-chip-teal">
+                <i className="far fa-shield-halved" /> خصوصية البيانات
+              </span>
+              <h1 className="kb-section-title mt-5" itemProp="name">
                 سياسة الخصوصية — منصة كله بيتعلم
               </h1>
-              <span className="inline-block px-4 py-1.5 bg-white/10 backdrop-blur-sm rounded-full text-sm font-medium border border-white/20">
-                <i className="far fa-calendar-alt ml-2"></i>
+              <p className="kb-subtitle mx-auto mt-3 max-w-2xl">
+                شرح واضح لكيفية جمعنا واستخدامنا لبياناتك عند استخدامك منصة كله بيتعلم لتعلّم الكورسات الأونلاين.
+              </p>
+              <span className="mt-6 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-1.5 text-[13px] font-bold text-[var(--text-muted)]">
+                <i className="far fa-calendar-alt" />
                 <time dateTime="2026-04-04" itemProp="dateModified">آخر تحديث: 4 أبريل 2026</time>
               </span>
             </div>
-          </header>
+          </section>
 
-          {/* Content Section */}
-          <main className="bg-white rounded-b-[30px] p-6 md:p-10 shadow-xl border border-slate-100" role="main" itemProp="mainContentOfPage">
-
-            {/* Breadcrumb — SEO ومساعدة للمستخدم */}
-            <nav aria-label="مسار التنقل" className="mb-6">
-              <ol className="flex items-center gap-2 text-sm text-slate-400" itemScope itemType="https://schema.org/BreadcrumbList">
+          <div className="mx-auto max-w-4xl px-[5%] py-12 md:py-16">
+            {/* ===== Breadcrumb ===== */}
+            <nav aria-label="مسار التنقل" className="mb-8">
+              <ol className="flex flex-wrap items-center gap-2 text-sm text-[var(--text-muted)]" itemScope itemType="https://schema.org/BreadcrumbList">
                 <li itemScope itemProp="itemListElement" itemType="https://schema.org/ListItem">
-                  <Link to="/" className="hover:text-[#015669] transition-colors" itemProp="item">
+                  <a href="/" className="font-bold text-[var(--primary-color)] hover:underline">
                     <span itemProp="name">الرئيسية</span>
-                  </Link>
+                  </a>
                   <meta itemProp="position" content="1" />
                 </li>
                 <li className="text-slate-300">›</li>
                 <li itemScope itemProp="itemListElement" itemType="https://schema.org/ListItem">
-                  <span className="text-[#015669] font-medium" itemProp="name">سياسة الخصوصية</span>
+                  <span className="font-bold text-[#1e293b]" itemProp="name">سياسة الخصوصية</span>
                   <meta itemProp="position" content="2" />
                 </li>
               </ol>
             </nav>
 
-            <div className="space-y-6" itemProp="description">
-
-              {/* Card 1 */}
-              <section className="bg-slate-50 p-6 rounded-2xl border border-slate-100 transition-all hover:shadow-md hover:border-[#015669]/30 group" aria-labelledby="intro-heading">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-[#015669]/10 text-[#015669] flex items-center justify-center text-xl group-hover:scale-110 transition-transform" aria-hidden="true">
-                    <i className="fas fa-handshake"></i>
+            <div className="space-y-5" itemProp="description">
+              {/* المقدمة */}
+              <section className="kb-surface p-7 md:p-8" aria-labelledby="intro-heading">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+                  <span className="kb-stat-icon kb-icon-teal shrink-0"><i className="fas fa-handshake" /></span>
+                  <div>
+                    <h2 id="intro-heading" className="text-[20px] font-extrabold text-[var(--primary-color)]">مقدمة والتزام</h2>
+                    <p className="mt-2 text-[15px] leading-relaxed text-slate-600">
+                      أهلاً بك في منصة <strong>كله بيتعلم</strong>. نحن نولي خصوصية بياناتك أهمية قصوى. تهدف هذه الصفحة
+                      إلى توضيح كيف نقوم بجمع واستخدام البيانات التي نحصل عليها عند استخدامك للمنصة عبر خدمة
+                      "تسجيل الدخول بجوجل".
+                    </p>
                   </div>
-                  <h2 id="intro-heading" className="text-xl font-bold text-[#015669]">مقدمة والتزام</h2>
-                </div>
-                <p className="text-slate-600 leading-relaxed pr-16 text-[15px]">
-                  أهلاً بك في منصة <strong>كله بيتعلم</strong>. نحن نولي خصوصية بياناتك أهمية قصوى. تهدف هذه الصفحة إلى توضيح كيف نقوم بجمع واستخدام البيانات التي نحصل عليها عند استخدامك للمنصة عبر خدمة "تسجيل الدخول بجوجل".
-                </p>
-              </section>
-
-              {/* Card 2 */}
-              <section className="bg-slate-50 p-6 rounded-2xl border border-slate-100 transition-all hover:shadow-md hover:border-[#015669]/30 group" aria-labelledby="data-heading">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform" aria-hidden="true">
-                    <i className="fas fa-database"></i>
-                  </div>
-                  <h2 id="data-heading" className="text-xl font-bold text-[#015669]">البيانات التي نجمعها</h2>
-                </div>
-                <div className="pr-16 text-slate-600 text-[15px]">
-                  <p className="mb-3">بمجرد تسجيل دخولك عبر حساب جوجل، نقوم بالوصول إلى المعلومات الأساسية التالية فقط:</p>
-                  <ul className="list-disc list-inside space-y-2 text-slate-600 marker:text-emerald-500">
-                    <li><strong>الاسم الشخصي:</strong> لنتمكن من تخصيص تجربتك والترحيب بك داخل المنصة.</li>
-                    <li><strong>البريد الإلكتروني:</strong> لاستخدامه كمعرف فريد لحسابك ولإرسال التحديثات.</li>
-                    <li><strong>صورة الملف الشخصي:</strong> لتظهر في حسابك الشخصي وشهاداتك.</li>
-                  </ul>
                 </div>
               </section>
 
-              {/* Card 3 */}
-              <section className="bg-slate-50 p-6 rounded-2xl border border-slate-100 transition-all hover:shadow-md hover:border-[#015669]/30 group" aria-labelledby="usage-heading">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-blue-500/10 text-blue-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform" aria-hidden="true">
-                    <i className="fas fa-shield-alt"></i>
+              {/* البيانات التي نجمعها */}
+              <section className="kb-surface p-7 md:p-8" aria-labelledby="data-heading">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+                  <span className="kb-stat-icon kb-icon-green shrink-0"><i className="fas fa-database" /></span>
+                  <div className="flex-1">
+                    <h2 id="data-heading" className="text-[20px] font-extrabold text-[var(--primary-color)]">البيانات التي نجمعها</h2>
+                    <p className="mt-2 text-[15px] leading-relaxed text-slate-600">
+                      بمجرد تسجيل دخولك عبر حساب جوجل، نقوم بالوصول إلى المعلومات الأساسية التالية فقط:
+                    </p>
+                    <ul className="mt-3 space-y-2 text-[15px] text-slate-600">
+                      <li className="flex items-start gap-2.5">
+                        <i className="fas fa-circle-check mt-1 text-emerald-500" />
+                        <span><strong>الاسم الشخصي:</strong> لنتمكن من تخصيص تجربتك والترحيب بك داخل المنصة.</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <i className="fas fa-circle-check mt-1 text-emerald-500" />
+                        <span><strong>البريد الإلكتروني:</strong> لاستخدامه كمعرف فريد لحسابك ولإرسال التحديثات.</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <i className="fas fa-circle-check mt-1 text-emerald-500" />
+                        <span><strong>صورة الملف الشخصي:</strong> لتظهر في حسابك الشخصي وشهاداتك.</span>
+                      </li>
+                    </ul>
                   </div>
-                  <h2 id="usage-heading" className="text-xl font-bold text-[#015669]">كيف نستخدم بياناتك؟</h2>
                 </div>
-                <p className="text-slate-600 leading-relaxed pr-16 text-[15px]">
-                  نحن نستخدم بياناتك لغرض واحد فقط وهو <strong>توفير الخدمة التعليمية لك</strong>. المنصة لا تقوم ببيع، مشاركة، أو تأجير بياناتك لأي جهات خارجية أو شركات إعلانية. بياناتك محفوظة في خوادم سحابية آمنة ومشفرة تماماً.
-                </p>
               </section>
 
-              {/* Card 4 */}
-              <section className="bg-slate-50 p-6 rounded-2xl border border-slate-100 transition-all hover:shadow-md hover:border-[#015669]/30 group" aria-labelledby="cookies-heading">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-600 flex items-center justify-center text-xl group-hover:scale-110 transition-transform" aria-hidden="true">
-                    <i className="fas fa-cookie-bite"></i>
+              {/* كيف نستخدم بياناتك */}
+              <section className="kb-surface p-7 md:p-8" aria-labelledby="usage-heading">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+                  <span className="kb-stat-icon kb-icon-teal shrink-0"><i className="fas fa-shield-alt" /></span>
+                  <div>
+                    <h2 id="usage-heading" className="text-[20px] font-extrabold text-[var(--primary-color)]">كيف نستخدم بياناتك؟</h2>
+                    <p className="mt-2 text-[15px] leading-relaxed text-slate-600">
+                      نحن نستخدم بياناتك لغرض واحد فقط وهو <strong>توفير الخدمة التعليمية لك</strong>. المنصة لا تقوم
+                      ببيع، مشاركة، أو تأجير بياناتك لأي جهات خارجية أو شركات إعلانية. بياناتك محفوظة في خوادم
+                      سحابية آمنة ومشفرة تماماً.
+                    </p>
                   </div>
-                  <h2 id="cookies-heading" className="text-xl font-bold text-[#015669]">ملفات تعريف الارتباط (Cookies)</h2>
                 </div>
-                <p className="text-slate-600 leading-relaxed pr-16 text-[15px]">
-                  نستخدم ملفات تعريف الارتباط التقنية الضرورية فقط للحفاظ على جلسة تسجيل دخولك نشطة، ولضمان أمان حسابك أثناء التنقل بين الدورات والمحاضرات المختلفة داخل المنصة.
-                </p>
               </section>
 
-              {/* Contact Section */}
-              <section className="mt-10 p-6 bg-[#015669]/5 rounded-2xl border border-[#015669]/10 text-center" aria-labelledby="contact-heading">
-                <div className="w-16 h-16 mx-auto bg-white rounded-full flex items-center justify-center text-[#015669] text-2xl shadow-sm mb-4" aria-hidden="true">
-                  <i className="fas fa-headset"></i>
+              {/* الملفات */}
+              <section className="kb-surface p-7 md:p-8" aria-labelledby="cookies-heading">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
+                  <span className="kb-stat-icon kb-icon-amber shrink-0"><i className="fas fa-cookie-bite" /></span>
+                  <div>
+                    <h2 id="cookies-heading" className="text-[20px] font-extrabold text-[var(--primary-color)]">ملفات تعريف الارتباط (Cookies)</h2>
+                    <p className="mt-2 text-[15px] leading-relaxed text-slate-600">
+                      نستخدم ملفات تعريف الارتباط التقنية الضرورية فقط للحفاظ على جلسة تسجيل دخولك نشطة، ولضمان أمان
+                      حسابك أثناء التنقل بين الدورات والمحاضرات المختلفة داخل المنصة.
+                    </p>
+                  </div>
                 </div>
-                <h2 id="contact-heading" className="text-lg font-bold text-[#015669] mb-2">هل لديك أي استفسار؟</h2>
-                <p className="text-slate-600 text-[15px] mb-4">
+              </section>
+
+              {/* التواصل */}
+              <section className="mb-2 mt-10 rounded-3xl border border-slate-100 bg-white bg-gradient-to-bl from-white to-emerald-50/40 p-8 text-center" aria-labelledby="contact-heading">
+                <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--primary-light)] text-[24px] text-[var(--primary-color)]">
+                  <i className="fas fa-headset" />
+                </span>
+                <h2 id="contact-heading" className="mt-4 text-lg font-extrabold text-[var(--primary-color)]">هل لديك أي استفسار؟</h2>
+                <p className="mx-auto mt-2 max-w-md text-[15px] text-slate-600">
                   فريق الدعم الفني متواجد دائماً للرد على أسئلتك بخصوص الخصوصية أو أي أمور أخرى.
                 </p>
               </section>
-
             </div>
 
-            {/* Footer Action */}
-            <div className="mt-10 pt-8 border-t border-slate-100 text-center flex flex-col items-center">
-              <Link
-                to="/"
-                className="inline-flex items-center justify-center gap-3 bg-[#015669] text-white py-3.5 px-8 rounded-xl font-bold transition-all hover:bg-[#014150] hover:shadow-[0_10px_20px_rgba(1,86,105,0.2)] hover:-translate-y-1 w-full md:w-auto"
+            {/* CTA عودة */}
+            <div className="mt-8 border-t border-slate-200 pt-8 text-center">
+              <a
+                href="/"
                 title="العودة لمنصة كله بيتعلم"
+                className="kb-btn-primary inline-flex px-8"
               >
-                <i className="fas fa-home" aria-hidden="true"></i>
-                العودة للصفحة الرئيسية
-              </Link>
-
-              <div className="mt-6 text-slate-400 text-sm font-medium">
+                <i className="fas fa-home" /> العودة للصفحة الرئيسية
+              </a>
+              <p className="mt-5 text-[13px] font-bold text-[var(--text-muted)]">
                 جميع الحقوق محفوظة لمنصة كله بيتعلم &copy; 2026 —{' '}
                 <a
                   href="https://adham-protofoilo.vercel.app"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[#015669] hover:underline"
-                  title="أدهم عطية سالم — مطور المنصة"
                   itemProp="author"
+                  className="text-[var(--primary-color)] hover:underline"
                 >
                   أدهم عطية سالم
                 </a>
-              </div>
+              </p>
             </div>
+          </div>
+        </main>
 
-          </main>
-        </div>
+        <PageFooter />
       </div>
     </>
   );

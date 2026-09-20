@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth, apiCall } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { Course, Lesson, QuizQuestion, User } from '@/types';
+import { KbModal, EmptyState, ModalTitle } from '@/components/kb/shared';
+import { DashboardShell, type NavItem, DataCard, KbTable, Pagination } from '@/components/kb/shell';
 
 type TabType = 'courses' | 'lessons' | 'quizzes' | 'users';
 
@@ -10,14 +12,13 @@ export default function Instructor() {
   const navigate = useNavigate();
   const { user, token, isAuthenticated, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('courses');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  
+
   // Data states
   const [courses, setCourses] = useState<Course[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
-  
+
   // Pagination & Search States
   const [usersPage, setUsersPage] = useState(1);
   const [usersTotal, setUsersTotal] = useState(0);
@@ -27,12 +28,11 @@ export default function Instructor() {
   // Form handling states
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [selectedLessonId, setSelectedLessonId] = useState('');
-  
+
   // UI logic states
   const [isNewCourseFree, setIsNewCourseFree] = useState(true);
   const [isEditCourseFree, setIsEditCourseFree] = useState(true);
-  
-  // 💡 التعديل: حالات الإعدادات المتقدمة (Metadata) وأنواع الأسئلة
+
   const [newCourseMeta, setNewCourseMeta] = useState({ level: '', language: '', badge: '' });
   const [questionType, setQuestionType] = useState<'mcq' | 'tf'>('mcq');
 
@@ -43,10 +43,10 @@ export default function Instructor() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editFormData, setEditFormData] = useState<Record<string, any>>({});
   const [editCourseMeta, setEditCourseMeta] = useState({ level: '', language: '', badge: '' });
-  const [reportData, setReportData] = useState<any>(null); 
+  const [reportData, setReportData] = useState<any>(null);
   const [reportUserName, setReportUserName] = useState('');
 
-  // Redirect if not authenticated or not authorized
+  // Redirect if not authenticated or not an instructor
   useEffect(() => {
     if (!isAuthenticated || !user) {
       navigate('/');
@@ -69,7 +69,7 @@ export default function Instructor() {
   const loadCourses = async () => {
     if (!token) return;
     try {
-      const data = await apiCall('/api/admin/courses', token) as Course[];
+      const data = (await apiCall('/api/admin/courses', token)) as Course[];
       setCourses(data);
     } catch (error) {
       console.error('Failed to load courses:', error);
@@ -79,7 +79,10 @@ export default function Instructor() {
   const loadUsers = async (page: number, search: string) => {
     if (!token) return;
     try {
-      const data = await apiCall(`/api/admin/users?page=${page}&limit=${usersLimit}&search=${encodeURIComponent(search)}`, token) as any;
+      const data = (await apiCall(
+        `/api/admin/users?page=${page}&limit=${usersLimit}&search=${encodeURIComponent(search)}`,
+        token,
+      )) as any;
       setUsers(data.users || []);
       setUsersTotal(data.total || 0);
       setUsersPage(data.page || 1);
@@ -91,7 +94,7 @@ export default function Instructor() {
   const loadLessons = async (courseId: string) => {
     if (!token || !courseId) return;
     try {
-      const data = await apiCall(`/api/courses/${courseId}/lessons`, token) as Lesson[];
+      const data = (await apiCall(`/api/courses/${courseId}/lessons`, token)) as Lesson[];
       setLessons(data);
     } catch (error) {
       console.error('Failed to load lessons:', error);
@@ -101,7 +104,7 @@ export default function Instructor() {
   const loadQuestions = async (lessonId: string) => {
     if (!token || !lessonId) return;
     try {
-      const data = await apiCall(`/api/lessons/${lessonId}/quiz`, token) as QuizQuestion[];
+      const data = (await apiCall(`/api/lessons/${lessonId}/quiz`, token)) as QuizQuestion[];
       setQuestions(data);
     } catch (error) {
       console.error('Failed to load questions:', error);
@@ -112,11 +115,9 @@ export default function Instructor() {
   const handleAddCourse = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!token) return;
-    
     const form = e.currentTarget;
     const formData = new FormData(form);
-    
-    // 💡 تجميع البيانات الوصفية (Metadata) كـ JSON
+
     const metadataObj: any = {};
     if (newCourseMeta.level) metadataObj.level = newCourseMeta.level;
     if (newCourseMeta.language) metadataObj.language = newCourseMeta.language;
@@ -130,11 +131,11 @@ export default function Instructor() {
         instructor_contact: formData.get('instructor_contact'),
         is_free: parseInt(formData.get('is_free') as string),
         price: parseFloat(formData.get('price') as string) || 0,
-        metadata: Object.keys(metadataObj).length > 0 ? JSON.stringify(metadataObj) : null
+        metadata: Object.keys(metadataObj).length > 0 ? JSON.stringify(metadataObj) : null,
       });
       toast.success('تمت إضافة الدورة بنجاح!');
       form.reset();
-      setIsNewCourseFree(true); 
+      setIsNewCourseFree(true);
       setNewCourseMeta({ level: '', language: '', badge: '' });
       loadCourses();
     } catch (error) {
@@ -145,7 +146,6 @@ export default function Instructor() {
   const handleDeleteCourse = async (id: number) => {
     if (!confirm('هل أنت متأكد من حذف الدورة وكل محتوياتها؟')) return;
     if (!token) return;
-    
     try {
       await apiCall(`/api/admin/courses/${id}`, token, 'DELETE');
       toast.success('تم حذف الدورة');
@@ -163,10 +163,8 @@ export default function Instructor() {
   const handleAddLesson = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!token) return;
-    
     const form = e.currentTarget;
     const formData = new FormData(form);
-    
     try {
       await apiCall('/api/admin/lessons', token, 'POST', {
         course_id: formData.get('course_id'),
@@ -175,10 +173,8 @@ export default function Instructor() {
         order_num: parseInt(formData.get('order_num') as string),
       });
       toast.success('تمت إضافة المحاضرة!');
-      
       (form.elements.namedItem('title') as HTMLInputElement).value = '';
       (form.elements.namedItem('video_url') as HTMLInputElement).value = '';
-      
       loadLessons(selectedCourseId);
     } catch (error) {
       toast.error('فشل إضافة المحاضرة');
@@ -188,7 +184,6 @@ export default function Instructor() {
   const handleDeleteLesson = async (id: number) => {
     if (!confirm('حذف المحاضرة؟')) return;
     if (!token) return;
-    
     try {
       await apiCall(`/api/admin/lessons/${id}`, token, 'DELETE');
       toast.success('تم حذف المحاضرة');
@@ -212,12 +207,10 @@ export default function Instructor() {
   const handleAddQuestion = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!token) return;
-    
     const form = e.currentTarget;
     const formData = new FormData(form);
-    
+
     try {
-      // 💡 التعديل هنا: معالجة بيانات السؤال بناءً على نوعه
       const payload = {
         lesson_id: parseInt(formData.get('lesson_id') as string),
         image_url: formData.get('image_url') || null,
@@ -226,17 +219,16 @@ export default function Instructor() {
         option_c: questionType === 'tf' ? '' : formData.get('option_c'),
         option_d: questionType === 'tf' ? '' : formData.get('option_d'),
         correct_option: formData.get('correct_option'),
-        type: questionType === 'tf' ? 'true_false' : 'mcq'
+        type: questionType === 'tf' ? 'true_false' : 'mcq',
       };
 
       await apiCall('/api/admin/quizzes', token, 'POST', payload);
       toast.success('تم إضافة السؤال!');
-      
+
       ['image_url', 'option_a', 'option_b', 'option_c', 'option_d'].forEach(name => {
         const el = form.elements.namedItem(name) as HTMLInputElement;
         if (el) el.value = '';
       });
-
       loadQuestions(selectedLessonId);
     } catch (error) {
       toast.error('فشل إضافة السؤال');
@@ -246,7 +238,6 @@ export default function Instructor() {
   const handleDeleteQuestion = async (id: number) => {
     if (!confirm('هل تريد حذف هذا السؤال؟')) return;
     if (!token) return;
-    
     try {
       await apiCall(`/api/admin/quizzes/${id}`, token, 'DELETE');
       toast.success('تم حذف السؤال');
@@ -260,18 +251,15 @@ export default function Instructor() {
   const handleSearchUsers = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setUsersPage(1);
-    
     const cleanSearchQuery = searchQuery.trim();
     setSearchQuery(cleanSearchQuery);
-    
     loadUsers(1, cleanSearchQuery);
   };
 
   const handleViewReport = async (userId: number, userName: string) => {
     if (!token) return;
-    
     try {
-      const data = await apiCall(`/api/admin/reports/${userId}`, token) as any;
+      const data = (await apiCall(`/api/admin/reports/${userId}`, token)) as any;
       setReportData(data);
       setReportUserName(userName);
       setShowReportModal(true);
@@ -280,24 +268,23 @@ export default function Instructor() {
     }
   };
 
-  // Export Excel Data
   const handleExportExcel = () => {
-    import('xlsx').then(XLSX => {
-      const worksheetData = users.map(u => ({
-        'الاسم': u.name,
-        'البريد الإلكتروني': u.email,
-        'رقم الهاتف': u.phone || 'غير مسجل',
-        'تاريخ الانضمام': u.created_at ? new Date(u.created_at).toLocaleDateString('ar-EG') : 'غير مسجل'
-      }));
-      
-      const worksheet = XLSX.utils.json_to_sheet(worksheetData);
-      const workbook = XLSX.utils.book_new();
-      
-      XLSX.utils.book_append_sheet(workbook, worksheet, "طلابي");
-      XLSX.writeFile(workbook, "تقرير_طلابي.xlsx");
-    }).catch(() => {
-      toast.error("حدث خطأ أثناء تصدير الإكسيل.");
-    });
+    import('xlsx')
+      .then(XLSX => {
+        const worksheetData = users.map(u => ({
+          'الاسم': u.name,
+          'البريد الإلكتروني': u.email,
+          'رقم الهاتف': u.phone || 'غير مسجل',
+          'تاريخ الانضمام': u.created_at ? new Date(u.created_at).toLocaleDateString('ar-EG') : 'غير مسجل',
+        }));
+        const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'طلابي');
+        XLSX.writeFile(workbook, 'تقرير_طلابي.xlsx');
+      })
+      .catch(() => {
+        toast.error('حدث خطأ أثناء تصدير الإكسيل.');
+      });
   };
 
   // Edit modal handlers
@@ -305,24 +292,21 @@ export default function Instructor() {
     setEditingType(type);
     setEditingId(item.id);
     setEditFormData({ ...item });
-    
+
     if (type === 'course') {
       setIsEditCourseFree(item.is_free === 1);
-      // فك تشفير الميتاداتا لو موجودة
       let parsedMeta = { level: '', language: '', badge: '' };
       try {
         if (item.metadata) parsedMeta = JSON.parse(item.metadata);
-      } catch(e) {}
+      } catch (e) {}
       setEditCourseMeta(parsedMeta);
     }
-    
     setShowEditModal(true);
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token || !editingId) return;
-    
     try {
       let payload = {};
       if (editingType === 'course') {
@@ -337,7 +321,7 @@ export default function Instructor() {
           image_url: editFormData.image_url,
           is_free: editFormData.is_free,
           price: editFormData.price || 0,
-          metadata: Object.keys(metadataObj).length > 0 ? JSON.stringify(metadataObj) : null
+          metadata: Object.keys(metadataObj).length > 0 ? JSON.stringify(metadataObj) : null,
         };
         await apiCall(`/api/admin/courses/${editingId}`, token, 'PUT', payload);
         loadCourses();
@@ -345,7 +329,7 @@ export default function Instructor() {
         payload = {
           title: editFormData.title,
           video_url: editFormData.video_url,
-          order_num: editFormData.order_num
+          order_num: editFormData.order_num,
         };
         await apiCall(`/api/admin/lessons/${editingId}`, token, 'PUT', payload);
         loadLessons(selectedCourseId);
@@ -364,811 +348,767 @@ export default function Instructor() {
 
   if (!user || user.role !== 'instructor') return null;
 
-  const inputStyles = "w-full p-4 border-[1.5px] border-[#e2e8f0] rounded-xl text-[15px] text-[#1e293b] bg-[#f4f7f9] focus:bg-white focus:border-[#015669] focus:outline-none transition-colors";
-  const btnSubmitStyles = "bg-[#015669] text-white border-none py-4 px-8 rounded-xl cursor-pointer font-bold text-base inline-flex items-center justify-center gap-2.5 transition-all shadow-[0_5px_15px_rgba(1,86,105,0.1)] hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(1,86,105,0.1)]";
-  const navBtnBaseStyles = "bg-transparent border-none text-[#64748b] text-right p-4 rounded-xl cursor-pointer text-base font-bold flex items-center gap-3 transition-all hover:bg-[#f4f7f9] hover:text-[#015669] hover:-translate-x-1.5";
-  const navBtnActiveStyles = "bg-[#015669] text-white shadow-[0_10px_20px_rgba(1,86,105,0.1)]";
+  const navItems: NavItem[] = [
+    { key: 'courses', label: 'دوراتي', icon: 'fa-layer-group' },
+    { key: 'lessons', label: 'المحاضرات', icon: 'fa-video' },
+    { key: 'quizzes', label: 'الامتحانات', icon: 'fa-spell-check' },
+    { key: 'users', label: 'طلابي والتقارير', icon: 'fa-users' },
+  ];
+
+  const tabTitle: Record<TabType, { icon: string; title: string }> = {
+    courses: { icon: 'fa-layer-group', title: 'إدارة دوراتي' },
+    lessons: { icon: 'fa-video', title: 'إدارة المحاضرات' },
+    quizzes: { icon: 'fa-spell-check', title: 'بناء الامتحانات' },
+    users: { icon: 'fa-users', title: 'طلابي والتقارير' },
+  };
 
   return (
-    <div className="min-h-screen bg-[#f4f7f9] flex overflow-x-hidden text-[#1e293b]" dir="rtl">
-      
-      {/* Sidebar */}
-      <aside className={`w-[280px] bg-white border-l border-[#e2e8f0] flex flex-col py-[30px] px-5 shadow-[-5px_0_30px_rgba(0,0,0,0.02)] z-[100] transition-all duration-300 lg:relative fixed h-screen overflow-y-auto top-0 right-0 ${sidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`}>
-        <div className="flex items-center gap-4 mb-10 pb-5 border-b border-[#e2e8f0] justify-between">
-          <div className="flex items-center gap-2.5">
-            <img src="/logo.png" alt="Logo" className="w-[50px] rounded-xl" />
-            <h2 className="text-[#015669] text-[22px] font-bold">لوحة المدرس</h2>
-          </div>
-          <button 
-            onClick={() => setSidebarOpen(false)}
-            className="block lg:hidden bg-none border-none text-2xl text-[#ef4444] cursor-pointer"
-          >
-            <i className="fas fa-times"></i>
-          </button>
+    <DashboardShell
+      brand="لوحة المدرس"
+      activeKey={activeTab}
+      navItems={navItems}
+      user={user}
+      onNavigate={(key) => setActiveTab(key as TabType)}
+      onLogout={handleLogout}
+      extraNav={
+        <Link
+          to="/"
+          className="mb-6 flex cursor-pointer items-center gap-3 rounded-xl border-none bg-sky-50 p-4 text-right text-[15px] font-bold text-sky-600 no-underline transition-all hover:bg-sky-500 hover:text-white"
+        >
+          <i className="fas fa-globe w-6 text-center text-xl"></i> تصفح الكورسات (كطالب)
+        </Link>
+      }
+    >
+      <div className="mb-8 flex items-center gap-3">
+        <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--primary-light)] text-[22px] text-[var(--primary-color)]">
+          <i className={`fas ${tabTitle[activeTab].icon}`} />
+        </span>
+        <div>
+          <h1 className="text-[26px] font-extrabold text-[var(--primary-color)] md:text-[30px]">{tabTitle[activeTab].title}</h1>
+          <p className="text-sm text-[var(--text-muted)]">لوحة تحكم المدرس على منصة كله بيتعلم</p>
         </div>
-        
-        <nav className="flex flex-col gap-2.5 flex-1">
-          {/* زر الخروج لواجهة الكورسات (المنصة العامة) */}
-          <button 
-            onClick={() => navigate('/')}
-            className={`${navBtnBaseStyles} !text-[#0284c7] hover:!bg-[#e0f2fe]`}
-          >
-            <i className="fas fa-globe text-xl w-6 text-center"></i> تصفح الكورسات (كطالب)
-          </button>
+      </div>
 
-          <button 
-            onClick={() => setActiveTab('courses')}
-            className={`${navBtnBaseStyles} ${activeTab === 'courses' ? navBtnActiveStyles : ''}`}
-          >
-            <i className="fas fa-layer-group text-xl w-6 text-center"></i> دوراتي
-          </button>
-          <button 
-            onClick={() => setActiveTab('lessons')}
-            className={`${navBtnBaseStyles} ${activeTab === 'lessons' ? navBtnActiveStyles : ''}`}
-          >
-            <i className="fas fa-video text-xl w-6 text-center"></i> المحاضرات
-          </button>
-          <button 
-            onClick={() => setActiveTab('quizzes')}
-            className={`${navBtnBaseStyles} ${activeTab === 'quizzes' ? navBtnActiveStyles : ''}`}
-          >
-            <i className="fas fa-spell-check text-xl w-6 text-center"></i> الامتحانات
-          </button>
-          <button 
-            onClick={() => setActiveTab('users')}
-            className={`${navBtnBaseStyles} ${activeTab === 'users' ? navBtnActiveStyles : ''}`}
-          >
-            <i className="fas fa-users text-xl w-6 text-center"></i> طلابي والتقارير
-          </button>
-          
-          <button 
-            onClick={handleLogout}
-            className={`${navBtnBaseStyles} mt-auto !bg-[#fff1f2] !text-[#ef4444] hover:!bg-[#ef4444] hover:!text-white`}
-          >
-            <i className="fas fa-sign-out-alt text-xl w-6 text-center"></i> تسجيل الخروج
-          </button>
-        </nav>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 p-5 lg:p-10 overflow-y-auto w-full">
-        {/* Mobile Top Bar */}
-        <div className="lg:hidden flex items-center justify-between mb-5 bg-white p-4 rounded-[15px] shadow-[0_5px_15px_rgba(0,0,0,0.05)]">
-          <div className="flex items-center gap-2.5">
-            <img src="/logo.png" alt="Logo" className="h-10 rounded-lg" />
-            <strong className="text-[#015669]">لوحة المدرس</strong>
-          </div>
-          
-          {/* أيقونة الخروج للمنصة العامة في الموبايل */}
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => navigate('/')}
-              className="bg-[#e0f2fe] text-[#0284c7] border-none py-2.5 px-4 rounded-xl text-xl cursor-pointer transition-all hover:bg-[#0284c7] hover:text-white"
-              title="تصفح الكورسات كطالب"
-            >
-              <i className="fas fa-globe"></i>
-            </button>
-            <button 
-              onClick={() => setSidebarOpen(true)}
-              className="bg-[#015669] text-white border-none py-2.5 px-4 rounded-xl text-xl cursor-pointer"
-            >
-              <i className="fas fa-bars"></i>
-            </button>
-          </div>
-        </div>
-
-        {/* Courses Tab */}
-        {activeTab === 'courses' && (
-          <section className="animate-fade-in block">
-            <h1 className="text-[28px] text-[#015669] mb-[30px] flex items-center gap-2.5">
-              <i className="fas fa-layer-group"></i> إدارة دوراتي
-            </h1>
-            
-            <div className="bg-white p-[30px] rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] mb-[30px] border border-[rgba(0,0,0,0.02)]">
-              <h3 className="text-[#015669] mb-[25px] text-[20px] border-r-4 border-[#015669] pr-2.5">
-                <i className="fas fa-plus-circle"></i> إضافة دورة جديدة
-              </h3>
-              <form onSubmit={handleAddCourse} className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="md:col-span-2">
-                  <label className="block mb-2 font-bold text-[#1e293b]">عنوان الدورة</label>
-                  <input type="text" name="title" required className={inputStyles} />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block mb-2 font-bold text-[#1e293b]">وصف الدورة</label>
-                  <textarea name="description" className={`${inputStyles} min-h-[100px] resize-y`} />
-                </div>
-                <div>
-                  <label className="block mb-2 font-bold text-[#1e293b]">رابط صورة الغلاف</label>
-                  <input type="url" name="image_url" required className={inputStyles} />
-                </div>
-                <div>
-                  <label className="block mb-2 font-bold text-[#1e293b]">رابط للتواصل معك (اختياري)</label>
-                  <input type="url" name="instructor_contact" className={inputStyles} />
-                </div>
-                <div>
-                  <label className="block mb-2 font-bold text-[#1e293b]">نوع الدورة</label>
-                  <select 
-                    name="is_free" 
-                    value={isNewCourseFree ? '1' : '0'}
-                    className={inputStyles}
-                    onChange={(e) => setIsNewCourseFree(e.target.value === '1')}
+      {/* ============ [TAB-INSTRUCTOR-REST] ============ */}{/* ============ [TAB-COURSES] ============ */}
+      {activeTab === 'courses' && (
+        <div className="space-y-6">
+          <DataCard title="إضافة دورة جديدة">
+            <form onSubmit={handleAddCourse} className="kb-form-grid">
+              <div className="kb-field">
+                <label>اسم الدورة</label>
+                <input type="text" name="title" required placeholder="مثال: أساسيات الرياضيات للثانوية العامة" />
+              </div>
+              <div className="kb-field">
+                <label>رابط صورة الغلاف</label>
+                <input type="url" name="image_url" required placeholder="https://..." />
+              </div>
+              <div className="kb-field">
+                <label>رابط للتواصل معك (اختياري)</label>
+                <input type="url" name="instructor_contact" placeholder="واتساب أو بريدك للرد على الاستفسارات" />
+              </div>
+              <div className="kb-field">
+                <label>نوع الدورة</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsNewCourseFree(true)}
+                    className={`kb-chip ${isNewCourseFree ? 'kb-chip-green' : 'kb-chip-slate'}`}
                   >
-                    <option value="1">مجانية</option>
-                    <option value="0">مدفوعة</option>
-                  </select>
-                </div>
-                {!isNewCourseFree && (
-                  <div>
-                    <label className="block mb-2 font-bold text-[#1e293b]">سعر الدورة (بالجنيه)</label>
-                    <input type="number" name="price" defaultValue="0" min="0" className={inputStyles} />
-                  </div>
-                )}
-                
-                {/* 💡 الإعدادات المتقدمة (Metadata) */}
-                <div className="md:col-span-2 mt-4 pt-4 border-t border-[#e2e8f0]">
-                  <h4 className="text-[#015669] font-bold mb-4"><i className="fas fa-sliders"></i> إعدادات متقدمة (اختياري)</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block mb-2 text-sm font-bold text-[#1e293b]">مستوى الكورس</label>
-                      <select 
-                        value={newCourseMeta.level} 
-                        onChange={(e) => setNewCourseMeta({...newCourseMeta, level: e.target.value})}
-                        className={inputStyles}
-                      >
-                        <option value="">بدون تحديد</option>
-                        <option value="مبتدئ">مبتدئ</option>
-                        <option value="متوسط">متوسط</option>
-                        <option value="متقدم">متقدم</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block mb-2 text-sm font-bold text-[#1e293b]">لغة الكورس</label>
-                      <select 
-                        value={newCourseMeta.language} 
-                        onChange={(e) => setNewCourseMeta({...newCourseMeta, language: e.target.value})}
-                        className={inputStyles}
-                      >
-                        <option value="">بدون تحديد</option>
-                        <option value="عربي">عربي</option>
-                        <option value="إنجليزي">إنجليزي</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block mb-2 text-sm font-bold text-[#1e293b]">شارة ترويجية (Badge)</label>
-                      <input 
-                        type="text" 
-                        placeholder="مثال: الأكثر مبيعاً" 
-                        value={newCourseMeta.badge}
-                        onChange={(e) => setNewCourseMeta({...newCourseMeta, badge: e.target.value})}
-                        className={inputStyles} 
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="md:col-span-2 mt-2">
-                  <button type="submit" className={btnSubmitStyles}>
-                    <i className="fas fa-save"></i> حفظ ونشر الدورة
+                    <i className="fas fa-hand-holding-heart" /> مجانية
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsNewCourseFree(false)}
+                    className={`kb-chip ${!isNewCourseFree ? 'kb-chip-amber' : 'kb-chip-slate'}`}
+                  >
+                    <i className="fas fa-coins" /> مدفوعة
                   </button>
                 </div>
-              </form>
-            </div>
+              </div>
+              <input type="hidden" name="is_free" value={isNewCourseFree ? '1' : '0'} />
+              <div className="kb-field">
+                <label>السعر (ج.م)</label>
+                <input type="number" name="price" min="0" step="0.01" disabled={isNewCourseFree} placeholder="0" />
+              </div>
+              <div className="kb-field">
+                <label>وصف الدورة</label>
+                <textarea name="description" rows={3} placeholder="ماذا سيتعلم الطالب في هذه الدورة؟" />
+              </div>
+              <div className="kb-form-grid kb-grid-3">
+                <div className="kb-field">
+                  <label>مستوى الكورس</label>
+                  <select
+                    value={newCourseMeta.level}
+                    onChange={(e) => setNewCourseMeta({ ...newCourseMeta, level: e.target.value })}
+                  >
+                    <option value="">بدون تحديد</option>
+                    <option value="مبتدئ">مبتدئ</option>
+                    <option value="متوسط">متوسط</option>
+                    <option value="متقدم">متقدم</option>
+                  </select>
+                </div>
+                <div className="kb-field">
+                  <label>لغة الكورس</label>
+                  <select
+                    value={newCourseMeta.language}
+                    onChange={(e) => setNewCourseMeta({ ...newCourseMeta, language: e.target.value })}
+                  >
+                    <option value="">بدون تحديد</option>
+                    <option value="عربي">عربي</option>
+                    <option value="إنجليزي">إنجليزي</option>
+                  </select>
+                </div>
+                <div className="kb-field">
+                  <label>شارة ترويجية</label>
+                  <input
+                    type="text"
+                    value={newCourseMeta.badge}
+                    onChange={(e) => setNewCourseMeta({ ...newCourseMeta, badge: e.target.value })}
+                    placeholder="مثال: الأكثر مبيعاً"
+                  />
+                </div>
+              </div>
+              <div className="kb-form-actions">
+                <button type="submit" className="kb-btn-primary">
+                  <i className="fas fa-save" /> حفظ ونشر الدورة
+                </button>
+              </div>
+            </form>
+          </DataCard>
 
-            <div className="bg-white p-[30px] rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.02)]">
-              <h3 className="text-[#015669] mb-[25px] text-[20px] border-r-4 border-[#015669] pr-2.5">
-                <i className="fas fa-list"></i> دوراتي الحالية
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          <DataCard
+            title={`دوراتي الحالية (${courses.length})`}
+            action={
+              <span className="kb-chip kb-chip-blue">
+                <i className="fas fa-book-open" /> {courses.length} دورة
+              </span>
+            }
+          >
+            {courses.length === 0 ? (
+              <EmptyState icon="fa-layer-group" title="لا توجد دورات بعد" description="أضف أول دورة من النموذج أعلاه" />
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {courses.map((course) => (
-                  <div key={course.id} className="bg-[#f4f7f9] p-5 rounded-[16px] border border-[#e2e8f0] flex flex-col gap-[15px] transition-all duration-300 hover:-translate-y-1.5 hover:border-[#015669]">
-                    <div className="text-[18px] font-bold text-[#015669] flex justify-between items-center">
-                      {course.title}
-                      <span className={course.is_free === 1 
-                        ? 'px-3 py-1.5 rounded-full text-[13px] font-bold bg-[#ecfdf5] text-[#10b981]' 
-                        : 'px-3 py-1.5 rounded-full text-[13px] font-bold bg-[#fffbeb] text-[#f59e0b]'}>
-                        {course.is_free === 1 ? 'مجاني' : `مدفوع - ${course.price || 0} ج.م`}
+                  <div key={course.id} className="kb-surface kb-surface-hover flex flex-col gap-3 p-5">
+                    {course.image_url ? (
+                      <img src={course.image_url} alt={course.title} className="h-36 w-full rounded-xl object-cover" />
+                    ) : (
+                      <span className="flex h-36 w-full items-center justify-center rounded-xl bg-slate-100 text-[28px] text-slate-300">
+                        <i className="fas fa-book-open" />
+                      </span>
+                    )}
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="text-[17px] font-extrabold leading-snug text-[var(--primary-color)]">{course.title}</h4>
+                      <span className={course.is_free === 1 ? 'kb-chip kb-chip-green' : 'kb-chip kb-chip-amber'}>
+                        {course.is_free === 1 ? 'مجانية' : `${course.price || 0} ج.م`}
                       </span>
                     </div>
-                    <div className="text-[13px] text-[#64748b]">
-                      <i className="fas fa-clock ml-1"></i> تم الإنشاء: {new Date(course.created_at || '').toLocaleDateString('ar-EG')}
-                    </div>
-                    <div className="flex gap-2.5 mt-auto flex-wrap w-full">
-                      <button 
-                        onClick={() => openEditModal('course', course)}
-                        className="flex-1 p-2.5 border-none rounded-lg cursor-pointer font-bold transition-all text-center text-[14px] bg-[#e0f2fe] text-[#0284c7] hover:bg-[#0284c7] hover:text-white"
-                      >
-                        <i className="fas fa-edit"></i> تعديل
+                    <p className="text-[13px] text-[var(--text-muted)]">
+                      <i className="fas fa-clock" /> تم الإنشاء: {course.created_at ? new Date(course.created_at).toLocaleDateString('ar-EG') : '—'}
+                    </p>
+                    <div className="mt-auto flex flex-wrap gap-2">
+                      <button onClick={() => openEditModal('course', course)} className="kb-table-action flex-1 justify-center bg-sky-50 text-sky-600 hover:bg-sky-100">
+                        <i className="fas fa-pen" /> تعديل
                       </button>
-                      <button 
-                        onClick={() => handleDeleteCourse(course.id)}
-                        className="flex-1 p-2.5 border-none rounded-lg cursor-pointer font-bold transition-all text-center text-[14px] bg-[#fee2e2] text-[#ef4444] hover:bg-[#ef4444] hover:text-white"
-                      >
-                        <i className="fas fa-trash"></i> حذف
+                      <button onClick={() => handleDeleteCourse(course.id)} className="kb-table-action flex-1 justify-center bg-red-50 text-red-500 hover:bg-red-100">
+                        <i className="fas fa-trash" /> حذف
                       </button>
                     </div>
                   </div>
                 ))}
-                {courses.length === 0 && (
-                  <div className="col-span-full text-center text-[#64748b] py-5">
-                    لا توجد دورات مضافة حتى الآن.
+              </div>
+            )}
+          </DataCard>
+        </div>
+      )}
+
+      {/* ============ [TAB-LESSONS] ============ */}
+      {activeTab === 'lessons' && (
+        <div className="space-y-6">
+          <DataCard title="اختيار الدورة">
+            <select
+              value={selectedCourseId}
+              onChange={(e) => {
+                setSelectedCourseId(e.target.value);
+                loadLessons(e.target.value);
+              }}
+              className="kb-input w-full md:max-w-sm"
+            >
+              <option value="">— اختر دورة لإدارة محاضراتها —</option>
+              {courses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+          </DataCard>
+
+          {selectedCourseId ? (
+            <>
+              <DataCard title="إضافة محاضرة جديدة">
+                <form onSubmit={handleAddLesson} className="kb-form-grid">
+                  <input type="hidden" name="course_id" value={selectedCourseId} />
+                  <div className="kb-field">
+                    <label>عنوان المحاضرة</label>
+                    <input type="text" name="title" required placeholder="مثال: الدرس الأول — المعادلات" />
                   </div>
-                )}
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* Lessons Tab */}
-        {activeTab === 'lessons' && (
-          <section className="animate-fade-in block">
-            <h1 className="text-[28px] text-[#015669] mb-[30px] flex items-center gap-2.5">
-              <i className="fas fa-video"></i> إدارة المحاضرات
-            </h1>
-            
-            <div className="bg-white p-[30px] rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.02)]">
-              <h3 className="text-[#015669] mb-[25px] text-[20px] border-r-4 border-[#015669] pr-2.5">
-                <i className="fas fa-plus-circle"></i> إضافة محاضرة لدورة
-              </h3>
-              <form onSubmit={handleAddLesson} className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="md:col-span-2">
-                  <label className="block mb-2 font-bold text-[#1e293b]">اختر الدورة</label>
-                  <select 
-                    name="course_id" 
-                    required 
-                    className={inputStyles}
-                    onChange={(e) => {
-                      setSelectedCourseId(e.target.value);
-                      loadLessons(e.target.value);
-                    }}
-                  >
-                    <option value="">اختر الدورة...</option>
-                    {courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
-                  </select>
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block mb-2 font-bold text-[#1e293b]">عنوان المحاضرة</label>
-                  <input type="text" name="title" required className={inputStyles} />
-                </div>
-                <div>
-                  <label className="block mb-2 font-bold text-[#1e293b]">رابط الفيديو (YouTube)</label>
-                  <input type="url" name="video_url" required className={inputStyles} />
-                </div>
-                <div>
-                  <label className="block mb-2 font-bold text-[#1e293b]">ترتيب المحاضرة (رقم)</label>
-                  <input type="number" name="order_num" defaultValue="1" required className={inputStyles} />
-                </div>
-                <div className="md:col-span-2 mt-2">
-                  <button type="submit" className={btnSubmitStyles}>
-                    <i className="fas fa-upload"></i> رفع المحاضرة
-                  </button>
-                </div>
-              </form>
-
-              {selectedCourseId && (
-                <div className="mt-5 pt-5 border-t border-[#e2e8f0]">
-                  <h3 className="mb-[15px] text-[#015669] text-[18px] font-bold">محاضرات الدورة المحددة:</h3>
-                  {lessons.length === 0 ? (
-                    <p className="text-[#64748b]">لا توجد محاضرات في هذه الدورة.</p>
-                  ) : (
-                    lessons.map((lesson) => (
-                      <div key={lesson.id} className={`flex flex-col md:flex-row justify-between md:items-center bg-[#f4f7f9] p-[15px] rounded-[10px] mb-2.5 border ${lesson.is_admin_locked === 1 ? 'border-[#ef4444] bg-[#fef2f2]' : 'border-[#e2e8f0]'}`}>
-                        <div className="mb-3 md:mb-0">
-                          <strong className={lesson.is_admin_locked === 1 ? 'text-[#ef4444]' : 'text-[#1e293b]'}>
-                            {lesson.order_num}. {lesson.title} {lesson.is_admin_locked === 1 && '(مغلق)'}
-                          </strong>
-                        </div>
-                        <div className="flex gap-[10px] w-full md:w-auto">
-                          <button 
-                            onClick={() => handleToggleLessonLock(lesson.id, lesson.is_admin_locked !== 1)}
-                            className="flex-1 md:flex-none py-2.5 px-4 border-none rounded-lg cursor-pointer font-bold transition-all text-center text-[14px] bg-[#fef3c7] text-[#d97706] hover:bg-[#d97706] hover:text-white"
-                          >
-                            <i className={`fas fa-${lesson.is_admin_locked === 1 ? 'unlock' : 'lock'}`}></i> {lesson.is_admin_locked === 1 ? 'فتح' : 'قفل'}
-                          </button>
-                          <button 
-                            onClick={() => openEditModal('lesson', lesson)}
-                            className="flex-1 md:flex-none py-2.5 px-4 border-none rounded-lg cursor-pointer font-bold transition-all text-center text-[14px] bg-[#e0f2fe] text-[#0284c7] hover:bg-[#0284c7] hover:text-white"
-                          >
-                            <i className="fas fa-edit"></i>
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteLesson(lesson.id)}
-                            className="flex-1 md:flex-none py-2.5 px-4 border-none rounded-lg cursor-pointer font-bold transition-all text-center text-[14px] bg-[#fee2e2] text-[#ef4444] hover:bg-[#ef4444] hover:text-white"
-                          >
-                            <i className="fas fa-trash"></i>
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* Quizzes Tab */}
-        {activeTab === 'quizzes' && (
-          <section className="animate-fade-in block">
-            <h1 className="text-[28px] text-[#015669] mb-[30px] flex items-center gap-2.5">
-              <i className="fas fa-spell-check"></i> بناء الامتحانات
-            </h1>
-            
-            <div className="bg-white p-[30px] rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.02)]">
-              <h3 className="text-[#015669] mb-[25px] text-[20px] border-r-4 border-[#015669] pr-2.5">
-                <i className="fas fa-list-ol"></i> إضافة سؤال لامتحان المحاضرة
-              </h3>
-              
-              <form onSubmit={handleAddQuestion} className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                  <label className="block mb-2 font-bold text-[#1e293b]">اختر الدورة</label>
-                  <select 
-                    className={inputStyles}
-                    required
-                    onChange={(e) => {
-                      const courseId = e.target.value;
-                      if (courseId) {
-                        loadLessons(courseId);
-                        setSelectedLessonId(''); 
-                        setQuestions([]);
-                      }
-                    }}
-                  >
-                    <option value="">اختر دورة أولاً...</option>
-                    {courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block mb-2 font-bold text-[#1e293b]">المحاضرة المرتبطة بالامتحان</label>
-                  <select 
-                    name="lesson_id" 
-                    required
-                    className={inputStyles}
-                    value={selectedLessonId}
-                    onChange={(e) => {
-                      setSelectedLessonId(e.target.value);
-                      loadQuestions(e.target.value);
-                    }}
-                  >
-                    <option value="">اختر المحاضرة...</option>
-                    {lessons.map(l => <option key={l.id} value={l.id}>{l.title}</option>)}
-                  </select>
-                </div>
-                
-                {/* 💡 التعديل هنا: محدد نوع السؤال */}
-                <div className="md:col-span-2 mt-2 pt-4 border-t border-[#e2e8f0]">
-                  <label className="block mb-2 font-bold text-[#015669] text-lg">نوع السؤال</label>
-                  <select 
-                    value={questionType}
-                    onChange={(e) => setQuestionType(e.target.value as 'mcq' | 'tf')}
-                    className={inputStyles}
-                  >
-                    <option value="mcq">اختيار من متعدد (4 خيارات A, B, C, D)</option>
-                    <option value="tf">صح وخطأ (خيارين فقط)</option>
-                  </select>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block mb-2 font-bold text-[#1e293b]">رابط صورة السؤال (اجباري)</label>
-                  <input type="url" name="image_url" placeholder="مثال: https://imgur.com/question1.png" className={inputStyles} />
-                </div>
-                
-                {/* 💡 التكيف مع نوع السؤال (صح وخطأ يخفي C و D ويثبت A و B) */}
-                {questionType === 'mcq' ? (
-                  <>
-                    <div>
-                      <label className="block mb-2 font-bold text-[#1e293b]">خيار (أ)</label>
-                      <input type="text" name="option_a" required className={inputStyles} />
-                    </div>
-                    <div>
-                      <label className="block mb-2 font-bold text-[#1e293b]">خيار (ب)</label>
-                      <input type="text" name="option_b" required className={inputStyles} />
-                    </div>
-                    <div>
-                      <label className="block mb-2 font-bold text-[#1e293b]">خيار (ج)</label>
-                      <input type="text" name="option_c" required className={inputStyles} />
-                    </div>
-                    <div>
-                      <label className="block mb-2 font-bold text-[#1e293b]">خيار (د)</label>
-                      <input type="text" name="option_d" required className={inputStyles} />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      <label className="block mb-2 font-bold text-[#1e293b]">خيار (أ)</label>
-                      <input type="text" value="صح" disabled className={`${inputStyles} bg-gray-200 cursor-not-allowed font-bold text-green-700`} />
-                    </div>
-                    <div>
-                      <label className="block mb-2 font-bold text-[#1e293b]">خيار (ب)</label>
-                      <input type="text" value="خطأ" disabled className={`${inputStyles} bg-gray-200 cursor-not-allowed font-bold text-red-700`} />
-                    </div>
-                  </>
-                )}
-
-                <div>
-                  <label className="block mb-2 font-bold text-[#1e293b]">الإجابة الصحيحة</label>
-                  <select name="correct_option" required className={inputStyles}>
-                    <option value="A">أ {questionType === 'tf' ? '(صح)' : ''}</option>
-                    <option value="B">ب {questionType === 'tf' ? '(خطأ)' : ''}</option>
-                    {questionType === 'mcq' && <option value="C">ج</option>}
-                    {questionType === 'mcq' && <option value="D">د</option>}
-                  </select>
-                </div>
-                <div className="md:col-span-2 flex gap-[15px] mt-2">
-                  <button type="submit" className={btnSubmitStyles}>
-                    <i className="fas fa-plus"></i> إضافة السؤال
-                  </button>
-                </div>
-              </form>
-
-              {selectedLessonId && (
-                <div className="mt-5 pt-[15px] border-t border-[#e2e8f0]">
-                  <h4 className="mb-[15px] text-[#015669] text-[16px] font-bold">الأسئلة الحالية في هذا الامتحان ({questions.length})</h4>
-                  {questions.length === 0 ? (
-                    <p className="text-[#64748b]">لم يتم إضافة أي أسئلة حتى الآن.</p>
-                  ) : (
-                    questions.map((q, index) => {
-                      // تحديد نوع السؤال للعرض
-                      const isTF = !q.option_c && !q.option_d;
-                      return (
-                        <div key={q.id} className="bg-[#f4f7f9] border border-[#e2e8f0] rounded-[10px] p-[15px] mb-2.5 flex justify-between items-center">
-                          <div className="flex flex-wrap items-center">
-                            <strong className="ml-[10px]">س {index + 1}:</strong>
-                            {isTF && <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs font-bold ml-2">صح/خطأ</span>}
-                            {q.image_url && <img src={q.image_url} alt="سؤال" className="h-[50px] rounded-[5px] border border-[#ccc] ml-[10px]" onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/50?text=خطأ'; }} />}
-                            <span className="text-[#10b981] font-bold mr-[15px] mt-2 md:mt-0">(الإجابة: {q.correct_option})</span>
-                          </div>
-                          <button 
-                            onClick={() => handleDeleteQuestion(q.id)}
-                            className="py-2.5 px-[15px] flex-none w-auto border-none rounded-lg cursor-pointer font-bold transition-all text-center text-[14px] bg-[#fee2e2] text-[#ef4444] hover:bg-[#ef4444] hover:text-white"
-                          >
-                            <i className="fas fa-trash"></i>
-                          </button>
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* Users Tab */}
-        {activeTab === 'users' && (
-          <section className="animate-fade-in block">
-            <h1 className="text-[28px] text-[#015669] mb-[30px] flex items-center gap-2.5">
-              <i className="fas fa-users"></i> طلابي والتقارير
-            </h1>
-            
-            <div className="bg-white p-[30px] rounded-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.02)] overflow-x-auto">
-              <h3 className="text-[#015669] mb-[25px] text-[20px] border-r-4 border-[#015669] pr-2.5">
-                <i className="fas fa-list"></i> قائمة الطلاب المشتركين بدوراتي
-              </h3>
-
-              <div className="flex flex-col md:flex-row justify-between items-center mb-5 gap-4">
-                <form onSubmit={handleSearchUsers} className="flex gap-2 w-full md:w-auto">
-                  <input
-                    type="text"
-                    placeholder="ابحث بالاسم، الإيميل، أو التليفون..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className={`${inputStyles} !py-2.5 !mb-0 w-full md:w-[300px]`}
-                  />
-                  <button type="submit" className="bg-[#015669] text-white px-5 rounded-xl font-bold cursor-pointer transition-all hover:bg-[#014150]">
-                    <i className="fas fa-search"></i> بحث
-                  </button>
+                  <div className="kb-field">
+                    <label>رابط الفيديو (YouTube)</label>
+                    <input type="url" name="video_url" required placeholder="https://www.youtube.com/watch?v=..." />
+                  </div>
+                  <div className="kb-field">
+                    <label>الترتيب</label>
+                    <input type="number" name="order_num" min="1" required placeholder="1" />
+                  </div>
+                  <div className="kb-form-actions">
+                    <button type="submit" className="kb-btn-primary">
+                      <i className="fas fa-upload" /> رفع المحاضرة
+                    </button>
+                  </div>
                 </form>
-                <button onClick={handleExportExcel} className="bg-[#10b981] text-white py-2.5 px-5 rounded-xl font-bold cursor-pointer flex items-center gap-2 hover:bg-[#059669] transition-all w-full md:w-auto justify-center">
-                  <i className="fas fa-file-excel"></i> تصدير إكسيل
-                </button>
-              </div>
+              </DataCard>
 
-              <table className="w-full border-collapse mt-2.5">
-                <thead>
-                  <tr>
-                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">الاسم</th>
-                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">البريد الإلكتروني</th>
-                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">رقم الهاتف</th>
-                    <th className="bg-[#f4f7f9] text-[#015669] font-bold p-[15px] border-b border-[#e2e8f0] text-right">التقارير</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.length === 0 ? (
-                    <tr><td colSpan={4} className="text-center p-[15px]">لا يوجد طلاب مسجلين في دوراتك حتى الآن.</td></tr>
-                  ) : (
-                    users.map((u) => (
-                      <tr key={u.id} className="hover:bg-[#f8fafc] transition-colors">
-                        <td className="p-[15px] border-b border-[#e2e8f0]"><strong>{u.name}</strong></td>
-                        <td className="p-[15px] border-b border-[#e2e8f0] text-[#64748b]">{u.email}</td>
-                        <td className="p-[15px] border-b border-[#e2e8f0]">
-                          <span className="font-mono text-[#015669] bg-[#f4f7f9] px-2 py-1 rounded-md text-[14px]">
-                            {u.phone || 'غير مسجل'}
-                          </span>
+              <DataCard title={`محاضرات الدورة (${lessons.length})`}>
+                {lessons.length === 0 ? (
+                  <EmptyState icon="fa-video" title="لا توجد محاضرات بعد" description="ابدأ بإضافة أول محاضرة لهذه الدورة" />
+                ) : (
+                  <KbTable headers={['#', 'العنوان', 'الترتيب', 'الحالة', 'إجراءات']}>
+                    {lessons.map((lesson) => (
+                      <tr key={lesson.id} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="text-[13px] text-[var(--text-muted)]">{lesson.id}</td>
+                        <td className="font-bold text-[#1e293b]">{lesson.order_num}. {lesson.title}</td>
+                        <td>
+                          <span className="kb-chip kb-chip-slate">#{lesson.order_num}</span>
                         </td>
-                        <td className="p-[15px] border-b border-[#e2e8f0]">
-                          <button 
-                            onClick={() => handleViewReport(u.id, u.name)}
-                            className="p-2.5 px-5 border-none rounded-lg cursor-pointer font-bold transition-all text-center text-[14px] bg-[#e2e8f0] text-[#0f172a] hover:bg-[#cbd5e1]"
-                            title="عرض تقرير الطالب في دوراتي"
-                          >
-                            <i className="fas fa-chart-pie"></i> التقرير
-                          </button>
+                        <td>
+                          {lesson.is_admin_locked === 1 ? (
+                            <span className="kb-chip kb-chip-red">
+                              <i className="fas fa-lock" /> مقفولة
+                            </span>
+                          ) : (
+                            <span className="kb-chip kb-chip-green">
+                              <i className="fas fa-unlock" /> مفتوحة
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleToggleLessonLock(lesson.id, lesson.is_admin_locked !== 1)}
+                              className="kb-table-action bg-amber-50 text-amber-600 hover:bg-amber-100"
+                              title={lesson.is_admin_locked === 1 ? 'فتح المحاضرة' : 'قفل المحاضرة'}
+                            >
+                              <i className={`fas ${lesson.is_admin_locked === 1 ? 'fa-unlock' : 'fa-lock'}`} />
+                            </button>
+                            <button onClick={() => openEditModal('lesson', lesson)} className="kb-table-action bg-sky-50 text-sky-600 hover:bg-sky-100" title="تعديل">
+                              <i className="fas fa-pen" />
+                            </button>
+                            <button onClick={() => handleDeleteLesson(lesson.id)} className="kb-table-action bg-red-50 text-red-500 hover:bg-red-100" title="حذف">
+                              <i className="fas fa-trash" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ))}
+                  </KbTable>
+                )}
+              </DataCard>
+            </>
+          ) : (
+            <EmptyState icon="fa-hand-pointer" title="اختر دورة أولاً" description="اختر الدورة التي تريد إدارة محاضراتها من القائمة أعلاه" />
+          )}
+        </div>
+      )}
 
-              <div className="flex justify-between items-center mt-5">
-                <div className="text-[#64748b] text-[14px] font-bold">
-                  إجمالي طلابي: {usersTotal}
-                </div>
-                <div className="flex gap-2.5 items-center">
-                  <button
-                    onClick={() => loadUsers(usersPage - 1, searchQuery)}
-                    disabled={usersPage <= 1}
-                    className="bg-white border border-[#e2e8f0] text-[#015669] py-2 px-4 rounded-lg font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#f4f7f9] transition-all"
-                  >
-                    <i className="fas fa-chevron-right ml-1"></i> السابق
-                  </button>
-                  <div className="bg-[#f4f7f9] border border-[#e2e8f0] text-[#1e293b] py-2 px-4 rounded-lg font-bold">
-                    صفحة {usersPage} من {Math.ceil(usersTotal / usersLimit) || 1}
-                  </div>
-                  <button
-                    onClick={() => loadUsers(usersPage + 1, searchQuery)}
-                    disabled={usersPage * usersLimit >= usersTotal}
-                    className="bg-white border border-[#e2e8f0] text-[#015669] py-2 px-4 rounded-lg font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#f4f7f9] transition-all"
-                  >
-                    التالي <i className="fas fa-chevron-left mr-1"></i>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-      </main>
-
-      {/* Edit Modal */}
-      {showEditModal && (
-        <div className="fixed top-0 left-0 w-full h-full bg-black/50 flex justify-center items-center z-[1000] backdrop-blur-[5px]">
-          <div className="bg-white p-[30px] rounded-[20px] w-[90%] max-w-[600px] max-h-[90vh] overflow-y-auto shadow-[0_20px_50px_rgba(0,0,0,0.2)]">
-            <div className="flex justify-between items-center mb-5 pb-[15px] border-b border-[#e2e8f0]">
-              <h3 className="text-[#015669] text-xl font-bold">
-                تعديل {editingType === 'course' ? 'الدورة' : 'المحاضرة'}
-              </h3>
-              <button 
-                onClick={() => setShowEditModal(false)}
-                className="bg-none border-none text-[24px] text-[#ef4444] cursor-pointer hover:opacity-80"
+      {/* ============ [TAB-QUIZZES] ============ */}
+      {activeTab === 'quizzes' && (
+        <div className="space-y-6">
+          <DataCard title="اختيار المحاضرة">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center">
+              <select
+                className="kb-input w-full md:max-w-xs"
+                onChange={(e) => {
+                  const courseId = e.target.value;
+                  if (courseId) {
+                    loadLessons(courseId);
+                    setSelectedLessonId('');
+                    setQuestions([]);
+                  }
+                }}
+                defaultValue=""
               >
-                <i className="fas fa-times"></i>
-              </button>
+                <option value="">— اختر دورة أولاً —</option>
+                {courses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={selectedLessonId}
+                onChange={(e) => {
+                  setSelectedLessonId(e.target.value);
+                  loadQuestions(e.target.value);
+                }}
+                className="kb-input w-full md:max-w-xl"
+              >
+                <option value="">— اختر المحاضرة —</option>
+                {lessons.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.title}
+                  </option>
+                ))}
+              </select>
             </div>
-            <form onSubmit={handleEditSubmit} className="grid grid-cols-1 gap-[15px]">
-              {editingType === 'course' && (
-                <>
-                  <div>
-                    <label className="block mb-2 font-bold text-[#1e293b]">العنوان</label>
-                    <input 
-                      type="text" 
-                      value={(editFormData.title as string) || ''} 
-                      onChange={(e) => setEditFormData({...editFormData, title: e.target.value})}
-                      required 
-                      className={inputStyles} 
-                    />
+          </DataCard>
+
+          {selectedLessonId ? (
+            <>
+              <DataCard title="إضافة سؤال جديد">
+                <div className="mb-5 flex flex-wrap items-center gap-2">
+                  <span className="text-[13px] font-bold text-[var(--text-muted)]">نوع السؤال:</span>
+                  <button
+                    type="button"
+                    onClick={() => setQuestionType('mcq')}
+                    className={`kb-chip ${questionType === 'mcq' ? 'kb-chip-blue' : 'kb-chip-slate'}`}
+                  >
+                    <i className="fas fa-list-ul" /> اختيار من متعدد
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuestionType('tf')}
+                    className={`kb-chip ${questionType === 'tf' ? 'kb-chip-green' : 'kb-chip-slate'}`}
+                  >
+                    <i className="fas fa-check" /> صح / خطأ
+                  </button>
+                </div>
+
+                <form onSubmit={handleAddQuestion} className="kb-form-grid">
+                  <input type="hidden" name="lesson_id" value={selectedLessonId} />
+                  <div className="kb-field">
+                    <label>رابط صورة السؤال <span className="text-[var(--danger)]">*</span></label>
+                    <input type="url" name="image_url" required placeholder="https://imgur.com/question.png — السؤال يُعرض كصورة" />
                   </div>
-                  <div>
-                    <label className="block mb-2 font-bold text-[#1e293b]">الوصف</label>
-                    <textarea 
-                      value={(editFormData.description as string) || ''} 
-                      onChange={(e) => setEditFormData({...editFormData, description: e.target.value})}
-                      className={`${inputStyles} min-h-[100px]`}
-                    />
-                  </div>
-                  <div>
-                    <label className="block mb-2 font-bold text-[#1e293b]">رابط الغلاف</label>
-                    <input 
-                      type="url" 
-                      value={(editFormData.image_url as string) || ''} 
-                      onChange={(e) => setEditFormData({...editFormData, image_url: e.target.value})}
-                      required 
-                      className={inputStyles} 
-                    />
-                  </div>
-                  <div>
-                    <label className="block mb-2 font-bold text-[#1e293b]">نوع الدورة</label>
-                    <select 
-                      value={isEditCourseFree ? '1' : '0'}
-                      className={inputStyles}
-                      onChange={(e) => {
-                        const isFree = e.target.value === '1';
-                        setIsEditCourseFree(isFree);
-                        setEditFormData({
-                          ...editFormData, 
-                          is_free: isFree ? 1 : 0,
-                          price: isFree ? 0 : editFormData.price
-                        });
-                      }}
-                    >
-                      <option value="1">مجانية</option>
-                      <option value="0">مدفوعة</option>
+                  {questionType === 'mcq' ? (
+                    <>
+                      <div className="kb-field">
+                        <label>الخيار أ</label>
+                        <input type="text" name="option_a" required placeholder="الخيار الأول" />
+                      </div>
+                      <div className="kb-field">
+                        <label>الخيار ب</label>
+                        <input type="text" name="option_b" required placeholder="الخيار الثاني" />
+                      </div>
+                      <div className="kb-field">
+                        <label>الخيار ج</label>
+                        <input type="text" name="option_c" required placeholder="الخيار الثالث" />
+                      </div>
+                      <div className="kb-field">
+                        <label>الخيار د</label>
+                        <input type="text" name="option_d" required placeholder="الخيار الرابع" />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="kb-chip kb-chip-green"><i className="fas fa-check" /> أ: صح</span>
+                      <span className="kb-chip kb-chip-red"><i className="fas fa-xmark" /> ب: خطأ</span>
+                    </>
+                  )}
+                  <div className="kb-field">
+                    <label>الإجابة الصحيحة</label>
+                    <select name="correct_option" required>
+                      {questionType === 'tf' ? (
+                        <>
+                          <option value="A">صح</option>
+                          <option value="B">خطأ</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="A">أ</option>
+                          <option value="B">ب</option>
+                          <option value="C">ج</option>
+                          <option value="D">د</option>
+                        </>
+                      )}
                     </select>
                   </div>
-                  {!isEditCourseFree && (
-                    <div className="mt-[10px]">
-                      <label className="block mb-2 font-bold text-[#1e293b]">السعر (بالجنيه)</label>
-                      <input 
-                        type="number" 
-                        value={(editFormData.price as number) || 0} 
-                        onChange={(e) => setEditFormData({...editFormData, price: parseFloat(e.target.value)})}
-                        min="0"
-                        className={inputStyles} 
-                      />
-                    </div>
-                  )}
+                  <div className="kb-form-actions">
+                    <button type="submit" className="kb-btn-primary">
+                      <i className="fas fa-plus" /> إضافة السؤال
+                    </button>
+                  </div>
+                </form>
+              </DataCard>
 
-                  {/* 💡 تعديل الإعدادات المتقدمة في النافذة المنبثقة */}
-                  <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
-                    <h4 className="text-[#015669] font-bold mb-4"><i className="fas fa-sliders"></i> إعدادات متقدمة (اختياري)</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block mb-2 text-sm font-bold text-[#1e293b]">مستوى الكورس</label>
-                        <select 
-                          value={editCourseMeta.level} 
-                          onChange={(e) => setEditCourseMeta({...editCourseMeta, level: e.target.value})}
-                          className={inputStyles}
-                        >
-                          <option value="">بدون تحديد</option>
-                          <option value="مبتدئ">مبتدئ</option>
-                          <option value="متوسط">متوسط</option>
-                          <option value="متقدم">متقدم</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block mb-2 text-sm font-bold text-[#1e293b]">لغة الكورس</label>
-                        <select 
-                          value={editCourseMeta.language} 
-                          onChange={(e) => setEditCourseMeta({...editCourseMeta, language: e.target.value})}
-                          className={inputStyles}
-                        >
-                          <option value="">بدون تحديد</option>
-                          <option value="عربي">عربي</option>
-                          <option value="إنجليزي">إنجليزي</option>
-                        </select>
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block mb-2 text-sm font-bold text-[#1e293b]">شارة ترويجية (Badge)</label>
-                        <input 
-                          type="text" 
-                          placeholder="مثال: الأكثر مبيعاً" 
-                          value={editCourseMeta.badge}
-                          onChange={(e) => setEditCourseMeta({...editCourseMeta, badge: e.target.value})}
-                          className={inputStyles} 
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-              {editingType === 'lesson' && (
-                <>
-                  <div>
-                    <label className="block mb-2 font-bold text-[#1e293b]">العنوان</label>
-                    <input 
-                      type="text" 
-                      value={(editFormData.title as string) || ''} 
-                      onChange={(e) => setEditFormData({...editFormData, title: e.target.value})}
-                      required 
-                      className={inputStyles} 
-                    />
-                  </div>
-                  <div>
-                    <label className="block mb-2 font-bold text-[#1e293b]">الرابط</label>
-                    <input 
-                      type="url" 
-                      value={(editFormData.video_url as string) || ''} 
-                      onChange={(e) => setEditFormData({...editFormData, video_url: e.target.value})}
-                      required 
-                      className={inputStyles} 
-                    />
-                  </div>
-                  <div>
-                    <label className="block mb-2 font-bold text-[#1e293b]">الترتيب</label>
-                    <input 
-                      type="number" 
-                      value={(editFormData.order_num as number) || 1} 
-                      onChange={(e) => setEditFormData({...editFormData, order_num: parseInt(e.target.value)})}
-                      required 
-                      className={inputStyles} 
-                    />
-                  </div>
-                </>
-              )}
-              <div className="mt-2">
-                <button type="submit" className={`${btnSubmitStyles} w-full justify-center`}>
-                  <i className="fas fa-save"></i> حفظ التعديلات
+              <DataCard title={`أسئلة الامتحان (${questions.length})`}>
+                {questions.length === 0 ? (
+                  <EmptyState icon="fa-spell-check" title="لا توجد أسئلة بعد" description="أضف أسئلة لبناء امتحان هذه المحاضرة" />
+                ) : (
+                  <KbTable headers={['#', 'السؤال (صورة)', 'الخيارات', 'الإجابة', 'إجراءات']}>
+                    {questions.map((q, index) => {
+                      const isTF = (q as any).type === 'true_false' || (!q.option_c && !q.option_d);
+                      return (
+                        <tr key={q.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="text-[13px] text-[var(--text-muted)]">{index + 1}</td>
+                          <td>
+                            <div className="flex items-center gap-3">
+                              {q.image_url ? (
+                                <img
+                                  src={q.image_url}
+                                  alt={`سؤال ${index + 1}`}
+                                  className="h-12 w-20 rounded-lg border border-slate-200 object-cover"
+                                  onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.2'; }}
+                                />
+                              ) : (
+                                <span className="flex h-12 w-20 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
+                                  <i className="fas fa-image" />
+                                </span>
+                              )}
+                              {isTF ? <span className="kb-chip kb-chip-purple">صح/خطأ</span> : null}
+                            </div>
+                          </td>
+                          <td>
+                            <div className="flex flex-wrap gap-1.5">
+                              {isTF ? (
+                                <>
+                                  <span className="kb-chip kb-chip-green">أ: {q.option_a}</span>
+                                  <span className="kb-chip kb-chip-red">ب: {q.option_b}</span>
+                                </>
+                              ) : (
+                                ['A', 'B', 'C', 'D'].map((opt) =>
+                                  q[`option_${opt.toLowerCase()}` as keyof QuizQuestion] ? (
+                                    <span key={opt} className="kb-chip kb-chip-slate">
+                                      {opt}: {q[`option_${opt.toLowerCase()}` as keyof QuizQuestion] as string}
+                                    </span>
+                                  ) : null,
+                                )
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <span className="kb-chip kb-chip-amber">{q.correct_option}</span>
+                          </td>
+                          <td>
+                            <button onClick={() => handleDeleteQuestion(q.id)} className="kb-table-action bg-red-50 text-red-500 hover:bg-red-100" title="حذف">
+                              <i className="fas fa-trash" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </KbTable>
+                )}
+              </DataCard>
+            </>
+          ) : (
+            <EmptyState icon="fa-hand-pointer" title="اختر محاضرة أولاً" description="اختر المحاضرة المطلوبة لبناء امتحانها من القائمة أعلاه" />
+          )}
+        </div>
+      )}
+
+      {/* ============ [TAB-ADMIN-REST] ============ */}{/* ============ [TAB-USERS] ============ */}
+      {activeTab === 'users' && (
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <form onSubmit={handleSearchUsers} className="flex w-full items-center gap-2 md:max-w-md">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ابحث بالاسم، الإيميل، أو التليفون..."
+                className="kb-input flex-1"
+              />
+              <button type="submit" className="kb-btn-primary px-4">
+                <i className="fas fa-search" />
+              </button>
+            </form>
+            <button onClick={handleExportExcel} className="kb-btn-soft">
+              <i className="fas fa-file-excel" style={{ color: '#22c55e' }} /> تصدير إكسل
+            </button>
+          </div>
+
+          <DataCard title={`قائمة الطلاب المشتركين بدوراتي (${usersTotal})`}>
+            {users.length === 0 ? (
+              <EmptyState icon="fa-users" title="لا يوجد طلاب بعد" description="لم يشترك أحد في دوراتك حتى الآن" />
+            ) : (
+              <>
+                <KbTable headers={['الطالب', 'البريد الإلكتروني', 'رقم الهاتف', 'التقارير']}>
+                  {users.map((u) => (
+                    <tr key={u.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td>
+                        <div className="flex items-center gap-3">
+                          {u.avatar_url ? (
+                            <img src={u.avatar_url} alt={u.name} className="h-9 w-9 rounded-full border-2 border-[var(--primary-color)] object-cover" />
+                          ) : (
+                            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--primary-light)] text-[var(--primary-color)]">
+                              <i className="fas fa-user text-[13px]" />
+                            </span>
+                          )}
+                          <span className="font-bold text-[#1e293b]">{u.name}</span>
+                        </div>
+                      </td>
+                      <td dir="ltr" className="text-right text-[13px] text-[var(--text-muted)]">{u.email}</td>
+                      <td>
+                        <span className="kb-chip kb-chip-slate">{u.phone || 'غير مسجل'}</span>
+                      </td>
+                      <td>
+                        <button onClick={() => handleViewReport(u.id, u.name)} className="kb-table-action bg-amber-50 text-amber-600 hover:bg-amber-100" title="عرض تقرير الطالب">
+                          <i className="fas fa-chart-pie" /> التقرير
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </KbTable>
+                <Pagination
+                  page={usersPage}
+                  total={usersTotal}
+                  totalLabel={`إجمالي طلابي: ${usersTotal}`}
+                  onPrev={() => loadUsers(usersPage - 1, searchQuery)}
+                  onNext={() => loadUsers(usersPage + 1, searchQuery)}
+                />
+              </>
+            )}
+          </DataCard>
+        </div>
+      )}
+
+      {/* ============ [EDIT MODAL] ============ */}
+      <KbModal open={showEditModal} onClose={() => setShowEditModal(false)} maxWidth="max-w-[600px]" accent="teal">
+        <ModalTitle>
+          {editingType === 'course' ? (
+            <span><i className="fas fa-pen-nib" /> تعديل الدورة</span>
+          ) : (
+            <span><i className="fas fa-pen" /> تعديل المحاضرة</span>
+          )}
+        </ModalTitle>
+        {editingType === 'course' ? (
+          <form onSubmit={handleEditSubmit} className="kb-form-grid">
+            <div className="kb-field">
+              <label>اسم الدورة</label>
+              <input
+                type="text"
+                value={editFormData.title || ''}
+                onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                required
+              />
+            </div>
+            <div className="kb-field">
+              <label>رابط صورة الغلاف</label>
+              <input
+                type="url"
+                value={editFormData.image_url || ''}
+                onChange={(e) => setEditFormData({ ...editFormData, image_url: e.target.value })}
+                required
+              />
+            </div>
+            <div className="kb-field">
+              <label>الوصف</label>
+              <textarea
+                rows={3}
+                value={editFormData.description || ''}
+                onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+              />
+            </div>
+            <div className="kb-field">
+              <label>نوع الدورة</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditCourseFree(true);
+                    setEditFormData({ ...editFormData, is_free: 1, price: 0 });
+                  }}
+                  className={`kb-chip ${isEditCourseFree ? 'kb-chip-green' : 'kb-chip-slate'}`}
+                >
+                  مجانية
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditCourseFree(false);
+                    setEditFormData({ ...editFormData, is_free: 0 });
+                  }}
+                  className={`kb-chip ${!isEditCourseFree ? 'kb-chip-amber' : 'kb-chip-slate'}`}
+                >
+                  مدفوعة
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Report Modal */}
-      {showReportModal && reportData && (
-        <div className="fixed top-0 left-0 w-full h-full bg-black/50 flex justify-center items-center z-[1000] backdrop-blur-[5px]">
-          <div className="bg-white p-[30px] rounded-[20px] w-[90%] max-w-[700px] max-h-[90vh] overflow-y-auto shadow-[0_20px_50px_rgba(0,0,0,0.2)]">
-            <div className="flex justify-between items-center mb-5 pb-[15px] border-b border-[#e2e8f0]">
-              <h3 className="text-[#015669] text-xl font-bold">تقرير الطالب: {reportUserName}</h3>
-              <button 
-                onClick={() => setShowReportModal(false)}
-                className="bg-none border-none text-[24px] text-[#ef4444] cursor-pointer hover:opacity-80"
-              >
-                <i className="fas fa-times"></i>
+            </div>
+            <div className="kb-field">
+              <label>السعر (ج.م)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                disabled={isEditCourseFree}
+                value={editFormData.price || 0}
+                onChange={(e) => setEditFormData({ ...editFormData, price: parseFloat(e.target.value) || 0 })}
+              />
+            </div>
+            <div className="kb-form-grid kb-grid-3">
+              <div className="kb-field">
+                <label>مستوى الكورس</label>
+                <select value={editCourseMeta.level} onChange={(e) => setEditCourseMeta({ ...editCourseMeta, level: e.target.value })}>
+                  <option value="">بدون تحديد</option>
+                  <option value="مبتدئ">مبتدئ</option>
+                  <option value="متوسط">متوسط</option>
+                  <option value="متقدم">متقدم</option>
+                </select>
+              </div>
+              <div className="kb-field">
+                <label>لغة الكورس</label>
+                <select value={editCourseMeta.language} onChange={(e) => setEditCourseMeta({ ...editCourseMeta, language: e.target.value })}>
+                  <option value="">بدون تحديد</option>
+                  <option value="عربي">عربي</option>
+                  <option value="إنجليزي">إنجليزي</option>
+                </select>
+              </div>
+              <div className="kb-field">
+                <label>شارة ترويجية</label>
+                <input
+                  type="text"
+                  value={editCourseMeta.badge}
+                  onChange={(e) => setEditCourseMeta({ ...editCourseMeta, badge: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="kb-form-actions">
+              <button type="submit" className="kb-btn-primary">
+                <i className="fas fa-check" /> حفظ التعديلات
+              </button>
+              <button type="button" onClick={() => setShowEditModal(false)} className="kb-btn-ghost">
+                إلغاء
               </button>
             </div>
-            <div className="leading-[1.8]">
-              
-              <div className="bg-[#f4f7f9] p-[15px] rounded-[10px] mb-5 border border-[#e2e8f0]">
-                <h4 className="text-[#015669] mb-2.5 font-bold"><i className="fas fa-book-open ml-2"></i> الدورات المشترك بها (دوراتي فقط)</h4>
-                {reportData.enrollments && reportData.enrollments.length > 0 ? (
-                  <ul className="list-inside pr-[15px] text-[#1e293b]">
-                    {reportData.enrollments.map((e: any, i: number) => (
-                      <li key={i}>
-                        <strong>{e.title || 'دورة محذوفة أو غير معروفة'}</strong> 
-                        <span className="text-[#64748b] text-[13px] mr-2">
-                          (انضم في: {e.enrolled_at ? new Date(e.enrolled_at).toLocaleDateString('ar-EG') : 'غير محدد'})
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-[#64748b]">لم يشترك في أي من دوراتك بعد.</p>
-                )}
-              </div>
+          </form>
+        ) : (
+          <form onSubmit={handleEditSubmit} className="kb-form-grid">
+            <div className="kb-field">
+              <label>عنوان المحاضرة</label>
+              <input
+                type="text"
+                value={editFormData.title || ''}
+                onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                required
+              />
+            </div>
+            <div className="kb-field">
+              <label>رابط الفيديو</label>
+              <input
+                type="url"
+                value={editFormData.video_url || ''}
+                onChange={(e) => setEditFormData({ ...editFormData, video_url: e.target.value })}
+                required
+              />
+            </div>
+            <div className="kb-field">
+              <label>الترتيب</label>
+              <input
+                type="number"
+                min="1"
+                value={editFormData.order_num || 1}
+                onChange={(e) => setEditFormData({ ...editFormData, order_num: parseInt(e.target.value) || 1 })}
+                required
+              />
+            </div>
+            <div className="kb-form-actions">
+              <button type="submit" className="kb-btn-primary">
+                <i className="fas fa-check" /> حفظ التعديلات
+              </button>
+              <button type="button" onClick={() => setShowEditModal(false)} className="kb-btn-ghost">
+                إلغاء
+              </button>
+            </div>
+          </form>
+        )}
+      </KbModal>
 
-              <div className="bg-[#ecfdf5] border border-[#a7f3d0] p-[15px] rounded-[10px] mb-5">
-                <h4 className="text-[#10b981] mb-2.5 font-bold"><i className="fas fa-check-circle ml-2"></i> المحاضرات المكتملة (دوراتي فقط)</h4>
-                {reportData.progress && reportData.progress.length > 0 ? (
-                  <ul className="list-inside pr-[15px] text-[#1e293b]">
-                    {reportData.progress.map((p: any, i: number) => (
-                      <li key={i}>
-                        محاضرة: <strong>{p.lesson_title || 'غير معروف'}</strong> 
-                        <span className="text-[#64748b] text-[13px] mr-2">
-                          (من دورة: {p.course_title || 'غير معروف'}) 
-                          {p.completed_at && ` - أُنجزت في: ${new Date(p.completed_at).toLocaleDateString('ar-EG')}`}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-[#64748b]">لم يكمل أي محاضرة من دوراتك حتى الآن.</p>
-                )}
-              </div>
+      {/* ============ [REPORT MODAL] ============ */}
+      <KbModal open={showReportModal} onClose={() => setShowReportModal(false)} maxWidth="max-w-[720px]" accent="green">
+        <ModalTitle>
+          <span>
+            <i className="fas fa-chart-pie" /> تقرير الطالب: {reportUserName}
+          </span>
+        </ModalTitle>
+        {reportData ? (
+          <div className="space-y-5">
+            <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5">
+              <h4 className="mb-3 text-[15px] font-extrabold text-[var(--primary-color)]">
+                <i className="fas fa-book-open ml-1" /> الدورات المشترك بها (دوراتي فقط)
+              </h4>
+              {reportData.enrollments && reportData.enrollments.length > 0 ? (
+                <ul className="space-y-1.5 text-[14px] text-[#1e293b]">
+                  {reportData.enrollments.map((e: any, i: number) => (
+                    <li key={i} className="flex flex-wrap items-center gap-2">
+                      <i className="fas fa-check-circle text-emerald-500" />
+                      <strong>{e.title || 'دورة محذوفة أو غير معروفة'}</strong>
+                      <span className="text-[12px] text-[var(--text-muted)]">
+                        (انضم في: {e.enrolled_at ? new Date(e.enrolled_at).toLocaleDateString('ar-EG') : 'غير محدد'})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[13px] text-[var(--text-muted)]">لم يشترك في أي من دوراتك بعد.</p>
+              )}
+            </div>
 
-              <div className="bg-[#fffbeb] border border-[#fde68a] p-[15px] rounded-[10px]">
-                <h4 className="text-[#f59e0b] mb-2.5 font-bold"><i className="fas fa-spell-check ml-2"></i> نتائج الامتحانات (دوراتي فقط)</h4>
-                {reportData.quizzes && reportData.quizzes.length > 0 ? (
-                  <ul className="list-inside pr-[15px] text-[#1e293b] flex flex-col gap-2">
-                    {reportData.quizzes.map((q: any, i: number) => (
-                      <li key={i} className="flex items-center flex-wrap gap-2">
-                        <span>امتحان: <strong>{q.lesson_title}</strong></span> 
-                        <span className="text-[#64748b] text-[13px]">(من دورة: {q.course_title})</span>
-                        <span className={`mr-auto px-3 py-1 rounded-md font-bold text-sm ${q.score >= 50 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                          الدرجة: {q.score}%
-                        </span>
-                        <span className="text-[#64748b] text-[12px] w-full mt-1" dir="ltr">{new Date(q.attempted_at).toLocaleString('ar-EG')}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : ( <p className="text-[#64748b]">لم يؤدِ أي امتحان في دوراتك حتى الآن.</p> )}
-              </div>
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-5">
+              <h4 className="mb-3 text-[15px] font-extrabold text-emerald-700">
+                <i className="fas fa-check-circle ml-1" /> المحاضرات المكتملة (دوراتي فقط)
+              </h4>
+              {reportData.progress && reportData.progress.length > 0 ? (
+                <ul className="space-y-1.5 text-[14px] text-[#1e293b]">
+                  {reportData.progress.map((p: any, i: number) => (
+                    <li key={i} className="flex flex-wrap items-center gap-2">
+                      <i className="fas fa-circle-check text-emerald-500" />
+                      <strong>{p.lesson_title || 'غير معروف'}</strong>
+                      <span className="text-[12px] text-[var(--text-muted)]">
+                        (من دورة: {p.course_title || 'غير معروف'}
+                        {p.completed_at ? ` - أُنجزت في: ${new Date(p.completed_at).toLocaleDateString('ar-EG')}` : ''})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[13px] text-[var(--text-muted)]">لم يكمل أي محاضرة من دوراتك حتى الآن.</p>
+              )}
+            </div>
 
+            <div className="rounded-2xl border border-amber-100 bg-amber-50/50 p-5">
+              <h4 className="mb-3 text-[15px] font-extrabold text-amber-600">
+                <i className="fas fa-spell-check ml-1" /> نتائج الامتحانات (دوراتي فقط)
+              </h4>
+              {reportData.quizzes && reportData.quizzes.length > 0 ? (
+                <ul className="space-y-2">
+                  {reportData.quizzes.map((q: any, i: number) => (
+                    <li key={i} className="flex flex-wrap items-center gap-2 text-[14px]">
+                      <span className="font-bold text-[#1e293b]">{q.lesson_title}</span>
+                      <span className="text-[12px] text-[var(--text-muted)]">(من دورة: {q.course_title})</span>
+                      <span className={`kb-chip ${Number(q.score) >= 50 ? 'kb-chip-green' : 'kb-chip-red'}`}>
+                        الدرجة: {q.score}%
+                      </span>
+                      <span className="w-full text-[12px] text-[var(--text-muted)]" dir="ltr">
+                        {q.attempted_at ? new Date(q.attempted_at).toLocaleString('ar-EG') : '—'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[13px] text-[var(--text-muted)]">لم يؤدِ أي امتحان في دوراتك حتى الآن.</p>
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <button onClick={() => setShowReportModal(false)} className="kb-btn-primary">
+                إغلاق التقرير
+              </button>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        ) : (
+          <EmptyState icon="fa-file-circle-question" title="لا توجد بيانات تقرير" />
+        )}
+      </KbModal>
+    </DashboardShell>
   );
 }

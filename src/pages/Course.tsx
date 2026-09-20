@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth, apiCall, publicApiCall } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { Course, Lesson, QuizQuestion } from '@/types';
+import { SiteHeader, PageFooter, KbModal, Spinner, EmptyState } from '@/components/kb/shared';
 
 declare global {
   interface Window {
@@ -47,20 +48,20 @@ export default function Course() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, token, isAuthenticated, logout } = useAuth();
-  
+
   const [course, setCourse] = useState<Course | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [completedLessons, setCompletedLessons] = useState<Set<number>>(new Set());
-  const [completedVideos, setCompletedVideos] = useState<Set<string>>(new Set()); 
+  const [completedVideos, setCompletedVideos] = useState<Set<string>>(new Set());
   const [expandedLesson, setExpandedLesson] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   const [isUserEnrolled, setIsUserEnrolled] = useState(false);
 
   // حالات مودال الدفع والاشتراك
   const [isEnrolling, setIsEnrolling] = useState(false);
   const [showEnrollConfirmModal, setShowEnrollConfirmModal] = useState(false);
-  const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false); 
+  const [showPaymentMethodModal, setShowPaymentMethodModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentReference, setPaymentReference] = useState('');
 
@@ -72,10 +73,10 @@ export default function Course() {
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  
-  // 🛡️ حالة العلامة المائية المتحركة
+
+  // 🎯 حالة العلامة المائية المتحركة
   const [watermarkPos, setWatermarkPos] = useState({ top: 10, left: 10 });
-  
+
   // 🎛️ حالة شريط التحكم المخصص
   const [isControlsVisible, setIsControlsVisible] = useState(true);
 
@@ -88,14 +89,14 @@ export default function Course() {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [examFinished, setExamFinished] = useState(false);
   const [examScore, setExamScore] = useState(0);
-  const [isGrading, setIsGrading] = useState(false); 
-  
+  const [isGrading, setIsGrading] = useState(false);
+
   const playerRef = useRef<YTPlayer | null>(null);
   const videoIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
-  
+
   const isVideoEndingRef = useRef(false);
   const videoSavedRef = useRef(false);
   const celebrationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -105,24 +106,32 @@ export default function Course() {
   const ytDataRef = useRef<{ lesson: Lesson | null; vIdx: number; vTotal: number }>({
     lesson: null,
     vIdx: 0,
-    vTotal: 0
+    vTotal: 0,
   });
-  
+
   const courseId = searchParams.get('id');
 
   // معالجة الأخطاء وتنفيذ تسجيل الخروج الفوري عند اكتشاف جهاز آخر
-  const handleApiError = useCallback((error: any) => {
-    const errorMsg = error?.message || '';
-    if (errorMsg.includes('جهاز آخر') || errorMsg.includes('Session') || errorMsg.includes('Unauthorized') || errorMsg.includes('Invalid Token')) {
-      if (token) {
-        logout();
-        setIsUserEnrolled(false);
-        toast.error("تم فتح حسابك من جهاز آخر. تم تسجيل الخروج لحماية حسابك.");
+  const handleApiError = useCallback(
+    (error: any) => {
+      const errorMsg = error?.message || '';
+      if (
+        errorMsg.includes('جهاز آخر') ||
+        errorMsg.includes('Session') ||
+        errorMsg.includes('Unauthorized') ||
+        errorMsg.includes('Invalid Token')
+      ) {
+        if (token) {
+          logout();
+          setIsUserEnrolled(false);
+          toast.error('تم فتح حسابك من جهاز آخر. تم تسجيل الخروج لحماية حسابك.');
+        }
+      } else {
+        console.error(error);
       }
-    } else {
-      console.error(error);
-    }
-  }, [token, logout]);
+    },
+    [token, logout],
+  );
 
   useEffect(() => {
     const verifyAndLoadProgress = async () => {
@@ -133,7 +142,7 @@ export default function Course() {
             const enrolledIds = (await apiCall('/api/my-enrollments', token)) as number[];
             enrolled = enrolledIds.includes(parseInt(courseId as string));
           }
-          
+
           setIsUserEnrolled(enrolled);
 
           if (enrolled) {
@@ -200,9 +209,9 @@ export default function Course() {
     try {
       const fetcher = token ? (url: string) => apiCall(url, token) : publicApiCall;
       const lessonsData = (await fetcher(`/api/courses/${courseId}/lessons`)) as Lesson[];
-      
+
       const lessonsWithQuiz = await Promise.all(
-        lessonsData.map(async (lesson) => {
+        lessonsData.map(async lesson => {
           try {
             if (token) {
               const quizData = (await apiCall(`/api/lessons/${lesson.id}/quiz`, token)) as QuizQuestion[];
@@ -213,7 +222,7 @@ export default function Course() {
           } catch {
             return { ...lesson, hasQuiz: false, quizData: [] };
           }
-        })
+        }),
       );
       setLessons(lessonsWithQuiz);
     } catch (error) {
@@ -236,15 +245,15 @@ export default function Course() {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
-  // 🛡️ تشغيل محرك تحريك العلامة المائية عند فتح الفيديو
+  // 🎯 تشغيل محرك تحريك العلامة المائية عند فتح الفيديو
   useEffect(() => {
     if (activeLessonId !== null) {
       const interval = setInterval(() => {
         setWatermarkPos({
-          top: Math.floor(Math.random() * 80) + 10, 
-          left: Math.floor(Math.random() * 70) + 10, 
+          top: Math.floor(Math.random() * 80) + 10,
+          left: Math.floor(Math.random() * 70) + 10,
         });
-      }, 4000); 
+      }, 4000);
       return () => clearInterval(interval);
     }
   }, [activeLessonId]);
@@ -253,11 +262,11 @@ export default function Course() {
   const handleMouseMove = useCallback(() => {
     setIsControlsVisible(true);
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
-    
+
     if (isVideoPlaying) {
       controlsTimeoutRef.current = setTimeout(() => {
         setIsControlsVisible(false);
-      }, 1500); // يختفي بعد ثانية ونصف من عدم الحركة
+      }, 1500);
     }
   }, [isVideoPlaying]);
 
@@ -271,7 +280,7 @@ export default function Course() {
     if (isVideoPlaying) {
       handleMouseMove();
     } else {
-      setIsControlsVisible(true); // يظهر دائماً عند الإيقاف المؤقت
+      setIsControlsVisible(true);
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
     }
   }, [isVideoPlaying, handleMouseMove]);
@@ -303,7 +312,7 @@ export default function Course() {
       setTimeout(() => {
         window.location.reload();
       }, 1500);
-    } catch(err: any) {
+    } catch (err: any) {
       toast.error(err.message || 'حدث خطأ أثناء الاشتراك.');
     } finally {
       setIsEnrolling(false);
@@ -316,10 +325,10 @@ export default function Course() {
     setIsEnrolling(true);
 
     try {
-      const response = await apiCall('/api/paymob/init', token, 'POST', { 
+      const response = (await apiCall('/api/paymob/init', token, 'POST', {
         course_id: course.id,
-        method: method 
-      }) as any;
+        method: method,
+      })) as any;
 
       if (method === 'card' && response.iframe_url) {
         window.location.href = response.iframe_url;
@@ -327,9 +336,9 @@ export default function Course() {
         setPaymentReference(response.bill_reference);
         setShowPaymentModal(true);
       } else {
-        throw new Error("لم يتم إرجاع بيانات الدفع من الخادم.");
+        throw new Error('لم يتم إرجاع بيانات الدفع من الخادم.');
       }
-    } catch(err: any) {
+    } catch (err: any) {
       const errorMsg = err.message || 'حدث خطأ أثناء الاتصال بخدمة الدفع. يرجى المحاولة لاحقاً.';
       toast.error(errorMsg);
     } finally {
@@ -339,7 +348,7 @@ export default function Course() {
 
   const isLessonLocked = (lesson: Lesson, index: number): { locked: boolean; message: string } => {
     if (!isAuthenticated || !isUserEnrolled) return { locked: false, message: '' };
-    
+
     if (lesson.is_admin_locked === 1) return { locked: true, message: 'هذه المحاضرة مغلقة حالياً من الإدارة.' };
     if (index > 0) {
       const prevLesson = lessons[index - 1];
@@ -377,24 +386,24 @@ export default function Course() {
     }
 
     ytDataRef.current = { lesson, vIdx, vTotal };
-    
+
     setActiveLessonId(lesson.id);
-    setActiveVideoIndex(vIdx); 
+    setActiveVideoIndex(vIdx);
     setPlaybackRate(1);
-    
+
     isVideoEndingRef.current = false;
     videoSavedRef.current = false;
     if (celebrationTimeoutRef.current) {
       clearTimeout(celebrationTimeoutRef.current);
       celebrationTimeoutRef.current = null;
     }
-    
+
     setTimeout(() => {
       document.getElementById('video-player-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 100);
-    
+
     const videoId = extractVideoID(videoUrl);
-    
+
     setTimeout(() => {
       if (!window.YT) {
         const tag = document.createElement('script');
@@ -410,27 +419,32 @@ export default function Course() {
 
   const initPlayer = (videoId: string) => {
     if (playerRef.current && typeof playerRef.current.destroy === 'function') {
-      try { playerRef.current.destroy(); } catch (e) {}
+      try {
+        playerRef.current.destroy();
+      } catch (e) {}
     }
 
     playerRef.current = new window.YT.Player('player', {
       videoId,
       host: 'https://www.youtube.com',
-      playerVars: { 
-        autoplay: 1, 
-        controls: 0, 
-        disablekb: 1, 
-        fs: 0, 
-        modestbranding: 1, 
-        rel: 0, 
-        showinfo: 0, 
+      playerVars: {
+        autoplay: 1,
+        controls: 0,
+        disablekb: 1,
+        fs: 0,
+        modestbranding: 1,
+        rel: 0,
+        showinfo: 0,
         iv_load_policy: 3,
         playsinline: 1,
-        origin: window.location.origin 
+        origin: window.location.origin,
       },
       events: {
-        onReady: (event) => { event.target.playVideo(); event.target.setPlaybackRate(1); },
-        onStateChange: (event) => handlePlayerStateChange(event.data),
+        onReady: event => {
+          event.target.playVideo();
+          event.target.setPlaybackRate(1);
+        },
+        onStateChange: event => handlePlayerStateChange(event.data),
       },
     });
   };
@@ -439,11 +453,11 @@ export default function Course() {
     const { lesson, vIdx } = ytDataRef.current;
     if (!lesson || !token || !courseId) return;
     const videoKey = `${lesson.id}_${vIdx}`;
-    
-    apiCall('/api/progress/video', token, 'POST', { 
-      courseId: parseInt(courseId as string), 
-      lessonId: lesson.id, 
-      videoKey: videoKey 
+
+    apiCall('/api/progress/video', token, 'POST', {
+      courseId: parseInt(courseId as string),
+      lessonId: lesson.id,
+      videoKey: videoKey,
     }).catch(e => console.log(e));
   };
 
@@ -451,7 +465,7 @@ export default function Course() {
     if (state === window.YT.PlayerState.PLAYING) {
       setIsVideoPlaying(true);
       if (playerRef.current) setVideoDuration(playerRef.current.getDuration());
-      
+
       if (videoIntervalRef.current) clearInterval(videoIntervalRef.current);
       videoIntervalRef.current = setInterval(() => {
         if (playerRef.current) {
@@ -459,11 +473,11 @@ export default function Course() {
           const duration = playerRef.current.getDuration();
           setCurrentTime(current);
 
-          if (duration > 0 && current > 0 && (duration - current <= 10)) {
+          if (duration > 0 && current > 0 && duration - current <= 10) {
             if (!videoSavedRef.current) {
               videoSavedRef.current = true;
               silentSaveVideoProgress();
-              
+
               celebrationTimeoutRef.current = setTimeout(() => {
                 handleVideoCelebration();
               }, 11000);
@@ -477,7 +491,7 @@ export default function Course() {
         clearInterval(videoIntervalRef.current);
         videoIntervalRef.current = null;
       }
-      
+
       if (state === window.YT.PlayerState.ENDED) {
         if (celebrationTimeoutRef.current) clearTimeout(celebrationTimeoutRef.current);
         handleVideoCelebration();
@@ -527,7 +541,8 @@ export default function Course() {
 
   const formatTime = (seconds: number): string => {
     if (!seconds) return '00:00';
-    const m = Math.floor(seconds / 60); const s = Math.floor(seconds % 60);
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
     return `${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`;
   };
 
@@ -537,7 +552,7 @@ export default function Course() {
 
     const { lesson, vIdx, vTotal } = ytDataRef.current;
     if (!lesson) return;
-    
+
     const videoKey = `${lesson.id}_${vIdx}`;
 
     setCompletedVideos(prev => {
@@ -551,7 +566,7 @@ export default function Course() {
         particleCount: 100,
         spread: 70,
         origin: { y: 0.6 },
-        colors: ['#10b981', '#015669', '#f59e0b', '#38bdf8']
+        colors: ['#10b981', '#015669', '#f59e0b', '#38bdf8'],
       });
     });
 
@@ -562,7 +577,7 @@ export default function Course() {
       let alreadyCompleted = false;
       setCompletedLessons(prev => {
         alreadyCompleted = prev.has(lesson.id);
-        return prev; 
+        return prev;
       });
 
       if (!alreadyCompleted) {
@@ -581,12 +596,15 @@ export default function Course() {
 
   const closeVideo = () => {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    
+
     if (playerRef.current) {
-      try { playerRef.current.stopVideo(); playerRef.current.destroy(); } catch(e) {}
+      try {
+        playerRef.current.stopVideo();
+        playerRef.current.destroy();
+      } catch (e) {}
       playerRef.current = null;
     }
-    
+
     if (videoIntervalRef.current) {
       clearInterval(videoIntervalRef.current);
       videoIntervalRef.current = null;
@@ -596,7 +614,7 @@ export default function Course() {
       clearTimeout(celebrationTimeoutRef.current);
       celebrationTimeoutRef.current = null;
     }
-    
+
     setActiveLessonId(null);
   };
 
@@ -629,7 +647,7 @@ export default function Course() {
       toast.error('تنبيه! لا يمكنك الدخول للامتحان قبل الانتهاء من مشاهدة جميع أجزاء فيديوهات الشرح للمحاضرة.');
       return;
     }
-    
+
     setActiveExamLesson(lesson);
     setQuizQuestions(lesson.quizData || []);
     setCurrentQIndex(0);
@@ -639,7 +657,7 @@ export default function Course() {
     setExamScore(0);
     setIsGrading(false);
     setShowExamModal(true);
-    
+
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     timerIntervalRef.current = setInterval(() => {
       setTimeRemaining(prev => (prev > 0 ? prev - 1 : 0));
@@ -655,35 +673,42 @@ export default function Course() {
   };
 
   const chooseAnswer = (option: string) => setUserAnswers(prev => ({ ...prev, [currentQIndex]: option }));
-  const nextQuestion = () => { if (currentQIndex < quizQuestions.length - 1) setCurrentQIndex(prev => prev + 1); };
-  const prevQuestion = () => { if (currentQIndex > 0) setCurrentQIndex(prev => prev - 1); };
+  const nextQuestion = () => {
+    if (currentQIndex < quizQuestions.length - 1) setCurrentQIndex(prev => prev + 1);
+  };
+  const prevQuestion = () => {
+    if (currentQIndex > 0) setCurrentQIndex(prev => prev - 1);
+  };
 
   const submitExam = async () => {
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
-    
+
     setIsGrading(true);
 
     const formattedAnswers = quizQuestions.map((q, index) => ({
       question_id: q.id,
-      chosen_option: userAnswers[index] || null
+      chosen_option: userAnswers[index] || null,
     }));
 
     if (token && activeExamLesson) {
       try {
-        const response = await apiCall('/api/progress/quiz', token, 'POST', {
+        const response = (await apiCall('/api/progress/quiz', token, 'POST', {
           lessonId: activeExamLesson.id,
-          answers: formattedAnswers
-        }) as any;
+          answers: formattedAnswers,
+        })) as any;
 
         if (response.status === 'queued') {
-          toast.success(response.message || 'استلمنا إجاباتك ⏱️. نظراً للضغط الحالي، جاري تصحيح ورقتك وسجلناها في النظام. النتيجة هتظهر في ملفك الشخصي خلال دقايق.', {
-            duration: 8000,
-          });
-          closeExam(); 
-          return; 
+          toast.success(
+            response.message || 'استلمنا إجاباتك ⏱️. نظراً للضغط الحالي، جاري تصحيح ورقتك وسجلناها في النظام. النتيجة هتظهر في ملفك الشخصي خلال دقايق.',
+            {
+              duration: 8000,
+            },
+          );
+          closeExam();
+          return;
         }
 
         const serverScore = response.score || 0;
@@ -696,7 +721,7 @@ export default function Course() {
       } catch (error) {
         console.error('Failed to submit quiz:', error);
         toast.error('حدث خطأ أثناء تصحيح الامتحان. يرجى المحاولة مرة أخرى.');
-        closeExam(); 
+        closeExam();
       } finally {
         setIsGrading(false);
       }
@@ -705,19 +730,32 @@ export default function Course() {
 
   const markLessonCompleted = async (lessonId: number) => {
     if (completedLessons.has(lessonId)) return;
-    
+
     if (!token) return;
-    
+
     import('canvas-confetti').then(confetti => {
-      const duration = 3000; const end = Date.now() + duration;
+      const duration = 3000;
+      const end = Date.now() + duration;
       const frame = () => {
-        confetti.default({ particleCount: 6, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#10b981', '#015669', '#f59e0b'] });
-        confetti.default({ particleCount: 6, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#10b981', '#015669', '#f59e0b'] });
+        confetti.default({
+          particleCount: 6,
+          angle: 60,
+          spread: 55,
+          origin: { x: 0 },
+          colors: ['#10b981', '#015669', '#f59e0b'],
+        });
+        confetti.default({
+          particleCount: 6,
+          angle: 120,
+          spread: 55,
+          origin: { x: 1 },
+          colors: ['#10b981', '#015669', '#f59e0b'],
+        });
         if (Date.now() < end) requestAnimationFrame(frame);
       };
       frame();
     });
-    
+
     setCompletedLessons(prev => {
       const newSet = new Set(prev);
       newSet.add(lessonId);
@@ -763,181 +801,289 @@ export default function Course() {
     if ((course as any)?.metadata) {
       courseSettings = JSON.parse((course as any).metadata);
     }
-  } catch (e) {
-  }
+  } catch (e) {}
+
+  const displayHeroBadge =
+    courseSettings.badge !== undefined && courseSettings.badge !== null && courseSettings.badge !== '';
 
   return (
-    <div className="min-h-screen bg-white flex flex-col relative" id="top-section" onContextMenu={(e) => e.preventDefault()}>
+    <div className="flex min-h-screen flex-col bg-[var(--bg-page)]" id="top-section" dir="rtl" onContextMenu={e => e.preventDefault()}>
+      {/* SEO structured data للكورس */}
+      {course && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'Course',
+              name: course.title,
+              description: course.description || 'كورس أونلاين مكتمل على منصة كله بيتعلم',
+              provider: {
+                '@type': 'Organization',
+                name: 'كله بيتعلم',
+                url: 'https://kollobeit3alem.pages.dev',
+              },
+              isAccessibleForFree: course.is_free === 1,
+            }),
+          }}
+        />
+      )}
 
-      {/* Header */}
-      <header className="bg-white py-4 px-[5%] flex justify-between items-center shadow-[0_4px_20px_rgba(0,0,0,0.04)] sticky top-0 z-[100] border-b-[3px] border-b-primary">
-        <Link to="/courses" className="flex items-center gap-2.5 no-underline">
-          <img src="/logo.png" alt="شعار المنصة" className="h-10 rounded-lg" />
-          <h1 className="text-xl text-primary font-bold">كله بيتعلم</h1>
-        </Link>
-        <div className="flex items-center gap-3 md:gap-4">
-          {isAuthenticated && user ? (
-            <div className="flex items-center gap-2.5 font-bold text-text-main bg-slate-50 py-1.5 px-4 pl-1.5 rounded-[30px] border border-border">
-              <span>{user.name.split(' ')[0]}</span>
-              {user.avatar_url && (
-                <img src={user.avatar_url} alt="الصورة الشخصية" className="w-9 h-9 rounded-full border-2 border-primary object-cover" />
-              )}
-            </div>
-          ) : (
-            <button
-              onClick={() => navigate('/login')}
-              className="bg-primary text-white py-2 px-6 rounded-xl font-bold transition-all hover:bg-primary/90 flex items-center gap-2"
-            >
-              <i className="fas fa-sign-in-alt" /> سجّل دخولك
-            </button>
-          )}
-        </div>
-      </header>
+      <SiteHeader user={user} loggedIn={isAuthenticated} />
 
-      {/* Course Hero - تم تحويل الخلفية لتأخذ اللون الأساسي (Primary) */}
-      <div className="mx-[5%] my-8 relative">
-        <div className="bg-primary rounded-3xl overflow-hidden shadow-2xl flex flex-col md:flex-row relative border-0 min-h-[350px]">
-          
-          {/* خلفية بنقش خفيف */}
-          <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.5) 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
+      {/* ============================================================ */}
+      {/* Hero الكورس — تركيبة تحريرية غير متماثلة                       */}
+      {/* ============================================================ */}
+      <section className="relative overflow-hidden">
+        <div className="mx-auto max-w-[1400px] px-[5%] pt-6 md:pt-9">
+          <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[var(--primary-color)] to-[var(--primary-dark)] text-white shadow-[0_25px_70px_rgba(1,86,105,0.25)] md:rounded-[32px]">
+            {/* خلفية بنقش شبكة نقاط */}
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{
+                backgroundImage: 'radial-gradient(rgba(255,255,255,0.13) 1px, transparent 1px)',
+                backgroundSize: '22px 22px',
+              }}
+              aria-hidden="true"
+            />
+            {/* توهج كهرماني كلمسة ثانية */}
+            <div
+              className="pointer-events-none absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-amber-400/15 blur-3xl"
+              aria-hidden="true"
+            />
 
-          {/* قسم النصوص (يظهر على اليمين في الشاشات الكبيرة) */}
-          <div className="p-8 md:p-12 lg:p-16 flex-1 text-center md:text-right flex flex-col justify-center text-white z-10 order-2 md:order-1">
-            <h2 className="text-[28px] md:text-[40px] font-extrabold mb-4 drop-shadow-sm">{course?.title || 'جاري تحميل بيانات الكورس...'}</h2>
-            <p className="text-white/90 text-lg md:text-xl mb-8 leading-relaxed max-w-2xl">{course?.description || 'دورة تدريبية متميزة'}</p>
-            
-            {/* الشارات (Tags) */}
-            {(courseSettings.level || courseSettings.language || courseSettings.badge) && (
-              <div className="flex flex-wrap justify-center md:justify-start items-center gap-3 mb-8">
-                {courseSettings.level && (
-                   <span className="bg-white/20 text-white backdrop-blur-sm border border-white/30 px-4 py-1.5 rounded-lg text-sm font-bold">
-                     <i className="fas fa-layer-group ml-1.5"></i> {courseSettings.level}
-                   </span>
+            <div className="relative flex flex-col gap-10 p-7 md:p-12 lg:flex-row lg:items-center lg:gap-12 lg:p-16">
+              {/* المحتوى النصي (يمين في RTL) */}
+              <div className="flex-1 text-center lg:text-right">
+                <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/15 px-4 py-1.5 text-[13px] font-bold backdrop-blur">
+                  <i className="fas fa-graduation-cap text-[11px]" />
+                  {courseSettings.level || 'كورس أونلاين للمنصة'}
+                </span>
+
+                <h1 className="mt-5 text-[30px] leading-tight font-extrabold md:text-[38px] lg:text-[42px]">
+                  {course?.title || 'جاري تحميل بيانات الكورس...'}
+                </h1>
+
+                <p className="mx-auto mt-4 max-w-2xl text-[15px] leading-relaxed text-white/85 md:text-lg lg:mx-0">
+                  {course?.description || 'دورة تدريبية متميزة'}
+                </p>
+
+                {/* الشارات (Tags) */}
+                {(courseSettings.level || courseSettings.language || displayHeroBadge) && (
+                  <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5 lg:justify-start">
+                    {courseSettings.level && (
+                      <span className="kb-chip border border-white/25 bg-white/15 text-white backdrop-blur">
+                        <i className="fas fa-layer-group text-[10px]" /> {courseSettings.level}
+                      </span>
+                    )}
+                    {courseSettings.language && (
+                      <span className="kb-chip border border-white/25 bg-white/15 text-white backdrop-blur">
+                        <i className="fas fa-language text-[10px]" /> {courseSettings.language}
+                      </span>
+                    )}
+                    {displayHeroBadge && (
+                      <span className="kb-chip bg-orange-500 text-white shadow-[0_5px_18px_rgba(249,115,22,0.4)]">
+                        <i className="fas fa-star text-[10px]" /> {courseSettings.badge}
+                      </span>
+                    )}
+                  </div>
                 )}
-                {courseSettings.language && (
-                   <span className="bg-white/20 text-white backdrop-blur-sm border border-white/30 px-4 py-1.5 rounded-lg text-sm font-bold">
-                     <i className="fas fa-language ml-1.5"></i> {courseSettings.language}
-                   </span>
-                )}
-                {courseSettings.badge && (
-                   <span className="bg-orange-500 text-white border border-orange-400 px-4 py-1.5 rounded-lg text-sm font-bold animate-pulse shadow-md">
-                     <i className="fas fa-star ml-1.5"></i> {courseSettings.badge}
-                   </span>
-                )}
-              </div>
-            )}
 
-            <div className="flex flex-wrap justify-center md:justify-start items-center gap-4">
-              {/* زر الاشتراك أو الشراء إذا لم يكن مشتركاً */}
-              {isUserEnrolled ? (
-                <div className="bg-white/20 text-white backdrop-blur-sm border border-white/30 py-3.5 px-8 rounded-xl text-lg font-bold inline-block shadow-lg">
-                  <i className="fas fa-graduation-cap ml-2"></i> أنت مشترك في هذا الكورس
+                {/* أزرار الاشتراك والتواصل */}
+                <div className="mt-8 flex flex-wrap items-center justify-center gap-4 lg:justify-start">
+                  {isUserEnrolled ? (
+                    <div className="inline-flex items-center gap-2.5 rounded-2xl border border-white/25 bg-white/15 px-7 py-3.5 text-base font-extrabold backdrop-blur">
+                      <i className="fas fa-check-circle text-emerald-300" /> أنت مشترك في هذا الكورس
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleEnrollClick}
+                      disabled={isEnrolling}
+                      className="inline-flex cursor-pointer items-center gap-2.5 rounded-2xl bg-white px-8 py-4 text-lg font-extrabold text-[var(--primary-color)] shadow-[0_18px_40px_rgba(0,0,0,0.25)] transition-all hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isEnrolling ? <i className="fas fa-circle-notch fa-spin" /> : <i className="fas fa-cart-plus" />}
+                      {isEnrolling ? 'جاري التجهيز...' : `اشترك الآن ${course?.is_free === 1 ? '(مجاناً)' : `(${course?.price || 0} ج.م)`}`}
+                    </button>
+                  )}
+
+                  {course?.instructor_contact ? (
+                    isUserEnrolled ? (
+                      <a
+                        href={course.instructor_contact}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="تواصل مع المحاضر للاستفسارات"
+                        className="inline-flex cursor-pointer items-center gap-2.5 rounded-2xl bg-[#25D366] px-8 py-4 text-lg font-bold text-white no-underline shadow-[0_18px_40px_rgba(0,0,0,0.2)] transition-all hover:-translate-y-0.5 hover:bg-[#1ebe57]"
+                      >
+                        <i className="fab fa-whatsapp text-xl" /> تواصل مع المحاضر
+                      </a>
+                    ) : (
+                      <button
+                        onClick={() => toast.info('يجب الاشتراك في الكورس أولاً لتتمكن من التواصل مع المحاضر.')}
+                        title="مغلق للمشتركين فقط"
+                        className="inline-flex cursor-not-allowed items-center gap-2.5 rounded-2xl border border-white/20 bg-white/10 px-8 py-4 text-lg font-bold text-white/40 backdrop-blur"
+                      >
+                        <i className="fas fa-lock" /> تواصل مع المحاضر
+                      </button>
+                    )
+                  ) : null}
                 </div>
-              ) : (
-                <button 
-                  onClick={handleEnrollClick}
-                  disabled={isEnrolling}
-                  className="bg-white text-primary border-none py-3.5 px-10 rounded-xl text-lg font-extrabold inline-flex items-center gap-2 cursor-pointer hover:bg-gray-50 transition-all shadow-xl hover:-translate-y-1 disabled:opacity-50"
-                >
-                  {isEnrolling ? <i className="fas fa-circle-notch fa-spin" /> : <i className="fas fa-cart-plus" />} 
-                  {isEnrolling ? 'جاري التجهيز...' : `اشترك الآن ${course?.is_free === 1 ? '(مجاناً)' : `(${course?.price || 0} ج.م)`}`}
-                </button>
-              )}
-              
-              {/* زر التواصل مع المحاضر */}
-              {course?.instructor_contact && (
-                isUserEnrolled ? (
-                  <a 
-                    href={course.instructor_contact} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="bg-[#25D366] text-white border-none py-3.5 px-8 rounded-xl text-lg font-bold inline-flex items-center gap-2 transition-all hover:bg-[#1ebe57] hover:-translate-y-1 shadow-lg no-underline"
-                    title="تواصل مع المحاضر للاستفسارات"
-                  >
-                    <i className="fab fa-whatsapp text-xl"></i> تواصل مع المحاضر
-                  </a>
-                ) : (
-                  <button 
-                    onClick={() => toast.info('يجب الاشتراك في الكورس أولاً لتتمكن من التواصل مع المحاضر.')}
-                    className="bg-white/10 text-white/50 border border-white/20 py-3.5 px-8 rounded-xl text-lg font-bold inline-flex items-center gap-2 transition-all cursor-not-allowed"
-                    title="مغلق للمشتركين فقط"
-                  >
-                    <i className="fas fa-lock text-xl"></i> تواصل مع المحاضر
-                  </button>
-                )
-              )}
+              </div>
+
+              {/* الصورة (يسار في RTL) */}
+              <div className="flex justify-center lg:w-[38%]">
+                <div className="relative w-full max-w-[420px]">
+                  <div className="rotate-[1.5deg] overflow-hidden rounded-2xl border-4 border-white/25 bg-white shadow-[0_30px_70px_rgba(0,0,0,0.35)]">
+                    <div className="aspect-[4/3] overflow-hidden">
+                      <img
+                        src={course?.image_url || 'https://via.placeholder.com/1200x400/015669/ffffff?text=جاري+التحميل...'}
+                        className="h-full w-full object-cover"
+                        alt="غلاف الكورس"
+                      />
+                    </div>
+                  </div>
+                  <div className="absolute -bottom-5 right-3 flex items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-[0_15px_40px_rgba(0,0,0,0.22)]">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--primary-light)] text-base text-[var(--primary-color)]">
+                      <i className="fas fa-layer-group" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-extrabold leading-none text-slate-800">
+                        {lessons.length > 0 ? `${lessons.length} محاضرة` : 'جاري التجهيز'}
+                      </p>
+                      <p className="mt-1 text-[11px] font-bold text-[var(--text-muted)]">فيديوهات + امتحانات</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-
-          {/* قسم الصورة (يظهر على اليسار في الشاشات الكبيرة) */}
-          <div className="w-full md:w-[45%] lg:w-[40%] p-6 md:p-8 flex items-center justify-center order-1 md:order-2 z-10">
-            <div className="relative w-full max-w-[450px] aspect-[4/3] rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.3)] border-4 border-white/30 transform hover:scale-105 transition-transform duration-500 bg-white">
-              <img 
-                src={course?.image_url || 'https://via.placeholder.com/1200x400/015669/ffffff?text=جاري+التحميل...'} 
-                className="w-full h-full object-cover absolute inset-0"
-                alt="غلاف الكورس"
-              />
-            </div>
-          </div>
-
         </div>
-      </div>
+      </section>
 
-      {/* مشغل الفيديو - عرض الفيديو بحجمه الطبيعي بدون قص */}
+      {/* ============================================================ */}
+      {/* شريط "كيف تكمل الكورس" — لحظة قراءة ثانية                        */}
+      {/* ============================================================ */}
+      <section className="mx-auto w-full max-w-[1400px] px-[5%] pt-6">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {[
+            { icon: 'fa-user-plus', text: 'اشترك في الكورس' },
+            { icon: 'fa-circle-play', text: 'شاهد فيديو الشرح' },
+            { icon: 'fa-file-pen', text: 'حل امتحان المحاضرة' },
+            { icon: 'fa-trophy', text: 'افتح اللي بعدها' },
+          ].map(step => (
+            <div key={step.text} className="kb-surface flex items-center gap-3 p-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-light)] text-base text-[var(--primary-color)]">
+                <i className={`fas ${step.icon}`} />
+              </span>
+              <span className="text-[13px] font-bold leading-snug text-slate-700">{step.text}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ============================================================ */}
+      {/* مشغل الفيديو — محتوى حقيقي بدون قص                            */}
+      {/* ============================================================ */}
       {activeLessonId !== null && (
-        <div id="video-player-section" className="mx-[5%] mb-12 flex justify-center animate-fade-in scroll-mt-20">
-          <div 
-            ref={videoContainerRef} 
-            className={`group bg-black rounded-3xl overflow-hidden relative shadow-[0_30px_60px_rgba(0,0,0,0.4)] flex flex-col w-full max-w-[1000px] border border-slate-800 ${isFullscreen ? '!max-w-none !w-full !h-full !rounded-none !border-none' : ''}`}
+        <div id="video-player-section" className="mx-auto mb-14 mt-10 flex w-full max-w-[1400px] justify-center px-[5%] scroll-mt-20">
+          <div
+            ref={videoContainerRef}
+            className={`group relative flex w-full flex-col overflow-hidden rounded-[24px] bg-black shadow-[0_35px_80px_rgba(0,0,0,0.45)] ${isFullscreen ? '!h-full !w-full !max-w-none !rounded-none !border-none' : 'max-w-[1000px] border border-slate-800'}`}
             onMouseMove={handleMouseMove}
             onMouseLeave={handleMouseLeave}
             onClick={handleMouseMove}
           >
-            
-            {/* زر الإغلاق المدمج مع شريط التحكم للظهور والاختفاء معاً */}
+            {/* زر الإغلاق */}
             {!isFullscreen && (
-              <button 
+              <button
                 onClick={closeVideo}
-                className={`absolute top-5 right-5 bg-black/50 hover:bg-red-600 text-white border-none w-11 h-11 rounded-full text-xl cursor-pointer transition-all duration-300 z-[40] flex items-center justify-center backdrop-blur-md ${isControlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'}`}
                 title="إغلاق الفيديو"
+                className={`absolute top-5 right-5 z-[40] flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/60 text-xl text-white backdrop-blur-md transition-all duration-300 hover:bg-red-600 ${
+                  isControlsVisible ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-4 opacity-0'
+                }`}
               >
-                <i className="fas fa-xmark"></i>
+                <i className="fas fa-xmark" />
               </button>
             )}
 
-            <div className={`relative w-full ${isFullscreen ? 'h-full' : 'aspect-video'} bg-black flex items-center justify-center overflow-hidden`}>
-              {/* عرض الفيديو بحجمه الطبيعي بدون قص أو تكبير */}
-              <div key={`${activeLessonId}-${activeVideoIndex}`} id="player" className="absolute inset-0 w-full h-full pointer-events-none"></div>
-              
+            <div className={`relative flex w-full items-center justify-center overflow-hidden bg-black ${isFullscreen ? 'h-full' : 'aspect-video'}`}>
+              {/* الفيديو بحجمه الطبيعي */}
+              <div
+                key={`${activeLessonId}-${activeVideoIndex}`}
+                id="player"
+                className="pointer-events-none absolute inset-0 h-full w-full"
+              ></div>
+
               {/* 🛡️ العلامة المائية */}
-              <div 
-                className="absolute text-red-500/20 text-sm md:text-base lg:text-lg font-bold pointer-events-none select-none z-[15] transition-all duration-[4000ms] ease-in-out whitespace-nowrap"
-                style={{ top: `${watermarkPos.top}%`, left: `${watermarkPos.left}%`, textShadow: '1px 1px 2px rgba(0,0,0,0.1)' }}
+              <div
+                className="pointer-events-none absolute z-[15] select-none whitespace-nowrap text-sm font-bold text-red-500/20 transition-all ease-in-out md:text-base lg:text-lg"
+                style={{ top: `${watermarkPos.top}%`, left: `${watermarkPos.left}%`, textShadow: '1px 1px 2px rgba(0,0,0,0.1)', transitionDuration: '4000ms' }}
               >
                 {user?.email || 'زائر'}
               </div>
 
-              {/* طبقة حماية قوية جداً (pointer-events-auto) تمنع نهائياً التفاعل مع يوتيوب من خلفها */}
-              <div className="absolute inset-0 w-full h-full z-20 cursor-pointer" onClick={togglePlayPause}></div>
+              {/* طبقة حماية قوية تمنع التفاعل مع يوتيوب من خلفها */}
+              <div className="absolute inset-0 z-20 h-full w-full cursor-pointer" onClick={togglePlayPause}></div>
 
-              {/* شريط التحكم المخصص (Overlay) */}
-              <div className={`absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/95 via-black/60 to-transparent pb-6 pt-24 px-6 md:px-8 flex flex-col gap-4 z-30 transition-all duration-500 ease-in-out ${isControlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'}`}>
-                
-                <div className="w-full h-2 bg-white/20 rounded-full cursor-pointer relative overflow-hidden transition-all hover:h-3" onClick={seekVideo}>
-                  <div className="h-full bg-primary rounded-full pointer-events-none transition-all duration-150" style={{ width: `${videoDuration ? (currentTime / videoDuration) * 100 : 0}%` }} />
+              {/* شريط التحكم المخصص */}
+              <div
+                className={`absolute inset-x-0 bottom-0 z-30 flex flex-col gap-4 bg-gradient-to-t from-black/95 via-black/60 to-transparent px-6 pb-6 pt-24 transition-all duration-500 ease-in-out md:px-8 ${
+                  isControlsVisible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0'
+                }`}
+              >
+                <div
+                  className="relative h-2 w-full cursor-pointer overflow-hidden rounded-full bg-white/20 transition-all hover:h-3"
+                  onClick={seekVideo}
+                >
+                  <div
+                    className="pointer-events-none h-full rounded-full bg-[var(--primary-color)] transition-all duration-150"
+                    style={{ width: `${videoDuration ? (currentTime / videoDuration) * 100 : 0}%` }}
+                  />
                 </div>
-                
-                <div className="flex justify-between items-center mt-2">
+
+                <div className="mt-2 flex items-center justify-between">
                   <div className="flex items-center gap-6">
-                    <button onClick={() => skipVideo(-10)} className="bg-transparent text-white border-none text-2xl cursor-pointer transition-transform hover:scale-110 flex items-center justify-center" title="تأخير 10 ثواني"><i className="fas fa-backward-step"></i></button>
-                    <button onClick={togglePlayPause} className="bg-transparent text-white border-none text-[36px] cursor-pointer transition-transform hover:scale-110 flex items-center justify-center text-primary" title="تشغيل / إيقاف"><i className={`fas ${isVideoPlaying ? 'fa-circle-pause' : 'fa-circle-play'}`}></i></button>
-                    <button onClick={() => skipVideo(10)} className="bg-transparent text-white border-none text-2xl cursor-pointer transition-transform hover:scale-110 flex items-center justify-center" title="تقديم 10 ثواني"><i className="fas fa-forward-step"></i></button>
+                    <button
+                      onClick={() => skipVideo(-10)}
+                      className="flex cursor-pointer items-center justify-center border-none bg-transparent text-2xl text-white transition-transform hover:scale-110"
+                      title="تأخير 10 ثواني"
+                    >
+                      <i className="fas fa-backward-step"></i>
+                    </button>
+                    <button
+                      onClick={togglePlayPause}
+                      className="flex cursor-pointer items-center justify-center border-none bg-transparent text-[36px] text-[var(--primary-color)] transition-transform hover:scale-110"
+                      title="تشغيل / إيقاف"
+                    >
+                      <i className={`fas ${isVideoPlaying ? 'fa-circle-pause' : 'fa-circle-play'}`}></i>
+                    </button>
+                    <button
+                      onClick={() => skipVideo(10)}
+                      className="flex cursor-pointer items-center justify-center border-none bg-transparent text-2xl text-white transition-transform hover:scale-110"
+                      title="تقديم 10 ثواني"
+                    >
+                      <i className="fas fa-forward-step"></i>
+                    </button>
                   </div>
-                  
+
                   <div className="flex items-center gap-5">
-                    <button onClick={cyclePlaybackRate} className="bg-white/10 text-white border border-white/20 px-3 py-1.5 rounded-lg text-sm font-bold cursor-pointer transition-all hover:bg-white hover:text-black" title="سرعة التشغيل">{playbackRate}x</button>
-                    <div className="text-slate-200 font-bold text-[14px] font-mono tracking-wide" dir="ltr"><span>{formatTime(currentTime)}</span> / <span>{formatTime(videoDuration)}</span></div>
-                    <button onClick={toggleFullscreen} className="bg-transparent text-white border-none text-xl cursor-pointer transition-transform hover:scale-110 flex items-center justify-center ml-2" title="ملء الشاشة"><i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i></button>
+                    <button
+                      onClick={cyclePlaybackRate}
+                      className="cursor-pointer rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-sm font-bold text-white transition-all hover:bg-white hover:text-black"
+                      title="سرعة التشغيل"
+                    >
+                      {playbackRate}x
+                    </button>
+                    <div className="font-mono text-[14px] font-bold tracking-wide text-slate-200" dir="ltr">
+                      <span>{formatTime(currentTime)}</span> / <span>{formatTime(videoDuration)}</span>
+                    </div>
+                    <button
+                      onClick={toggleFullscreen}
+                      className="ml-2 flex cursor-pointer items-center justify-center border-none bg-transparent text-xl text-white transition-transform hover:scale-110"
+                      title="ملء الشاشة"
+                    >
+                      <i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`}></i>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -946,290 +1092,413 @@ export default function Course() {
         </div>
       )}
 
-      {/* Section Header */}
-      <div className="text-center my-6 mb-8">
-        <h3 className="text-[34px] text-primary relative inline-block font-extrabold after:content-[''] after:absolute after:-bottom-3 after:left-1/2 after:-translate-x-1/2 after:w-[60%] after:h-1.5 after:bg-border after:rounded-full">محتوى الكورس</h3>
-      </div>
+      {/* ============================================================ */}
+      {/* محتوى الكورس — المحاضرات                                      */}
+      {/* ============================================================ */}
+      <main className="mx-auto w-full max-w-[1200px] flex-1 px-[5%] py-10 md:py-14">
+        <div className="mb-8 flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--primary-light)] text-xl text-[var(--primary-color)]">
+            <i className="fas fa-book-open" />
+          </span>
+          <div className="flex items-center gap-3">
+            <h2 className="text-[26px] font-extrabold text-[#1e293b] md:text-[30px]">محتوى الكورس</h2>
+            {lessons.length > 0 && (
+              <span className="kb-chip-blue">
+                <i className="fas fa-layer-group text-[10px]" /> {lessons.length} محاضرة
+              </span>
+            )}
+          </div>
+        </div>
 
-      {/* Accordion Container - تم تعريض مساحته بالكامل ليكون بعرض الصفحة على الكمبيوتر واللابتوب */}
-      <div className="w-full max-w-[1200px] mx-auto mb-16 px-[5%] flex flex-col gap-5">
+        {/* شريط تقدم الطالب */}
+        {isUserEnrolled && lessons.length > 0 && (
+          <div className="kb-surface mb-6 flex items-center gap-4 p-4 md:p-5">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-lg text-emerald-700">
+              <i className="fas fa-flag-checkered" />
+            </span>
+            <div className="flex-1">
+              <div className="mb-2 flex items-center justify-between gap-4">
+                <p className="text-[13px] font-bold text-[var(--text-muted)]">تقدمك في الكورس</p>
+                <p className="text-[13px] font-extrabold text-slate-800">
+                  {completedLessons.size} / {lessons.length} محاضرة مكتملة
+                </p>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="progress-bar-fill h-full rounded-full bg-[var(--success)]"
+                  style={{ width: `${Math.round((completedLessons.size / lessons.length) * 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {isLoading ? (
-          <div className="text-center py-12 text-text-muted">
-            <i className="fas fa-circle-notch fa-spin text-[50px] mb-4 block text-primary/50"></i>
-            <p className="text-lg">جاري تحميل المحاضرات...</p>
+          <div className="kb-surface py-12">
+            <Spinner size="lg" />
+            <p className="pb-6 text-center text-[15px] font-bold text-[var(--text-muted)]">جاري تحميل المحاضرات...</p>
           </div>
         ) : lessons.length === 0 ? (
-          <div className="text-center py-12">
-            <i className="fas fa-folder-open text-[60px] text-slate-300 mb-4 block"></i>
-            <p className="text-xl text-text-muted">المحتوى قيد التجهيز، سيتم إضافة المحاضرات قريباً.</p>
-          </div>
+          <EmptyState
+            icon="fa-folder-open"
+            title="المحتوى قيد التجهيز"
+            description="سيتم إضافة المحاضرات قريباً، تابعنا!"
+            cta={{ to: '/courses', label: 'العودة للكورسات' }}
+          />
         ) : (
-          lessons.map((lesson, index) => {
-            const { locked, message } = isLessonLocked(lesson, index);
-            const isCompleted = completedLessons.has(lesson.id);
-            const isExpanded = expandedLesson === lesson.id;
-            
-            const displayVideoUrls = lesson.video_url ? lesson.video_url.split(/[,|\s]+/).filter(url => url.trim() !== '') : [];
-            
-            return (
-              <div 
-                key={lesson.id}
-                className={`bg-white rounded-2xl shadow-sm transition-all duration-300 overflow-hidden border-2 ${
-                  isCompleted ? 'border-success' : locked && isUserEnrolled ? 'border-slate-200 opacity-75' : 'border-primary'
-                }`}
-              >
-                <div 
-                  className={`p-6 md:p-8 flex justify-between items-center cursor-pointer select-none ${
-                    isCompleted ? 'bg-success/5' : locked && isUserEnrolled ? 'bg-slate-50 cursor-not-allowed' : 'bg-white'
+          <div className="flex flex-col gap-5">
+            {lessons.map((lesson, index) => {
+              const { locked, message } = isLessonLocked(lesson, index);
+              const isCompleted = completedLessons.has(lesson.id);
+              const isExpanded = expandedLesson === lesson.id;
+
+              const displayVideoUrls = lesson.video_url ? lesson.video_url.split(/[,|\s]+/).filter(url => url.trim() !== '') : [];
+
+              return (
+                <div
+                  key={lesson.id}
+                  className={`kb-surface overflow-hidden transition-all duration-300 ${
+                    isCompleted
+                      ? 'border-2 border-emerald-200'
+                      : locked && isUserEnrolled
+                        ? 'border-2 border-slate-200/70 opacity-80'
+                        : 'border-2 border-transparent hover:border-[var(--primary-color)]/30'
                   }`}
-                  onClick={() => toggleAccordion(lesson.id, index)}
                 >
-                  <div className="flex items-center gap-5 md:gap-6 flex-1">
-                    <div className="hidden md:flex text-red-500/90 text-[38px]">
-                       <i className="fas fa-border-all"></i>
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <h3 className="text-xl md:text-2xl font-bold text-slate-800 flex items-center gap-3 m-0">
-                        {lesson.title} {locked && isUserEnrolled && <i className="fas fa-lock text-sm text-slate-400"></i>} {isCompleted && <i className="fas fa-circle-check text-success text-xl"></i>}
-                      </h3>
-                      <p className="text-sm md:text-base text-slate-500 m-0">
-                        {locked && isUserEnrolled ? (lesson.is_admin_locked === 1 ? 'هذه المحاضرة مغلقة مؤقتاً من الإدارة.' : 'يجب إنهاء المحاضرة السابقة أولاً.') : 'شاهد الفيديوهات، استوعب الشرح، ثم اختبر نفسك لتأكيد الفهم.'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className={`text-2xl text-slate-400 transition-transform duration-300 ml-2 ${isExpanded ? 'rotate-180 text-primary' : ''}`}>
-                    <i className="fas fa-chevron-down"></i>
-                  </div>
-                </div>
-                
-                <div className={`overflow-hidden transition-all duration-400 ease-in-out ${isExpanded ? 'max-h-[1500px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                  <div className="p-6 md:p-8 pt-0 flex flex-col gap-4">
-                    
-                    {/* فاصل جمالي */}
-                    <div className="w-full h-px bg-slate-100 mb-2"></div>
-
-                    {displayVideoUrls.length === 0 && !lesson.hasQuiz && (
-                      <div className="text-center py-8 text-slate-400 font-bold bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                        <i className="fas fa-person-digging text-3xl mb-3 block text-slate-300"></i>
-                        جاري تجهيز محتوى هذه المحاضرة
-                      </div>
-                    )}
-
-                    {displayVideoUrls.map((vUrl, vIdx) => {
-                      const isVideoCompleted = isUserEnrolled && (completedVideos.has(`${lesson.id}_${vIdx}`) || isCompleted);
-                      const isActiveVideo = isUserEnrolled && (ytDataRef.current.lesson?.id === lesson.id && ytDataRef.current.vIdx === vIdx && activeLessonId !== null);
-                      
-                      return (
-                        <div 
-                          key={vIdx}
-                          onClick={() => !isAuthenticated ? toast.info('يرجى تسجيل الدخول والاشتراك لمشاهدة المحاضرات.') : !isUserEnrolled ? toast.warning('يرجى الاشتراك في الكورس لمشاهدة المحاضرات.') : locked ? toast.warning(message) : openVideo(lesson, vUrl, vIdx, displayVideoUrls.length)}
-                          className={`p-4 px-6 rounded-xl flex justify-between items-center cursor-pointer transition-all hover:-translate-x-1 font-bold text-lg ${
-                            !isUserEnrolled 
-                              ? 'bg-slate-100 border border-slate-200 text-slate-500'
-                              : isVideoCompleted 
-                                ? 'bg-success/10 border border-success/30 text-success' 
-                                : isActiveVideo 
-                                  ? 'bg-primary/10 border border-primary text-primary shadow-[0_5px_15px_rgba(1,86,105,0.15)]'
-                                  : 'bg-warning/10 border border-warning/30 hover:shadow-[0_5px_15px_rgba(245,158,11,0.15)] text-red-500'
-                          }`}
-                        >
-                          <div className="flex items-center gap-4">
-                            <i className={`${!isUserEnrolled ? 'fas fa-lock' : isVideoCompleted ? 'fas fa-circle-check' : isActiveVideo ? 'fas fa-circle-play fa-fade' : 'fas fa-video'} text-2xl`}></i>
-                            <span>جزء الشرح والتدريبات{displayVideoUrls.length > 1 ? ` (الجزء ${vIdx + 1})` : ''}</span>
-                          </div>
-                          <span className="text-sm text-text-main bg-white py-1.5 px-3 rounded-lg border border-border flex items-center gap-1.5 shadow-sm">
-                            {!isUserEnrolled ? 'مغلق للمشتركين' : isVideoCompleted ? 'تمت المشاهدة' : isActiveVideo ? 'يتم العرض الآن' : 'مشاهدة الفيديو'} 
-                            {isUserEnrolled && !isVideoCompleted && <i className="fas fa-play text-xs"></i>}
-                          </span>
-                        </div>
-                      );
-                    })}
-                    
-                    {lesson.hasQuiz && (
-                      <div 
-                        onClick={() => !isAuthenticated ? toast.info('يرجى تسجيل الدخول والاشتراك لفتح الامتحان.') : !isUserEnrolled ? toast.warning('يرجى الاشتراك في الكورس لفتح الامتحان.') : locked ? toast.warning(message) : openExam(lesson)}
-                        className={`p-4 px-6 rounded-xl flex justify-between items-center cursor-pointer transition-all hover:-translate-x-1 font-bold text-lg ${
-                          !isUserEnrolled ? 'bg-slate-100 border border-slate-200 text-slate-500' :
-                          isCompleted ? 'bg-success/10 border border-success/30 text-success' :
-                          'bg-danger/10 border border-danger/30 hover:shadow-[0_5px_15px_rgba(239,68,68,0.15)] text-red-500'
+                  {/* رأس المحاضرة */}
+                  <div
+                    onClick={() => toggleAccordion(lesson.id, index)}
+                    className={`flex cursor-pointer select-none items-center justify-between gap-4 p-5 md:p-6 ${
+                      locked && isUserEnrolled ? 'cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <div className="flex min-w-0 flex-1 items-center gap-4 md:gap-5">
+                      <span
+                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-base font-black md:h-12 md:w-12 ${
+                          isCompleted
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : locked && isUserEnrolled
+                              ? 'bg-slate-100 text-slate-400'
+                              : 'bg-[var(--primary-light)] text-[var(--primary-color)]'
                         }`}
                       >
-                        <div className="flex items-center gap-4">
-                          <i className={`${!isUserEnrolled ? 'fas fa-lock' : isCompleted ? 'fas fa-circle-check' : 'fas fa-file-pen'} text-2xl`}></i>
-                          <span>امتحان المحاضرة</span>
-                        </div>
-                        <span className="text-sm text-text-main bg-white py-1.5 px-3 rounded-lg border border-border flex items-center gap-1.5 shadow-sm">
-                          {!isUserEnrolled ? 'مغلق للمشتركين' : isCompleted ? 'مكتمل' : 'دخول الامتحان'}
-                        </span>
+                        {isCompleted ? <i className="fas fa-check text-lg" /> : String(index + 1).padStart(2, '0')}
+                      </span>
+
+                      <div className="min-w-0">
+                        <h3 className="flex items-center gap-2.5 text-lg font-extrabold text-slate-800 md:text-xl">
+                          <span className="truncate">{lesson.title}</span>
+                          {locked && isUserEnrolled && <i className="fas fa-lock text-xs text-slate-400"></i>}
+                          {isCompleted && <i className="fas fa-circle-check text-l text-[var(--success)]"></i>}
+                        </h3>
+                        <p className="mt-0.5 text-[13px] text-[var(--text-muted)] md:text-sm">
+                          {locked && isUserEnrolled
+                            ? lesson.is_admin_locked === 1
+                              ? 'هذه المحاضرة مغلقة مؤقتاً من الإدارة.'
+                              : 'يجب إنهاء المحاضرة السابقة أولاً.'
+                            : 'شاهد الفيديوهات، استوعب الشرح، ثم اختبر نفسك لتأكيد الفهم.'}
+                        </p>
                       </div>
-                    )}
+                    </div>
+
+                    <div className={`text-2xl text-slate-400 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-[var(--primary-color)]' : ''}`}>
+                      <i className="fas fa-chevron-down"></i>
+                    </div>
+                  </div>
+
+                  {/* محتوى المحاضرة */}
+                  <div className={`overflow-hidden transition-all duration-400 ease-in-out ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                    <div className="flex flex-col gap-3 p-5 pt-0 md:p-6 md:pt-0">
+                      <div className="mb-1.5 h-px w-full bg-slate-100"></div>
+
+                      {displayVideoUrls.length === 0 && !lesson.hasQuiz && (
+                        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 py-8 text-center font-bold text-slate-400">
+                          <i className="fas fa-person-digging mb-3 block text-3xl text-slate-300"></i>
+                          جاري تجهيز محتوى هذه المحاضرة
+                        </div>
+                      )}
+
+                      {displayVideoUrls.map((vUrl, vIdx) => {
+                        const isVideoCompleted = isUserEnrolled && (completedVideos.has(`${lesson.id}_${vIdx}`) || isCompleted);
+                        const isActiveVideo = isUserEnrolled && ytDataRef.current.lesson?.id === lesson.id && ytDataRef.current.vIdx === vIdx && activeLessonId !== null;
+
+                        return (
+                          <div
+                            key={vIdx}
+                            onClick={() =>
+                              !isAuthenticated
+                                ? toast.info('يرجى تسجيل الدخول والاشتراك لمشاهدة المحاضرات.')
+                                : !isUserEnrolled
+                                  ? toast.warning('يرجى الاشتراك في الكورس لمشاهدة المحاضرات.')
+                                  : locked
+                                    ? toast.warning(message)
+                                    : openVideo(lesson, vUrl, vIdx, displayVideoUrls.length)
+                            }
+                            className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl p-3.5 font-bold transition-all hover:-translate-x-0.5 md:p-4 ${
+                              !isUserEnrolled
+                                ? 'border border-slate-200 bg-slate-50 text-slate-400'
+                                : isVideoCompleted
+                                  ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                                  : isActiveVideo
+                                    ? 'border border-[var(--primary-color)]/40 bg-[var(--primary-light)] text-[var(--primary-color)] shadow-[0_5px_15px_rgba(1,86,105,0.12)]'
+                                    : 'border border-amber-200/70 bg-amber-50 text-amber-700'
+                            }`}
+                          >
+                            <div className="flex min-w-0 items-center gap-3.5">
+                              <i
+                                className={`${
+                                  !isUserEnrolled ? 'fas fa-lock' : isVideoCompleted ? 'fas fa-circle-check' : isActiveVideo ? 'fas fa-circle-play fa-fade' : 'fas fa-video'
+                                } text-xl`}
+                              ></i>
+                              <span className="truncate text-[15px] md:text-base">
+                                جزء الشرح والتدريبات{displayVideoUrls.length > 1 ? ` (الجزء ${vIdx + 1})` : ''}
+                              </span>
+                            </div>
+                            <span className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[13px] font-bold text-[var(--text-main)] shadow-sm">
+                              {!isUserEnrolled ? 'مغلق للمشتركين' : isVideoCompleted ? 'تمت المشاهدة' : isActiveVideo ? 'يتم العرض الآن' : 'مشاهدة الفيديو'}
+                              {isUserEnrolled && !isVideoCompleted && <i className="fas fa-play mr-1.5 text-[10px]"></i>}
+                            </span>
+                          </div>
+                        );
+                      })}
+
+                      {lesson.hasQuiz && (
+                        <div
+                          onClick={() =>
+                            !isAuthenticated
+                              ? toast.info('يرجى تسجيل الدخول والاشتراك لفتح الامتحان.')
+                              : !isUserEnrolled
+                                ? toast.warning('يرجى الاشتراك في الكورس لفتح الامتحان.')
+                                : locked
+                                  ? toast.warning(message)
+                                  : openExam(lesson)
+                          }
+                          className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl p-3.5 font-bold transition-all hover:-translate-x-0.5 md:p-4 ${
+                            !isUserEnrolled
+                              ? 'border border-slate-200 bg-slate-50 text-slate-400'
+                              : isCompleted
+                                ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                                : 'border border-rose-200/70 bg-rose-50 text-rose-700 hover:shadow-[0_5px_15px_rgba(239,68,68,0.1)]'
+                          }`}
+                        >
+                          <div className="flex min-w-0 items-center gap-3.5">
+                            <i className={`${!isUserEnrolled ? 'fas fa-lock' : isCompleted ? 'fas fa-circle-check' : 'fas fa-file-pen'} text-xl`}></i>
+                            <span className="truncate text-[15px] md:text-base">امتحان المحاضرة</span>
+                          </div>
+                          <span className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[13px] font-bold text-[var(--text-main)] shadow-sm">
+                            {!isUserEnrolled ? 'مغلق للمشتركين' : isCompleted ? 'مكتمل' : 'دخول الامتحان'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })
+              );
+            })}
+          </div>
         )}
-      </div>
+      </main>
 
       {/* ============================================================ */}
       {/* 🛡️ Modal تأكيد الاشتراك (للكورسات المجانية فقط)                */}
       {/* ============================================================ */}
-      {showEnrollConfirmModal && course && (
-        <div className="fixed inset-0 bg-slate-900/60 flex justify-center items-center z-[9999] backdrop-blur-sm px-4">
-          <div className="bg-white p-8 rounded-[24px] w-full max-w-[400px] text-center shadow-[0_20px_60px_rgba(0,0,0,0.2)] animate-fade-in border border-border relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-2 bg-primary" />
-            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-5 text-primary text-[32px]">
-              <i className="fas fa-shopping-cart" />
-            </div>
-            <h2 className="text-[22px] text-slate-800 font-bold mb-3">تأكيد الاشتراك المجاني</h2>
-            <p className="text-text-muted mb-8 text-[15px] leading-relaxed px-2">
-              هل أنت متأكد من رغبتك في الاشتراك في هذا الكورس مجاناً؟
-            </p>
-            <div className="flex gap-4">
-              <button
-                onClick={() => setShowEnrollConfirmModal(false)}
-                className="flex-1 bg-slate-100 text-slate-700 py-3.5 rounded-xl font-bold text-base cursor-pointer hover:bg-slate-200 transition-all"
-              >
-                إلغاء
-              </button>
-              <button
-                onClick={confirmFreeEnrollment}
-                disabled={isEnrolling}
-                className="flex-1 bg-primary text-white border-none py-3.5 rounded-xl font-bold text-base cursor-pointer hover:bg-primary/90 transition-all shadow-[0_5px_15px_rgba(1,86,105,0.2)] hover:-translate-y-0.5 disabled:opacity-50"
-              >
-                {isEnrolling ? 'جاري...' : 'تأكيد'}
-              </button>
-            </div>
+      <KbModal open={showEnrollConfirmModal} onClose={() => setShowEnrollConfirmModal(false)} accent="teal">
+        <div className="flex flex-col items-center text-center">
+          <span className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--primary-light)] text-[28px] text-[var(--primary-color)]">
+            <i className="fas fa-shopping-cart" />
+          </span>
+          <h2 className="mb-2 text-[22px] font-extrabold text-slate-800">تأكيد الاشتراك المجاني</h2>
+          <p className="mb-7 text-[15px] leading-relaxed text-[var(--text-muted)]">
+            هل أنت متأكد من رغبتك في الاشتراك في هذا الكورس مجاناً؟
+          </p>
+          <div className="flex w-full gap-3">
+            <button
+              onClick={() => setShowEnrollConfirmModal(false)}
+              className="kb-btn-ghost flex-1 cursor-pointer"
+            >
+              إلغاء
+            </button>
+            <button
+              onClick={confirmFreeEnrollment}
+              disabled={isEnrolling}
+              className="kb-btn-primary flex-1 cursor-pointer"
+            >
+              {isEnrolling ? 'جاري...' : 'تأكيد'}
+            </button>
           </div>
         </div>
-      )}
+      </KbModal>
 
       {/* ============================================================ */}
       {/* 🛡️ Modal اختيار طريقة الدفع (للكورسات المدفوعة)                */}
       {/* ============================================================ */}
-      {showPaymentMethodModal && course && (
-        <div className="fixed inset-0 bg-slate-900/60 flex justify-center items-center z-[9999] backdrop-blur-sm px-4">
-          <div className="bg-white p-8 rounded-[24px] w-full max-w-[450px] text-center shadow-[0_20px_60px_rgba(0,0,0,0.2)] animate-fade-in border border-border relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-2 bg-primary" />
-            <h2 className="text-[22px] text-slate-800 font-bold mb-3">اختر طريقة الدفع</h2>
-            <p className="text-text-muted mb-8 text-[15px] leading-relaxed px-2">
-              للاشتراك في الكورس بقيمة <strong className="text-primary">{course.price} ج.م</strong>، يرجى اختيار الطريقة الأنسب لك:
-            </p>
-            
-            <div className="flex flex-col gap-4">
-              <button 
-                onClick={() => proceedToPayment('card')} 
-                disabled={isEnrolling}
-                className="w-full bg-[#015669] text-white border-none py-4 rounded-xl font-bold text-lg cursor-pointer hover:bg-[#014150] transition-all flex items-center justify-center gap-3 shadow-md hover:-translate-y-0.5 disabled:opacity-50"
-              >
-                <i className="fas fa-credit-card text-2xl" /> الدفع بالبطاقة (فيزا / ماستركارد)
-              </button>
-              
-              <button 
-                onClick={() => proceedToPayment('kiosk')} 
-                disabled={isEnrolling}
-                className="w-full bg-[#f59e0b] text-white border-none py-4 rounded-xl font-bold text-lg cursor-pointer hover:bg-[#d97706] transition-all flex items-center justify-center gap-3 shadow-md hover:-translate-y-0.5 disabled:opacity-50"
-              >
-                <i className="fas fa-store text-2xl" /> الدفع كاش (فوري / أمان / محافظ)
-              </button>
-              
-              <button 
-                onClick={() => setShowPaymentMethodModal(false)} 
-                disabled={isEnrolling}
-                className="w-full bg-slate-100 text-slate-700 mt-2 py-3 rounded-xl font-bold text-base cursor-pointer hover:bg-slate-200 transition-all disabled:opacity-50"
-              >
-                إلغاء
-              </button>
-            </div>
+      <KbModal open={showPaymentMethodModal} onClose={() => setShowPaymentMethodModal(false)} accent="teal" maxWidth="max-w-[460px]">
+        <div className="flex flex-col items-center text-center">
+          <span className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--primary-light)] text-[28px] text-[var(--primary-color)]">
+            <i className="fas fa-money-bill-wave" />
+          </span>
+          <h2 className="mb-2 text-[22px] font-extrabold text-slate-800">اختر طريقة الدفع</h2>
+          <p className="mb-7 text-[15px] leading-relaxed text-[var(--text-muted)]">
+            للاشتراك في الكورس بقيمة <strong className="text-[var(--primary-color)]">{course?.price} ج.م</strong>
+            ، يرجى اختيار الطريقة الأنسب لك:
+          </p>
+
+          <div className="flex w-full flex-col gap-3.5">
+            <button
+              onClick={() => proceedToPayment('card')}
+              disabled={isEnrolling}
+              className="kb-btn w-full cursor-pointer py-4 !text-lg disabled:opacity-50"
+            >
+              <i className="fas fa-credit-card text-xl" /> الدفع بالبطاقة (فيزا / ماستركارد)
+            </button>
+
+            <button
+              onClick={() => proceedToPayment('kiosk')}
+              disabled={isEnrolling}
+              className="kb-btn w-full cursor-pointer bg-[var(--warning)] py-4 !text-lg text-white transition-all hover:bg-[var(--amber-deep)] disabled:opacity-50"
+            >
+              <i className="fas fa-store text-xl" /> الدفع كاش (فوري / أمان / محافظ)
+            </button>
+
+            <button onClick={() => setShowPaymentMethodModal(false)} disabled={isEnrolling} className="kb-btn-ghost mt-1 w-full cursor-pointer">
+              إلغاء
+            </button>
           </div>
         </div>
-      )}
+      </KbModal>
 
       {/* ============================================================ */}
       {/* 🛡️ Modal عرض كود فوري (بعد اختيار الدفع الكاش)                  */}
       {/* ============================================================ */}
-      {showPaymentModal && paymentReference && (
-        <div className="fixed inset-0 bg-slate-900/60 flex justify-center items-center z-[9999] backdrop-blur-sm px-4">
-          <div className="bg-white p-8 rounded-[24px] w-full max-w-[480px] text-center shadow-[0_20px_60px_rgba(0,0,0,0.2)] animate-fade-in border border-border relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-2 bg-amber-500" />
-            <div className="w-20 h-20 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-5 text-amber-500 text-[32px]">
-              <i className="fas fa-file-invoice-dollar" />
-            </div>
-            <h2 className="text-[24px] text-slate-800 font-bold mb-2">كود الدفع (بيموب / فوري)</h2>
-            <p className="text-text-muted mb-6 text-[15px]">يرجى التوجه لأي منفذ فوري أو أمان واطلب الدفع لخدمة (بيموب / Paymob) باستخدام هذا الكود المرجعي.</p>
-            
-            <div className="bg-slate-100 border-2 border-dashed border-slate-300 rounded-2xl p-5 mb-6">
-              <span className="text-4xl font-black text-primary tracking-widest">{paymentReference}</span>
-            </div>
+      <KbModal open={showPaymentModal} onClose={() => setShowPaymentModal(false)} accent="amber" maxWidth="max-w-[480px]">
+        <div className="flex flex-col items-center text-center">
+          <span className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-[28px] text-amber-500">
+            <i className="fas fa-file-invoice-dollar" />
+          </span>
+          <h2 className="mb-2 text-[24px] font-extrabold text-slate-800">كود الدفع (بيموب / فوري)</h2>
+          <p className="mb-6 text-[15px] leading-relaxed text-[var(--text-muted)]">
+            يرجى التوجه لأي منفذ فوري أو أمان واطلب الدفع لخدمة (بيموب / Paymob) باستخدام هذا الكود المرجعي.
+          </p>
 
-            <div className="flex flex-col gap-3 mb-8 text-right">
-              <div className="bg-blue-50 text-blue-700 p-4 rounded-xl text-sm font-bold flex items-start gap-3 border border-blue-100">
-                <i className="fas fa-info-circle mt-1 text-lg flex-shrink-0" />
-                <p className="m-0 leading-relaxed">
-                  الكود صالح لمدة 24 ساعة فقط. يمكنك الدفع عبر أي ماكينة فوري، أمان، مصاري، أو من خلال المحافظ الإلكترونية (كود خدمة بيموب).
-                </p>
-              </div>
-              <div className="bg-amber-50 text-amber-700 p-4 rounded-xl text-[13px] font-bold flex items-start gap-3 border border-amber-100">
-                 <i className="fas fa-clock mt-0.5 text-base flex-shrink-0" />
-                 <p className="m-0 leading-relaxed">
-                   ملاحظة هامة: بعد إتمام الدفع، قد تستغرق العملية من 5 إلى 30 دقيقة لتسميع البيانات في سيرفراتنا. بمجرد التأكيد، سيتحول الكورس إلى "تم الاشتراك بنجاح" ويمكنك متابعة التعلم فوراً عند تحديث الصفحة.
-                 </p>
-              </div>
-            </div>
+          <div className="mb-6 w-full rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-5">
+            <span className="text-4xl font-black tracking-widest text-[var(--primary-color)]" dir="ltr">
+              {paymentReference}
+            </span>
+          </div>
 
+          <div className="mb-7 flex w-full flex-col gap-3 text-right">
+            <div className="flex items-start gap-3 rounded-xl border border-sky-100 bg-sky-50 p-4 text-sm font-bold text-sky-700">
+              <i className="fas fa-info-circle mt-1 flex-shrink-0 text-lg" />
+              <p className="leading-relaxed">
+                الكود صالح لمدة 24 ساعة فقط. يمكنك الدفع عبر أي ماكينة فوري، أمان، مصاري، أو من خلال المحافظ الإلكترونية (كود خدمة بيموب).
+              </p>
+            </div>
+            <div className="flex items-start gap-3 rounded-xl border border-amber-100 bg-amber-50 p-4 text-[13px] font-bold text-amber-700">
+              <i className="fas fa-clock mt-0.5 flex-shrink-0 text-base" />
+              <p className="leading-relaxed">
+                ملاحظة هامة: بعد إتمام الدفع، قد تستغرق العملية من 5 إلى 30 دقيقة لتسميع البيانات في سيرفراتنا. بمجرد التأكيد، سيتحول الكورس إلى
+                "تم الاشتراك بنجاح" ويمكنك متابعة التعلم فوراً عند تحديث الصفحة.
+              </p>
+            </div>
+          </div>
+
+          <button onClick={() => setShowPaymentModal(false)} className="kb-btn-primary w-full cursor-pointer py-4 !text-lg">
+            حسناً، فهمت
+          </button>
+        </div>
+      </KbModal>
+
+      {/* ============================================================ */}
+      {/* Exam Modal — شاشة كاملة مع مضاد الغش والتايمر                  */}
+      {/* ============================================================ */}
+      {showExamModal && activeExamLesson && isUserEnrolled && (
+        <div className="exam-modal-overlay">
+          <div
+            id="anti-cheat-overlay"
+            className="absolute top-0 left-0 z-[3000] hidden h-full w-full flex-col items-center justify-center bg-black p-5 text-center text-white"
+            onClick={e => {
+              (e.currentTarget as HTMLDivElement).style.display = 'none';
+            }}
+          >
+            <i className="fas fa-shield-halved mb-5 text-[80px] text-red-500"></i>
+            <p className="text-2xl font-bold">تنبيه أمني!</p>
+            <p className="mt-2.5 text-base font-normal leading-relaxed">
+              تم إخفاء الامتحان لأنك قمت بالخروج من النافذة أو محاولة التقاط الشاشة.
+              <br />
+              يرجى النقر هنا للعودة للامتحان.
+            </p>
+          </div>
+
+          <div className="flex items-center justify-between border-b border-slate-200 bg-white px-[5%] py-5 shadow-[0_4px_15px_rgba(0,0,0,0.02)]">
+            <h2 className="flex items-center gap-2.5 text-[20px] font-bold text-[var(--primary-color)] md:text-[22px]">
+              <i className="fas fa-pen-to-square"></i> اختبار: {activeExamLesson.title}
+            </h2>
             <button
-              onClick={() => setShowPaymentModal(false)}
-              className="w-full bg-primary text-white border-none py-4 rounded-xl font-bold text-lg cursor-pointer hover:bg-primary/90 transition-all shadow-[0_5px_15px_rgba(1,86,105,0.2)] hover:-translate-y-0.5"
+              onClick={closeExam}
+              disabled={isGrading}
+              className="kb-table-action cursor-pointer bg-slate-100 text-slate-600 hover:bg-slate-200"
             >
-              حسناً، فهمت
+              <i className="fas fa-xmark"></i> إغلاق مؤقت
             </button>
           </div>
-        </div>
-      )}
 
-      {/* Exam Modal */}
-      {showExamModal && activeExamLesson && isUserEnrolled && (
-        <div className="fixed top-0 left-0 w-full h-full bg-slate-50/95 z-[2000] flex flex-col overflow-hidden select-none">
-          <div id="anti-cheat-overlay" className="absolute top-0 left-0 w-full h-full bg-black text-white z-[3000] hidden flex-col justify-center items-center text-center p-5" onClick={(e) => { (e.currentTarget as HTMLDivElement).style.display = 'none'; }}>
-            <i className="fas fa-shield-halved text-[80px] text-red-500 mb-5"></i>
-            <p className="text-2xl font-bold">تنبيه أمني!</p>
-            <p className="text-base font-normal mt-2.5 leading-relaxed">تم إخفاء الامتحان لأنك قمت بالخروج من النافذة أو محاولة التقاط الشاشة.<br />يرجى النقر هنا للعودة للامتحان.</p>
-          </div>
-
-          <div className="bg-white py-5 px-[5%] flex justify-between items-center border-b border-border shadow-[0_4px_15px_rgba(0,0,0,0.02)]">
-            <h2 className="text-primary text-[22px] font-bold"><i className="fas fa-pen-to-square ml-2"></i> اختبار: {activeExamLesson.title}</h2>
-            <button onClick={closeExam} disabled={isGrading} className="bg-red-50 text-red-500 border-none py-2.5 px-5 rounded-xl font-bold cursor-pointer flex items-center gap-2 hover:bg-red-50 hover:text-white transition-all disabled:opacity-50"><i className="fas fa-xmark"></i> إغلاق مؤقت</button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto py-8 px-[5%] flex flex-col items-center">
+          <div className="flex flex-1 flex-col items-center overflow-y-auto px-[5%] py-8">
             {isGrading ? (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <i className="fas fa-spinner fa-spin text-6xl text-primary mb-4"></i>
-                <h3 className="text-2xl font-bold text-text-main">جاري تصحيح إجاباتك...</h3>
-                <p className="text-text-muted mt-2">يرجى الانتظار لحظات</p>
+              <div className="flex h-full flex-col items-center justify-center text-center">
+                <i className="fas fa-circle-notch fa-spin mb-4 text-6xl text-[var(--primary-color)]"></i>
+                <h3 className="text-2xl font-bold text-[var(--text-main)]">جاري تصحيح إجاباتك...</h3>
+                <p className="mt-2 text-[var(--text-muted)]">يرجى الانتظار لحظات</p>
               </div>
             ) : !examFinished ? (
               <>
-                <div className={`text-white py-2.5 px-6 rounded-[30px] font-bold text-xl mb-5 flex items-center gap-2.5 shadow-[0_5px_15px_rgba(239,68,68,0.3)] ${timeRemaining < 30 ? 'bg-red-50 text-red-500 border-2 border-red-500' : 'bg-red-500'}`}>
-                  <i className="fas fa-stopwatch"></i> 
-                  <span>{Math.floor(timeRemaining / 60).toString().padStart(2, '0')}:{(timeRemaining % 60).toString().padStart(2, '0')}</span>
+                <div
+                  className={`mb-5 flex items-center gap-2.5 rounded-[30px] px-6 py-2.5 text-xl font-bold shadow-[0_5px_15px_rgba(239,68,68,0.3)] ${
+                    timeRemaining < 30 ? 'border-2 border-red-500 bg-red-50 text-red-500' : 'bg-red-500 text-white'
+                  }`}
+                >
+                  <i className="fas fa-stopwatch"></i>
+                  <span>
+                    {Math.floor(timeRemaining / 60)
+                      .toString()
+                      .padStart(2, '0')}
+                    :{(timeRemaining % 60).toString().padStart(2, '0')}
+                  </span>
                 </div>
-                
-                <h3 className="text-text-muted mb-6 text-lg">السؤال <span className="text-primary font-bold text-[22px]">{currentQIndex + 1}</span> من <span>{quizQuestions.length}</span></h3>
+
+                <h3 className="mb-6 text-lg text-[var(--text-muted)]">
+                  السؤال <span className="text-[22px] font-bold text-[var(--primary-color)]">{currentQIndex + 1}</span> من{' '}
+                  <span>{quizQuestions.length}</span>
+                </h3>
 
                 {quizQuestions[currentQIndex]?.image_url && (
-                  <img src={quizQuestions[currentQIndex].image_url} alt="سؤال الامتحان" className="max-w-full max-h-[300px] rounded-xl border-2 border-border mb-8 pointer-events-none" />
+                  <img
+                    src={quizQuestions[currentQIndex].image_url}
+                    alt="سؤال الامتحان"
+                    className="pointer-events-none mb-8 max-h-[300px] max-w-full rounded-xl border-2 border-slate-200"
+                  />
                 )}
-                
-                <div className="grid grid-cols-1 gap-4 w-full max-w-[600px]">
+
+                <div className="grid w-full max-w-[600px] grid-cols-1 gap-4">
                   {(() => {
                     const currentQ = quizQuestions[currentQIndex];
                     const isTrueFalse = (currentQ as any)?.type === 'true_false' || (!currentQ?.option_c && !currentQ?.option_d);
                     const optionsList = isTrueFalse ? ['A', 'B'] : ['A', 'B', 'C', 'D'];
 
-                    return optionsList.map((option) => (
-                      <button key={option} onClick={() => chooseAnswer(option)} className={`bg-white border-2 border-border py-4 px-5 rounded-2xl text-lg font-bold cursor-pointer text-right flex items-center gap-4 transition-all text-text-main shadow-[0_4px_10px_rgba(0,0,0,0.02)] hover:border-primary ${userAnswers[currentQIndex] === option ? 'border-primary bg-primary/5 shadow-[0_8px_20px_rgba(1,86,105,0.15)] -translate-y-0.5' : ''}`}>
-                        <span className={`w-10 h-10 rounded-full flex justify-center items-center text-primary text-xl flex-shrink-0 ${userAnswers[currentQIndex] === option ? 'bg-primary text-white' : 'bg-page-bg'}`}>
+                    return optionsList.map(option => (
+                      <button
+                        key={option}
+                        onClick={() => chooseAnswer(option)}
+                        className={`flex cursor-pointer items-center gap-4 rounded-2xl border-2 px-5 py-4 text-right text-lg font-bold transition-all ${
+                          userAnswers[currentQIndex] === option
+                            ? 'border-[var(--primary-color)] bg-[var(--primary-light)] text-[var(--text-main)] shadow-[0_8px_20px_rgba(1,86,105,0.15)]'
+                            : 'border-slate-200 bg-white text-[var(--text-main)] shadow-[0_4px_10px_rgba(0,0,0,0.02)] hover:border-[var(--primary-color)]'
+                        }`}
+                      >
+                        <span
+                          className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-xl ${
+                            userAnswers[currentQIndex] === option ? 'bg-[var(--primary-color)] text-white' : 'bg-[var(--bg-page)] text-[var(--primary-color)]'
+                          }`}
+                        >
                           {option === 'A' ? 'أ' : option === 'B' ? 'ب' : option === 'C' ? 'ج' : 'د'}
                         </span>
                         <span>{quizQuestions[currentQIndex]?.[`option_${option.toLowerCase()}` as keyof QuizQuestion] as string}</span>
@@ -1238,34 +1507,42 @@ export default function Course() {
                   })()}
                 </div>
 
-                <div className="w-full max-w-[600px] mt-10 flex justify-between">
-                  <button onClick={prevQuestion} disabled={currentQIndex === 0} className="bg-white text-text-main border border-border py-4 px-8 rounded-xl font-bold text-base cursor-pointer transition-all flex items-center gap-2.5 shadow-[0_4px_10px_rgba(0,0,0,0.02)] hover:bg-primary/5 hover:text-primary hover:border-primary disabled:opacity-50 disabled:cursor-not-allowed">
+                <div className="mt-10 flex w-full max-w-[600px] items-center justify-between">
+                  <button
+                    onClick={prevQuestion}
+                    disabled={currentQIndex === 0}
+                    className="kb-btn-ghost cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                  >
                     <i className="fas fa-arrow-right-long"></i> السابق
                   </button>
-                  
+
                   {currentQIndex === quizQuestions.length - 1 ? (
-                    <button onClick={submitExam} className="bg-success text-white border-none py-4 px-10 rounded-xl font-bold text-lg cursor-pointer flex items-center gap-2.5 shadow-[0_5px_20px_rgba(16,185,129,0.3)] hover:bg-emerald-600 hover:-translate-y-0.5 transition-all">
+                    <button onClick={submitExam} className="kb-btn-success cursor-pointer !py-4 !text-lg">
                       إنهاء وتصحيح <i className="fas fa-check-double"></i>
                     </button>
                   ) : (
-                    <button onClick={nextQuestion} className="bg-white text-text-main border border-border py-4 px-8 rounded-xl font-bold text-base cursor-pointer transition-all flex items-center gap-2.5 shadow-[0_4px_10px_rgba(0,0,0,0.02)] hover:bg-primary/5 hover:text-primary hover:border-primary">
+                    <button onClick={nextQuestion} className="kb-btn-ghost cursor-pointer">
                       التالي <i className="fas fa-arrow-left-long"></i>
                     </button>
                   )}
                 </div>
               </>
             ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <div className={`w-[150px] h-[150px] rounded-full flex items-center justify-center text-[50px] font-bold text-white mb-5 shadow-[0_10px_30px_rgba(0,0,0,0.1)] ${examScore >= 50 ? 'bg-success' : 'bg-red-500'}`}>
+              <div className="flex h-full flex-col items-center justify-center text-center">
+                <div
+                  className={`mb-5 flex h-[150px] w-[150px] items-center justify-center rounded-full text-[50px] font-bold text-white shadow-[0_10px_30px_rgba(0,0,0,0.1)] ${
+                    examScore >= 50 ? 'bg-[var(--success)]' : 'bg-red-500'
+                  }`}
+                >
                   {examScore}%
                 </div>
-                <div className={`text-[32px] font-bold mb-2.5 ${examScore >= 50 ? 'text-success' : 'text-red-500'}`}>
+                <div className={`mb-2.5 text-[32px] font-bold ${examScore >= 50 ? 'text-[var(--success)]' : 'text-red-500'}`}>
                   {examScore >= 50 ? 'ممتاز! لقد اجتزت الاختبار بنجاح' : 'للأسف، لم تجتز الاختبار'}
                 </div>
-                <div className="text-xl text-text-muted mb-10">
+                <div className="mb-10 text-xl text-[var(--text-muted)]">
                   أجبت بشكل صحيح على {Math.round((examScore / 100) * quizQuestions.length)} من أصل {quizQuestions.length} أسئلة
                 </div>
-                <button onClick={closeExam} className="bg-primary text-white py-4 px-10 border-none rounded-xl text-lg font-bold cursor-pointer flex items-center gap-2.5 hover:bg-primary/90 transition-all">
+                <button onClick={closeExam} className="kb-btn-primary cursor-pointer !py-4 !text-lg">
                   <i className="fas fa-rotate-left"></i> العودة للمحاضرات
                 </button>
               </div>
@@ -1273,6 +1550,8 @@ export default function Course() {
           </div>
         </div>
       )}
+
+      <PageFooter />
     </div>
   );
 }

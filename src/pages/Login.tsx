@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { PageFooter } from '@/components/kb/shared';
 
 declare global {
   interface Window {
@@ -92,9 +93,7 @@ export default function Login() {
 
   return (
     <>
-      {/* ============================================================ */}
-      {/* SEO: Schema.org structured data لصفحة تسجيل الدخول           */}
-      {/* ============================================================ */}
+      {/* SEO: Schema.org structured data لصفحة تسجيل الدخول */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -130,109 +129,96 @@ export default function Login() {
         }}
       />
 
-      <div
-        className="min-h-screen bg-gradient-to-br from-[#fdfbfb] to-[#ebedee] flex flex-col justify-between items-center"
-        dir="rtl"
-      >
-        <main className="flex-1 flex justify-center items-center w-full p-5" role="main">
+      <div className="flex min-h-screen flex-col bg-[var(--bg-page)]" dir="rtl">
+        {/* هيدر بسيط */}
+        <header className="flex h-[72px] items-center justify-between border-b border-slate-200 bg-white/80 px-[5%] backdrop-blur">
+          <Link to="/" className="flex items-center gap-2.5 no-underline">
+            <img src="/logo.png" alt="شعار منصة كله بيتعلم" className="h-10 w-10 rounded-lg" />
+            <span className="text-xl font-extrabold text-[var(--primary-color)]">كله بيتعلم</span>
+          </Link>
+          <Link to="/" className="kb-btn-ghost px-4 py-2 text-[13px]">
+            <i className="fas fa-arrow-right text-xs" /> تصفح الدورات
+          </Link>
+        </header>
 
-          <div className="bg-white rounded-[28px] shadow-[0_20px_40px_-10px_rgba(0,0,0,0.08)] w-full max-w-[450px] p-12 px-10 text-center flex flex-col items-center gap-5 border border-black/[0.03] border-t-[6px] border-t-primary relative overflow-hidden">
-            {/* Background Glow */}
-            <div className="absolute -top-[60px] left-1/2 -translate-x-1/2 w-[180px] h-[180px] bg-primary/10 blur-[45px] rounded-full z-0" />
+        <main className="relative flex flex-1 items-center justify-center overflow-hidden px-5 py-10" role="main">
+          {/* خامة تراثية: شبكة نقاط براند */}
+          <div className="pointer-events-none absolute inset-0 opacity-[0.35]" aria-hidden="true">
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage:
+                  'radial-gradient(rgba(1,86,105,0.18) 1px, transparent 1px)',
+                backgroundSize: '26px 26px',
+              }}
+            />
+            <div className="absolute -top-24 -left-24 h-80 w-80 rounded-full bg-[var(--primary-light)] blur-3xl" />
+            <div className="absolute -bottom-24 -right-24 h-80 w-80 rounded-full bg-emerald-100/50 blur-3xl" />
+          </div>
 
-            {/* رابط العودة للكورسات */}
-            <div className="w-full flex justify-start z-[1] -mb-2">
-              <Link
-                to="/"
-                className="text-primary/70 text-sm font-bold hover:text-primary flex items-center gap-1.5 no-underline transition-colors"
-              >
-                <i className="fas fa-arrow-right text-xs"></i> العودة للكورسات
-              </Link>
-            </div>
-
-            {/* Platform Identity */}
-            <div className="flex flex-col items-center gap-4 z-[1]">
+          <div className="relative w-full max-w-[440px] animate-kb-fade-up rounded-3xl border border-slate-200/70 bg-white p-8 md:p-10 text-center shadow-[0_25px_60px_rgba(2,8,23,0.08)]">
+            {/* هوية المنصة */}
+            <div className="flex flex-col items-center gap-3.5">
               <img
                 src="/logo.png"
                 alt="شعار منصة كله بيتعلم — أفضل منصة كورسات أونلاين في مصر"
                 title="منصة كله بيتعلم"
-                width="150"
-                height="150"
+                width="120"
+                height="120"
                 loading="eager"
-                className="max-w-[150px] h-auto rounded-[20px] shadow-[0_10px_20px_rgba(0,0,0,0.05)] transition-transform duration-300 hover:scale-[1.03]"
+                className="h-auto max-w-[120px] rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.08)]"
               />
-              <h1 className="text-[28px] font-bold text-primary mb-[-5px]">
-                كله بيتعلم لتعلم المهارات
+              <h1 className="text-[26px] font-extrabold text-[var(--primary-color)]">
+                كله بيتعلم
               </h1>
+              <p className="-mt-1 text-[15px] font-bold text-[#334155]">
+                منصة المذاكرة والكورسات الأونلاين لطلاب مصر
+              </p>
             </div>
 
-            <p className="text-[15px] text-text-muted z-[1] leading-relaxed mb-2">
-              منصتك الشبابية المتكاملة لإتقان المهارات العملية بيسر.
-            </p>
-
-            {/* Separator */}
-            <div className="w-full h-px bg-slate-200 my-4 relative z-[1]">
-              <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-4 text-primary text-[13px] font-bold">
+            {/* فاصل */}
+            <div className="relative my-7 h-px bg-slate-200">
+              <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white px-4 text-[13px] font-bold text-[var(--text-muted)]">
                 ابدأ التعلم الآن
               </span>
             </div>
 
+            <ul className="mb-6 grid grid-cols-3 gap-2 text-center">
+              {[
+                { icon: 'fa-book-open', label: 'كورسات منظمة' },
+                { icon: 'fa-clipboard-check', label: 'امتحانات وتصحيح' },
+                { icon: 'fa-certificate', label: 'متابعة التقدم' },
+              ].map((f) => (
+                <li key={f.icon} className="flex flex-col items-center gap-1.5 rounded-xl bg-[var(--bg-page)] px-2 py-3">
+                  <i className={`fas ${f.icon} text-[15px] text-[var(--primary-color)]`} />
+                  <span className="text-[11px] font-bold text-[var(--text-muted)]">{f.label}</span>
+                </li>
+              ))}
+            </ul>
+
             {/* Google Sign In Button */}
             <div
               ref={googleButtonRef}
-              className="w-full flex justify-center z-[1] mt-2"
+              className="flex w-full justify-center"
               aria-label="تسجيل الدخول بحساب جوجل"
             />
 
-            {/* Privacy Link */}
-            <div className="mt-4 text-center z-[1] w-full">
-              <p className="text-[13px] text-slate-500">
-                بتسجيل دخولك، أنت توافق على{' '}
-                <Link
-                  to="/privacy"
-                  className="text-primary font-bold hover:underline"
-                  title="سياسة الخصوصية — منصة كله بيتعلم"
-                >
-                  سياسة الخصوصية
-                </Link>{' '}
-                الخاصة بالمنصة.
-              </p>
-            </div>
-
+            {/* Privacy */}
+            <p className="mt-5 text-[12px] leading-relaxed text-slate-500">
+              بتسجيل دخولك، أنت توافق على{' '}
+              <Link
+                to="/privacy"
+                className="font-bold text-[var(--primary-color)] hover:underline"
+                title="سياسة الخصوصية — منصة كله بيتعلم"
+              >
+                سياسة الخصوصية
+              </Link>{' '}
+              الخاصة بالمنصة.
+            </p>
           </div>
         </main>
 
-        {/* Footer */}
-        <footer
-          className="w-full p-6 text-center text-text-muted text-sm bg-white/60 backdrop-blur-md border-t border-black/[0.04]"
-          role="contentinfo"
-          itemScope
-          itemType="https://schema.org/WPFooter"
-        >
-          <span>جميع الحقوق محفوظة لمنصة كله بيتعلم &copy; 2026</span>
-          <span className="mx-2">|</span>
-          <span>
-            تصميم وتطوير{' '}
-            <a
-              href="https://adham-protofoilo.vercel.app"
-              className="text-primary font-bold mx-1 hover:underline transition-colors"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="أدهم عطية سالم — مطور المنصة"
-              itemProp="creator"
-            >
-              أدهم عطية سالم
-            </a>
-          </span>
-          <span className="mx-2">|</span>
-          <Link
-            to="/privacy"
-            className="text-primary hover:underline"
-            title="سياسة الخصوصية"
-          >
-            سياسة الخصوصية
-          </Link>
-        </footer>
+        <PageFooter />
       </div>
     </>
   );
