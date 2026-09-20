@@ -53,7 +53,7 @@ export default function Privacy() {
 
         <main className="flex-1" itemScope itemType="https://schema.org/WebPage">
           {/* ===== Hero ===== */}
-          <section className="relative overflow-hidden border-b border-slate-200 bg-white py-16 md:py-20">
+          <section className="relative overflow-hidden border-b border-slate-200 bg-white py-10 sm:py-16 md:py-20">
             <div
               className="pointer-events-none absolute inset-0 opacity-[0.5]"
               style={{
@@ -67,7 +67,7 @@ export default function Privacy() {
               <span className="kb-chip kb-chip-teal">
                 <i className="far fa-shield-halved" /> خصوصية البيانات
               </span>
-              <h1 className="kb-section-title mt-5" itemProp="name">
+              <h1 className="kb-section-title mt-5 text-[22px] sm:text-[26px] md:text-[2.125rem]" itemProp="name">
                 سياسة الخصوصية — منصة كله بيتعلم
               </h1>
               <p className="kb-subtitle mx-auto mt-3 max-w-2xl">
@@ -80,7 +80,7 @@ export default function Privacy() {
             </div>
           </section>
 
-          <div className="mx-auto max-w-4xl px-[5%] py-12 md:py-16">
+          <div className="mx-auto max-w-4xl px-4 py-8 sm:px-[5%] sm:py-12 md:py-16">
             {/* ===== Breadcrumb ===== */}
             <nav aria-label="مسار التنقل" className="mb-8">
               <ol className="flex flex-wrap items-center gap-2 text-sm text-[var(--text-muted)]" itemScope itemType="https://schema.org/BreadcrumbList">

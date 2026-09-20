@@ -60,25 +60,48 @@ export default function Login() {
       }) }} />
 
       <div className="flex min-h-screen flex-col" dir="rtl">
-        <header className="z-20 flex h-[72px] items-center justify-between border-b border-slate-200/70 bg-white/90 backdrop-blur-xl" style={{ borderBottomColor: 'rgba(1,86,105,0.08)' }}>
+        <header className="z-20 flex h-16 items-center justify-between border-b border-slate-200/70 bg-white/90 px-5 backdrop-blur-xl sm:h-[72px] sm:px-8">
           <Link to="/" className="flex items-center gap-3 no-underline">
-            <span className="kb-stat-tile h-10 w-10"><i className="fas fa-book-open" /></span>
-            <span className="kb-grad-text text-xl font-black">كله بيتعلم</span>
+            <span className="kb-stat-tile h-9 w-9 sm:h-10 sm:w-10"><i className="fas fa-book-open" /></span>
+            <span className="kb-grad-text text-lg font-black sm:text-xl">كله بيتعلم</span>
           </Link>
-          <Link to="/" className="kb-btn-outline px-5 py-2 text-[13px]">
+          <Link to="/" className="kb-btn-outline px-4 py-2 text-[12px] sm:px-5 sm:text-[13px]">
             <i className="fas fa-arrow-right text-xs" /> تصفح الدورات
           </Link>
         </header>
 
-        <main className="relative flex flex-1 items-stretch justify-center overflow-hidden px-5 py-10" role="main">
+        <main className="relative flex flex-1 items-stretch justify-center overflow-hidden px-4 py-8 sm:px-5 sm:py-10" role="main">
           <div className="pointer-events-none absolute inset-0 opacity-[0.3]" aria-hidden="true">
             <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(rgba(1,86,105,0.15) 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
             <div className="absolute -top-20 left-1/4 h-96 w-96 rounded-full blur-3xl animate-kb-float" style={{ background: 'rgba(31,182,191,0.15)' }} />
             <div className="absolute -bottom-20 right-1/4 h-80 w-80 rounded-full blur-3xl" style={{ background: 'rgba(1,86,105,0.1)' }} />
           </div>
 
-          <div className="relative grid w-full max-w-5xl items-center gap-8 lg:grid-cols-2">
-            {/* Brand Panel */}
+          <div className="relative grid w-full max-w-5xl items-center gap-6 sm:gap-8 lg:grid-cols-2">
+            {/* Mobile brand header — visible on small screens */}
+            <div className="flex flex-col items-center text-center lg:hidden">
+              <span className="kb-stat-tile mb-4 h-14 w-14 text-xl"><i className="fas fa-graduation-cap" /></span>
+              <h1 className="text-[22px] font-extrabold sm:text-[26px]" style={{ color: 'var(--primary)' }}>
+                أهلاً بيك في <span className="kb-grad-text">كله بيتعلم</span>
+              </h1>
+              <p className="mt-2 max-w-xs text-[13px] leading-relaxed sm:text-sm" style={{ color: 'var(--text-muted)' }}>
+                منصة كله بيتعلم — كورسات منظّمة، امتحانات بتتصحح على فور، وتقدم بيتقاس خطوة بخطوة.
+              </p>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                {[
+                  { v: '٧٥٪+', l: 'نسبة النجاح' },
+                  { v: '٢٤/٧', l: 'مذاكرة متاحة' },
+                  { v: 'مجاناً', l: 'أول كورس' },
+                ].map(s => (
+                  <div key={s.l} className="rounded-xl px-3 py-2 text-center" style={{ background: 'var(--primary-light)' }}>
+                    <p className="text-sm font-black sm:text-base" style={{ color: 'var(--primary)' }}>{s.v}</p>
+                    <p className="mt-0.5 text-[10px] font-bold sm:text-[11px]" style={{ color: 'var(--text-muted)' }}>{s.l}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Brand Panel — desktop only */}
             <div className="hidden lg:flex flex-col justify-center">
               <div className="rounded-3xl p-10 text-white" style={{ background: 'linear-gradient(135deg, #013d4a, #015669)', boxShadow: '0 30px 80px rgba(1,86,105,0.4)' }}>
                 <div className="pointer-events-none absolute inset-0 rounded-3xl opacity-60" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)', backgroundSize: '40px 40px' }} aria-hidden="true" />
@@ -110,9 +133,17 @@ export default function Login() {
             </div>
 
             {/* Auth Card */}
-            <div className="w-full lg:pl-6">
-              <div className="rounded-3xl border border-slate-200/70 bg-white p-8 text-center shadow-xl md:p-10">
-                <div className="flex flex-col items-center gap-3">
+            <div className="w-full">
+              <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-xl sm:p-8 md:p-10">
+                {/* Mobile-only heading inside card */}
+                <div className="mb-6 flex flex-col items-center gap-2 text-center lg:hidden">
+                  <span className="kb-stat-tile h-12 w-12 rounded-xl text-xl"><i className="fas fa-graduation-cap" /></span>
+                  <h2 className="text-lg font-extrabold" style={{ color: 'var(--primary)' }}>سجّل دخولك</h2>
+                  <p className="text-xs font-bold" style={{ color: 'var(--text-muted)' }}>تابع رحلتك التعليمية</p>
+                </div>
+
+                {/* Desktop-only heading */}
+                <div className="hidden flex-col items-center gap-3 text-center lg:flex">
                   <span className="kb-stat-tile h-16 w-16 rounded-2xl text-2xl"><i className="fas fa-graduation-cap" /></span>
                   <h1 className="kb-display text-[24px]" style={{ color: 'var(--primary)' }}>
                     أهلاً بيك في <span className="kb-grad-text">كله بيتعلم</span>
@@ -122,28 +153,28 @@ export default function Login() {
                   </p>
                 </div>
 
-                <div className="relative my-7 h-px bg-slate-200">
-                  <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white px-4 text-[13px] font-bold" style={{ color: 'var(--text-muted)' }}>
+                <div className="relative my-5 h-px bg-slate-200 sm:my-7">
+                  <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white px-3 text-[12px] font-bold sm:px-4 sm:text-[13px]" style={{ color: 'var(--text-muted)' }}>
                     ابدأ التعلم الآن
                   </span>
                 </div>
 
-                <div className="mb-6 grid grid-cols-3 gap-2">
+                <div className="mb-5 grid grid-cols-3 gap-2 sm:mb-6">
                   {[
                     { icon: 'fa-book-open', label: 'كورسات منظمة' },
                     { icon: 'fa-clipboard-check', label: 'امتحانات وتصحيح' },
                     { icon: 'fa-certificate', label: 'متابعة التقدم' },
                   ].map(f => (
-                    <li key={f.icon} className="flex flex-col items-center gap-1.5 rounded-xl bg-slate-50 px-2 py-3 list-none">
-                      <i className={`fas ${f.icon} text-sm`} style={{ color: 'var(--primary)' }} />
-                      <span className="text-[11px] font-bold" style={{ color: 'var(--text-muted)' }}>{f.label}</span>
+                    <li key={f.icon} className="flex flex-col items-center gap-1.5 rounded-xl bg-slate-50 px-2 py-2.5 sm:py-3 list-none">
+                      <i className={`fas ${f.icon} text-xs sm:text-sm`} style={{ color: 'var(--primary)' }} />
+                      <span className="text-[10px] font-bold sm:text-[11px]" style={{ color: 'var(--text-muted)' }}>{f.label}</span>
                     </li>
                   ))}
                 </div>
 
                 <div ref={googleButtonRef} className="flex w-full justify-center" aria-label="تسجيل الدخول بحساب جوجل" />
 
-                <p className="mt-5 text-xs leading-relaxed text-slate-500">
+                <p className="mt-4 text-[11px] leading-relaxed text-slate-500 sm:mt-5 sm:text-xs">
                   بتسجيل دخولك، أنت توافق على{' '}
                   <Link to="/privacy" className="font-bold hover:underline" style={{ color: 'var(--primary)' }}>سياسة الخصوصية</Link>{' '}
                   الخاصة بالمنصة.

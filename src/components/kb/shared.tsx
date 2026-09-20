@@ -112,17 +112,17 @@ export function SiteHeader({ user, onLogoutClick, loggedIn = false }: {
 }) {
   return (
     <header className="sticky top-0 z-[100] border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
-      <div className="mx-auto flex h-[72px] w-full max-w-7xl items-center justify-between px-5">
-        <Link to="/courses" className="flex items-center gap-3 no-underline">
-          <span className="kb-stat-tile h-11 w-11">
-            <i className="fas fa-book-open" />
+      <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between px-4 sm:h-[72px] sm:px-5 md:px-8">
+        <Link to="/courses" className="flex items-center gap-2.5 no-underline sm:gap-3">
+          <span className="kb-stat-tile h-8 w-8 sm:h-10 sm:w-10 md:h-11 md:w-11">
+            <i className="fas fa-book-open text-xs sm:text-sm" />
           </span>
-          <span className="kb-grad-text text-xl font-black">كله بيتعلم</span>
+          <span className="kb-grad-text text-base font-black sm:text-lg md:text-xl">كله بيتعلم</span>
         </Link>
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {loggedIn && user ? (
             <>
-              <span className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white py-1.5 pl-3.5 pr-1.5 shadow-sm sm:flex">
+              <span className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white py-1.5 pl-3.5 pr-1.5 shadow-sm md:flex">
                 {user.avatar_url ? (
                   <img src={user.avatar_url} alt={user.name || 'المستخدم'} className="h-8 w-8 rounded-full object-cover" style={{ border: '2px solid var(--primary)' }} />
                 ) : (
@@ -132,18 +132,26 @@ export function SiteHeader({ user, onLogoutClick, loggedIn = false }: {
                 )}
                 <span className="text-sm font-bold" style={{ color: 'var(--text-main)' }}>{user.name}</span>
               </span>
-              <Link to="/profile" className="kb-btn-soft rounded-full px-4 py-2 text-[13px]">
+              {/* Mobile: show avatar only */}
+              <Link to="/profile" className="flex h-8 w-8 items-center justify-center rounded-full sm:h-9 sm:w-9 md:hidden" style={{ background: 'var(--primary-light)', color: 'var(--primary)' }}>
+                {user.avatar_url ? (
+                  <img src={user.avatar_url} alt={user.name || 'المستخدم'} className="h-full w-full rounded-full object-cover" />
+                ) : (
+                  <i className="fas fa-user text-xs" />
+                )}
+              </Link>
+              <Link to="/profile" className="kb-btn-soft hidden rounded-full px-3.5 py-1.5 text-[12px] sm:flex sm:px-4 sm:text-[13px]">
                 <i className="fas fa-user" /> حسابي
               </Link>
               {onLogoutClick && (
-                <button onClick={onLogoutClick} className="kb-table-action rounded-full bg-red-50 text-red-500 hover:bg-red-100" aria-label="تسجيل الخروج">
-                  <i className="fas fa-right-from-bracket" />
+                <button onClick={onLogoutClick} className="flex h-8 w-8 items-center justify-center rounded-full bg-red-50 text-red-500 hover:bg-red-100 sm:h-9 sm:w-9" aria-label="تسجيل الخروج">
+                  <i className="fas fa-right-from-bracket text-xs sm:text-sm" />
                 </button>
               )}
             </>
           ) : (
-            <Link to="/login" className="kb-btn-grad px-5 py-2.5 text-sm">
-              <i className="fas fa-right-to-bracket" /> سجّل دخولك
+            <Link to="/login" className="kb-btn-grad px-4 py-2 text-[12px] sm:px-5 sm:py-2.5 sm:text-sm">
+              <i className="fas fa-right-to-bracket" /> <span className="hidden sm:inline">سجّل دخولك</span><span className="sm:hidden">دخول</span>
             </Link>
           )}
         </div>

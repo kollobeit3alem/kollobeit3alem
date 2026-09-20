@@ -18,7 +18,7 @@ export function DashboardShell({
   return (
     <div className="flex min-h-screen" dir="rtl">
       {/* Sidebar */}
-      <aside className={`fixed right-0 top-0 z-[100] flex h-screen w-[280px] flex-col overflow-y-auto border-l border-slate-200 bg-white px-5 pt-8 pb-6 transition-transform duration-300 lg:sticky lg:h-auto lg:translate-x-0 ${open ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`}>
+      <aside className={`fixed right-0 top-0 z-[100] flex h-screen w-[260px] flex-col overflow-y-auto border-l border-slate-200 bg-white px-4 pt-6 pb-5 transition-transform duration-300 sm:w-[280px] sm:px-5 sm:pt-8 sm:pb-6 lg:sticky lg:h-auto lg:translate-x-0 ${open ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`}>
         <div className="mb-8 flex items-center gap-2.5 pb-5" style={{ borderBottom: '1px solid rgba(1,86,105,0.08)' }}>
           <span className="kb-stat-tile h-11 w-11">
             <i className="fas fa-book-open" />
@@ -74,7 +74,7 @@ export function DashboardShell({
       </aside>
 
       {/* Mobile topbar */}
-      <div className="fixed top-0 right-0 left-0 z-50 flex items-center justify-between border-b border-slate-200/70 bg-white/90 px-4 py-3 backdrop-blur-xl lg:hidden">
+      <div className="fixed top-0 right-0 left-0 z-50 flex items-center justify-between border-b border-slate-200/70 bg-white/90 px-3 py-2.5 backdrop-blur-xl sm:px-4 sm:py-3 lg:hidden">
         <div className="flex items-center gap-2">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg text-white" style={{ background: 'linear-gradient(135deg, #015669, #0e8ba1)' }}>
             <i className="fas fa-book-open text-[14px]" />
@@ -92,7 +92,7 @@ export function DashboardShell({
       </div>
 
       <div className="flex-1 pt-16 lg:pt-0">
-        <div className="mx-auto max-w-7xl p-5 md:p-8">{children}</div>
+        <div className="mx-auto max-w-7xl p-4 sm:p-5 md:p-8">{children}</div>
       </div>
     </div>
   );

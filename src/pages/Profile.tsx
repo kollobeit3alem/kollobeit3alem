@@ -135,20 +135,20 @@ export default function Profile() {
           }}
           aria-hidden="true"
         />
-        <div className="relative mx-auto flex max-w-[1400px] flex-col items-center gap-6 px-[5%] py-12 text-center sm:flex-row sm:items-center sm:gap-8 sm:text-right md:py-16">
+        <div className="relative mx-auto flex max-w-[1400px] flex-col items-center gap-4 px-4 py-10 text-center sm:items-center sm:gap-6 sm:px-[5%] sm:py-12 md:gap-8 md:text-right lg:py-16">
           <div className="relative">
             <img
               src={user.avatar_url || 'https://via.placeholder.com/150'}
               alt="الصورة الشخصية"
-              className="h-[120px] w-[120px] rounded-full border-4 border-white/40 object-cover shadow-[0_15px_40px_rgba(0,0,0,0.35)] md:h-[140px] md:w-[140px]"
+              className="h-[80px] w-[80px] rounded-full border-4 border-white/40 object-cover shadow-[0_15px_40px_rgba(0,0,0,0.35)] sm:h-[100px] sm:w-[100px] md:h-[120px] md:w-[120px] lg:h-[140px] lg:w-[140px]"
             />
             <span className="absolute -bottom-1 -right-1 flex h-10 w-10 items-center justify-center rounded-full border-4 border-[var(--primary-dark)] bg-emerald-400 text-[14px] text-white">
               <i className="fas fa-graduation-cap" />
             </span>
           </div>
           <div className="min-w-0">
-            <h2 className="text-[30px] leading-tight font-extrabold md:text-[34px]">{user.name}</h2>
-            <p className="mt-1.5 break-all text-[15px] text-white/80">{user.email}</p>
+            <h2 className="text-[22px] leading-tight font-extrabold sm:text-[26px] md:text-[30px] lg:text-[34px]">{user.name}</h2>
+            <p className="mt-1 break-all text-[12px] text-white/80 sm:mt-1.5 sm:text-[13px] md:text-[15px]">{user.email}</p>
             <div className="mt-3.5 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
               <RoleBadge role={user.role} />
               <span className="kb-chip bg-white/15 text-white border border-white/25">

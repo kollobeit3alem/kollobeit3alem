@@ -77,24 +77,24 @@ export default function Courses() {
         <section className="relative overflow-hidden text-white" style={{ background: 'linear-gradient(135deg, #013d4a, #015669)' }}>
           <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.12) 1px, transparent 1px)', backgroundSize: '20px 20px' }} aria-hidden="true" />
           <div className="pointer-events-none absolute -top-32 left-1/2 h-96 w-[50rem] -translate-x-1/2 rounded-full blur-3xl" style={{ background: 'radial-gradient(30rem 18rem, rgba(31,182,191,0.3), transparent 65%)' }} aria-hidden="true" />
-          <div className="relative mx-auto flex max-w-7xl flex-col items-center px-5 py-16 text-center md:py-20">
+          <div className="relative mx-auto flex max-w-7xl flex-col items-center px-4 py-12 text-center sm:px-5 sm:py-16 md:py-20">
             {isAuthenticated && user ? (
-              <h2 className="kb-display mb-3 text-[30px] text-white md:text-[42px]">
+              <h2 className="kb-display mb-3 text-[24px] text-white sm:text-[30px] md:text-[42px]">
                 أهلاً يا <span className="opacity-80">{user.name.split(' ')[0]}</span>!
                 <span className="block mt-1">مستعد تذاكر حاجة جديدة؟</span>
               </h2>
             ) : (
               <>
-                <span className="kb-eyebrow mb-4 border-white/20 bg-white/10 text-white">
+                <span className="kb-eyebrow mb-3 border-white/20 bg-white/10 text-white sm:mb-4">
                   <span className="kb-dot-live" /> منصة المذاكرة الأونلاين لطلاب مصر
                 </span>
-                <h2 className="kb-display mb-4 max-w-3xl text-[32px] text-white md:text-[46px]">
+                <h2 className="kb-display mb-3 max-w-3xl text-[24px] text-white sm:text-[32px] md:mb-4 md:text-[46px]">
                   كله بيتعلم — من غير ما تلاقي حد يقفل عليه الباب
                 </h2>
-                <p className="mb-8 max-w-xl text-[16px] leading-relaxed text-white/80 md:text-lg">
+                <p className="mb-6 max-w-xl text-[14px] leading-relaxed text-white/80 sm:mb-8 sm:text-[16px] md:text-lg">
                   اختر الكورس اللي يناسبك، شاهد الشرح، اكمل الامتحانات، وتابع تقدمك خطوة بخطوة.
                 </p>
-                <button onClick={() => navigate('/login')} className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-4 text-base font-extrabold transition-all hover:-translate-y-0.5" style={{ color: 'var(--primary)', boxShadow: '0 12px 32px rgba(0,0,0,0.2)' }}>
+                <button onClick={() => navigate('/login')} className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-extrabold transition-all hover:-translate-y-0.5 sm:px-8 sm:py-4 sm:text-base" style={{ color: 'var(--primary)', boxShadow: '0 12px 32px rgba(0,0,0,0.2)' }}>
                   <i className="fas fa-rocket" /> ابدأ التعلم مجاناً
                 </button>
               </>
@@ -103,16 +103,16 @@ export default function Courses() {
         </section>
 
         {/* Courses */}
-        <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-12">
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-5 sm:py-10 md:py-12">
           <div className="sr-only"><h2>قائمة كورسات منصة كله بيتعلم الأونلاين</h2></div>
 
-          <div className="mb-8 flex items-center gap-3">
-            <span className="kb-stat-tile h-11 w-11"><i className="fas fa-compass" /></span>
+          <div className="mb-6 flex items-center gap-3 sm:mb-8">
+            <span className="kb-stat-tile h-9 w-9 sm:h-10 sm:w-10 md:h-11 md:w-11"><i className="fas fa-compass text-sm sm:text-base" /></span>
             <div>
-              <h2 className="kb-display text-[24px] md:text-[28px]" style={{ color: 'var(--text-main)' }}>
+              <h2 className="kb-display text-[20px] sm:text-[24px] md:text-[28px]" style={{ color: 'var(--text-main)' }}>
                 استكشف <span className="kb-grad-text">الدورات المتاحة</span>
               </h2>
-              <p className="text-[13px] font-bold" style={{ color: 'var(--text-muted)' }}>{courses.length} دورة متاحة</p>
+              <p className="text-[11px] font-bold sm:text-[13px]" style={{ color: 'var(--text-muted)' }}>{courses.length} دورة متاحة</p>
             </div>
           </div>
 
@@ -127,7 +127,7 @@ export default function Courses() {
                 return (
                   <article key={course.id} onClick={action.action}
                     className="kb-surface kb-surface-hover group flex cursor-pointer flex-col overflow-hidden" itemScope itemType="https://schema.org/Course">
-                    <div className="relative h-[190px] w-full overflow-hidden bg-slate-200">
+                    <div className="relative h-[150px] w-full overflow-hidden bg-slate-200 sm:h-[170px] md:h-[190px]">
                       <div className="absolute inset-0 z-[1]" style={{ background: 'linear-gradient(to top, rgba(1,61,74,0.35), transparent)' }} aria-hidden="true" />
                       {action.badge}
                       {cs.badge && (
@@ -137,7 +137,7 @@ export default function Courses() {
                       )}
                       <img src={course.image_url || 'https://via.placeholder.com/600x400/015669/FFFFFF?text=كورس'} alt={course.title} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" itemProp="image" />
                     </div>
-                    <div className="flex flex-1 flex-col p-6">
+                    <div className="flex flex-1 flex-col p-4 sm:p-5 md:p-6">
                       <h3 className="mb-2 text-lg font-extrabold leading-snug" style={{ color: 'var(--primary)' }} itemProp="name">{course.title}</h3>
                       <p className="mb-4 line-clamp-2 flex-1 text-sm leading-relaxed" style={{ color: 'var(--text-muted)' }} itemProp="description">
                         {course.description || 'دورة تدريبية متميزة لتطوير مهاراتك العملية.'}
