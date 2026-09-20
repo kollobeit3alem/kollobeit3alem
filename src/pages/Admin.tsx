@@ -1141,9 +1141,9 @@ export default function Admin() {
             const revenue = salesStats.reduce((acc, s) => acc + (Number(s.total_revenue) || 0), 0);
             return (
               <div className="grid gap-4 sm:grid-cols-3">
-                <StatCard icon="fa-coins" iconClass="kb-icon-green" label="إجمالي الإيرادات" value={revenue.toLocaleString('ar-EG')} unit="ج.م" />
-                <StatCard icon="fa-circle-check" iconClass="kb-icon-green" label="عمليات مكتملة" value={successful} />
-                <StatCard icon="fa-hourglass-half" iconClass="kb-icon-amber" label="عمليات معلقة" value={pending} />
+                <StatCard icon="fa-coins" iconClass="grad" label="إجمالي الإيرادات" value={revenue.toLocaleString('ar-EG')} unit="ج.م" />
+                <StatCard icon="fa-circle-check" iconClass="grad" label="عمليات مكتملة" value={successful} />
+                <StatCard icon="fa-hourglass-half" iconClass="grad" label="عمليات معلقة" value={pending} />
               </div>
             );
           })()}

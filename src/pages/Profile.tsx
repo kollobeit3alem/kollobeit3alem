@@ -166,19 +166,19 @@ export default function Profile() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <StatCard
             icon="fa-book-open"
-            iconClass="bg-sky-100 text-sky-600"
+            iconClass="grad"
             label="الدورات المشترك بها"
             value={isLoading ? '-' : dashboardData?.stats.totalCourses || 0}
           />
           <StatCard
             icon="fa-check-double"
-            iconClass="bg-purple-100 text-purple-600"
+            iconClass="grad"
             label="المحاضرات المكتملة"
             value={isLoading ? '-' : dashboardData?.stats.completedLessons || 0}
           />
           <StatCard
             icon="fa-spell-check"
-            iconClass="bg-amber-100 text-amber-600"
+            iconClass="grad"
             label="الامتحانات المؤداة"
             value={isLoading ? '-' : quizAttempts.length}
           />

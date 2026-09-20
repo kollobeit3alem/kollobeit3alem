@@ -836,13 +836,14 @@ export default function Course() {
       {/* ============================================================ */}
       <section className="relative overflow-hidden">
         <div className="mx-auto max-w-[1400px] px-[5%] pt-6 md:pt-9">
-          <div className="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[var(--primary-color)] to-[var(--primary-dark)] text-white shadow-[0_25px_70px_rgba(1,86,105,0.25)] md:rounded-[32px]">
+          <div className="relative overflow-hidden rounded-[28px] bg-[var(--grad-brand-deep)] text-white md:rounded-[32px]" style={{ boxShadow: '0 30px 80px -20px rgba(1,86,105,0.5)' }}>
             {/* خلفية بنقش شبكة نقاط */}
             <div
               className="pointer-events-none absolute inset-0"
               style={{
                 backgroundImage: 'radial-gradient(rgba(255,255,255,0.13) 1px, transparent 1px)',
                 backgroundSize: '22px 22px',
+                maskImage: 'linear-gradient(180deg, black, transparent 85%)',
               }}
               aria-hidden="true"
             />
@@ -892,14 +893,15 @@ export default function Course() {
                 {/* أزرار الاشتراك والتواصل */}
                 <div className="mt-8 flex flex-wrap items-center justify-center gap-4 lg:justify-start">
                   {isUserEnrolled ? (
-                    <div className="inline-flex items-center gap-2.5 rounded-2xl border border-white/25 bg-white/15 px-7 py-3.5 text-base font-extrabold backdrop-blur">
+                    <div className="inline-flex items-center gap-2.5 rounded-full border border-white/25 bg-white/15 px-7 py-3.5 text-base font-extrabold backdrop-blur">
                       <i className="fas fa-check-circle text-emerald-300" /> أنت مشترك في هذا الكورس
                     </div>
                   ) : (
                     <button
                       onClick={handleEnrollClick}
                       disabled={isEnrolling}
-                      className="inline-flex cursor-pointer items-center gap-2.5 rounded-2xl bg-white px-8 py-4 text-lg font-extrabold text-[var(--primary-color)] shadow-[0_18px_40px_rgba(0,0,0,0.25)] transition-all hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex cursor-pointer items-center gap-2.5 rounded-full bg-white px-9 py-4 text-lg font-extrabold text-[var(--primary-color)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      style={{ boxShadow: '0 18px 45px -10px rgba(0,0,0,0.35)' }}
                     >
                       {isEnrolling ? <i className="fas fa-circle-notch fa-spin" /> : <i className="fas fa-cart-plus" />}
                       {isEnrolling ? 'جاري التجهيز...' : `اشترك الآن ${course?.is_free === 1 ? '(مجاناً)' : `(${course?.price || 0} ج.م)`}`}
@@ -913,7 +915,8 @@ export default function Course() {
                         target="_blank"
                         rel="noopener noreferrer"
                         title="تواصل مع المحاضر للاستفسارات"
-                        className="inline-flex cursor-pointer items-center gap-2.5 rounded-2xl bg-[#25D366] px-8 py-4 text-lg font-bold text-white no-underline shadow-[0_18px_40px_rgba(0,0,0,0.2)] transition-all hover:-translate-y-0.5 hover:bg-[#1ebe57]"
+                        className="inline-flex cursor-pointer items-center gap-2.5 rounded-full bg-[#25D366] px-9 py-4 text-lg font-bold text-white no-underline transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#1ebe57]"
+                        style={{ boxShadow: '0 18px 45px -10px rgba(0,0,0,0.3)' }}
                       >
                         <i className="fab fa-whatsapp text-xl" /> تواصل مع المحاضر
                       </a>
@@ -921,7 +924,7 @@ export default function Course() {
                       <button
                         onClick={() => toast.info('يجب الاشتراك في الكورس أولاً لتتمكن من التواصل مع المحاضر.')}
                         title="مغلق للمشتركين فقط"
-                        className="inline-flex cursor-not-allowed items-center gap-2.5 rounded-2xl border border-white/20 bg-white/10 px-8 py-4 text-lg font-bold text-white/40 backdrop-blur"
+                        className="inline-flex cursor-not-allowed items-center gap-2.5 rounded-full border border-white/20 bg-white/10 px-9 py-4 text-lg font-bold text-white/40 backdrop-blur"
                       >
                         <i className="fas fa-lock" /> تواصل مع المحاضر
                       </button>
@@ -972,7 +975,7 @@ export default function Course() {
             { icon: 'fa-trophy', text: 'افتح اللي بعدها' },
           ].map(step => (
             <div key={step.text} className="kb-surface flex items-center gap-3 p-4">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-light)] text-base text-[var(--primary-color)]">
+              <span className="kb-stat-tile h-10 w-10 rounded-xl text-base">
                 <i className={`fas ${step.icon}`} />
               </span>
               <span className="text-[13px] font-bold leading-snug text-slate-700">{step.text}</span>

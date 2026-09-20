@@ -51,10 +51,15 @@ export function DashboardShell({
         }`}
         style={{ boxShadow: '-5px 0 30px rgba(0,0,0,0.03)' }}
       >
-        <div className="mb-9 flex items-center justify-between border-b border-slate-100 pb-5">
+        <div className="mb-8 flex items-center justify-between pb-5" style={{ borderBottom: '1px solid rgba(1,86,105,0.08)' }}>
           <div className="flex items-center gap-2.5">
-            <img src="/logo.png" alt="شعار منصة كله بيتعلم" className="h-11 w-11 rounded-xl" />
-            <h2 className="text-[20px] font-extrabold text-[var(--primary-color)]">{brand}</h2>
+            <span className="kb-stat-tile h-11 w-11 rounded-xl">
+              <i className="fas fa-book-open" />
+            </span>
+            <div>
+              <h2 className="kb-grad-text text-[18px] font-black leading-none">{brand}</h2>
+              <p className="mt-1 text-[11px] font-bold tracking-wide text-[var(--text-muted)]">لوحة التحكم</p>
+            </div>
           </div>
           <button
             onClick={closeSidebar}
@@ -74,10 +79,10 @@ export function DashboardShell({
               <button
                 key={item.key}
                 onClick={() => handleNav(item.key)}
-                className={`flex items-center gap-3 rounded-xl border-none py-3 px-4 text-right text-[15px] font-bold cursor-pointer transition-all duration-200 ${
+                className={`flex items-center gap-3 rounded-xl border-none py-3 pl-4 pr-4 text-right text-[15px] font-bold cursor-pointer transition-all duration-300 ${
                   active
-                    ? 'bg-[var(--primary-color)] text-white shadow-[0_10px_20px_rgba(1,86,105,0.18)]'
-                    : 'bg-transparent text-[var(--text-muted)] hover:bg-[var(--bg-page)] hover:text-[var(--primary-color)] hover:-translate-x-1'
+                    ? 'bg-[var(--grad-brand)] text-white shadow-[0_12px_24px_-8px_rgba(1,86,105,0.5)]'
+                    : 'bg-transparent text-[var(--text-muted)] hover:bg-[var(--grad-soft)] hover:text-[var(--primary-color)] hover:-translate-x-1'
                 }`}
               >
                 <i className={`fas ${item.icon} w-5 text-center`} style={item.color ? { color: active ? undefined : item.color } : undefined} />
@@ -98,7 +103,7 @@ export function DashboardShell({
                 </span>
               )}
               <div className="min-w-0">
-                <p className="truncate text-[13px] font-bold text-[#1e293b]">{user.name || 'المستخدم'}</p>
+                <p className="truncate text-[13px] font-bold text-[var(--text-main)]">{user.name || 'المستخدم'}</p>
               </div>
             </div>
           ) : null}
@@ -115,25 +120,29 @@ export function DashboardShell({
       </aside>
 
       {/* Mobile top bar */}
-      <div className="fixed top-0 right-0 left-0 z-50 flex items-center justify-between bg-white px-4 py-3 shadow-sm lg:hidden">
+      <div className="fixed top-0 right-0 left-0 z-50 flex items-center justify-between border-b border-slate-200/70 bg-white/90 px-4 py-3 backdrop-blur-xl lg:hidden">
         <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="شعار منصة كله بيتعلم" className="h-9 w-9 rounded-lg" />
-          <span className="text-[16px] font-extrabold text-[var(--primary-color)]">{brand}</span>
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--grad-brand)] text-white">
+            <i className="fas fa-book-open text-[14px]" />
+          </span>
+          <span className="kb-grad-text text-[16px] font-black">{brand}</span>
         </div>
-        <button
-          onClick={() => navigate('/courses')}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-50 text-sky-600"
-          aria-label="تصفح الكورسات"
-        >
-          <i className="fas fa-globe" />
-        </button>
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--primary-color)] text-white"
-          aria-label="فتح القائمة"
-        >
-          <i className="fas fa-bars" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/courses')}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--grad-soft)] text-[var(--primary-color)]"
+            aria-label="تصفح الكورسات"
+          >
+            <i className="fas fa-globe" />
+          </button>
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--grad-brand)] text-white shadow-[0_8px_16px_-6px_rgba(1,86,105,0.5)]"
+            aria-label="فتح القائمة"
+          >
+            <i className="fas fa-bars" />
+          </button>
+        </div>
       </div>
 
       {/* Main content */}
@@ -164,8 +173,8 @@ export function TabPill({
       onClick={onClick}
       className={`flex items-center gap-2.5 rounded-xl border-none px-4 py-3 text-right text-[15px] font-bold transition-all duration-200 cursor-pointer ${
         active
-          ? 'bg-[var(--primary-color)] text-white shadow-[0_8px_18px_rgba(1,86,105,0.18)]'
-          : 'bg-transparent text-[var(--text-muted)] hover:bg-[var(--bg-page)] hover:text-[var(--primary-color)]'
+          ? 'bg-[var(--grad-brand)] text-white shadow-[0_10px_22px_-8px_rgba(1,86,105,0.5)]'
+          : 'bg-transparent text-[var(--text-muted)] hover:bg-[var(--grad-soft)] hover:text-[var(--primary-color)]'
       }`}
     >
       <i className={`fas ${icon} w-5 text-center`} style={color && !active ? { color } : undefined} />
@@ -185,8 +194,8 @@ export function DataCard({
 }) {
   return (
     <section className="kb-surface overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-        <h3 className="text-[17px] font-extrabold text-[#1e293b]">{title}</h3>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4" style={{ borderColor: 'rgba(1,86,105,0.08)' }}>
+        <h3 className="text-[17px] font-extrabold text-[var(--text-main)]">{title}</h3>
         {action}
       </div>
       <div className="p-5">{children}</div>
@@ -209,7 +218,7 @@ export function KbTable({
             {headers.map((h, i) => (
               <th
                 key={i}
-                className="bg-[var(--bg-page)] px-4 py-3 text-[13px] font-extrabold text-[var(--primary-color)] whitespace-nowrap"
+                className="bg-[var(--bg-page)] px-4 py-3 text-[12.5px] font-extrabold tracking-wide whitespace-nowrap text-[var(--primary-color)]"
               >
                 {h}
               </th>
@@ -244,15 +253,17 @@ export function Pagination({
         <button
           onClick={onPrev}
           disabled={!hasPrev}
-          className="kb-table-action bg-slate-50 text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-40"
+          className="kb-table-action rounded-full bg-slate-50 text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-40"
         >
           السابق
         </button>
-        <span className="font-bold text-[#1e293b]">صفحة {page}</span>
+        <span className="font-bold text-[var(--text-main)]">
+          صفحة <span className="kb-grad-text">{page}</span>
+        </span>
         <button
           onClick={onNext}
           disabled={!hasNext}
-          className="kb-table-action bg-slate-50 text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-40"
+          className="kb-table-action rounded-full bg-slate-50 text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-40"
         >
           التالي
         </button>

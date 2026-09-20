@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import type { CSSProperties } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -131,90 +132,136 @@ export default function Login() {
 
       <div className="flex min-h-screen flex-col bg-[var(--bg-page)]" dir="rtl">
         {/* هيدر بسيط */}
-        <header className="flex h-[72px] items-center justify-between border-b border-slate-200 bg-white/80 px-[5%] backdrop-blur">
+        <header className="z-20 flex h-[72px] items-center justify-between border-b border-slate-200/70 bg-white/80 px-[5%] backdrop-blur-xl">
           <Link to="/" className="flex items-center gap-2.5 no-underline">
-            <img src="/logo.png" alt="شعار منصة كله بيتعلم" className="h-10 w-10 rounded-lg" />
-            <span className="text-xl font-extrabold text-[var(--primary-color)]">كله بيتعلم</span>
+            <span className="kb-stat-tile h-10 w-10 rounded-xl">
+              <i className="fas fa-book-open" />
+            </span>
+            <span className="kb-grad-text text-xl font-black">كله بيتعلم</span>
           </Link>
-          <Link to="/" className="kb-btn-ghost px-4 py-2 text-[13px]">
+          <Link to="/" className="kb-btn-outline px-5 py-2 text-[13px]">
             <i className="fas fa-arrow-right text-xs" /> تصفح الدورات
           </Link>
         </header>
 
-        <main className="relative flex flex-1 items-center justify-center overflow-hidden px-5 py-10" role="main">
-          {/* خامة تراثية: شبكة نقاط براند */}
+        <main className="relative flex flex-1 items-stretch justify-center overflow-hidden px-5 py-10" role="main">
+          {/* خامة: شبكة نقاط براند + توهجات */}
           <div className="pointer-events-none absolute inset-0 opacity-[0.35]" aria-hidden="true">
             <div
               className="absolute inset-0"
               style={{
                 backgroundImage:
-                  'radial-gradient(rgba(1,86,105,0.18) 1px, transparent 1px)',
+                  'radial-gradient(rgba(1,86,105,0.22) 1px, transparent 1px)',
                 backgroundSize: '26px 26px',
+                maskImage: 'radial-gradient(48rem 30rem at 50% 0%, black 20%, transparent 75%)',
               }}
             />
-            <div className="absolute -top-24 -left-24 h-80 w-80 rounded-full bg-[var(--primary-light)] blur-3xl" />
-            <div className="absolute -bottom-24 -right-24 h-80 w-80 rounded-full bg-emerald-100/50 blur-3xl" />
+            <div className="absolute -top-24 left-1/4 h-96 w-96 rounded-full bg-[rgba(31,182,191,0.16)] blur-3xl animate-kb-float" />
+            <div className="absolute -bottom-24 right-1/4 h-96 w-96 rounded-full bg-[rgba(1,86,105,0.13)] blur-3xl" />
           </div>
 
-          <div className="relative w-full max-w-[440px] animate-kb-fade-up rounded-3xl border border-slate-200/70 bg-white p-8 md:p-10 text-center shadow-[0_25px_60px_rgba(2,8,23,0.08)]">
-            {/* هوية المنصة */}
-            <div className="flex flex-col items-center gap-3.5">
-              <img
-                src="/logo.png"
-                alt="شعار منصة كله بيتعلم — أفضل منصة كورسات أونلاين في مصر"
-                title="منصة كله بيتعلم"
-                width="120"
-                height="120"
-                loading="eager"
-                className="h-auto max-w-[120px] rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.08)]"
-              />
-              <h1 className="text-[26px] font-extrabold text-[var(--primary-color)]">
-                كله بيتعلم
-              </h1>
-              <p className="-mt-1 text-[15px] font-bold text-[#334155]">
-                منصة المذاكرة والكورسات الأونلاين لطلاب مصر
-              </p>
+          <div className="relative grid w-full max-w-[1040px] items-center gap-6 lg:grid-cols-2 lg:gap-0">
+            {/* اللوحة اليمنى: هوية وتشجيع للمذاكرة */}
+            <div className="hidden lg:block kb-rise" style={{ '--i': 0 } as CSSProperties}>
+              <div className="kb-surface-grad relative overflow-hidden rounded-[2rem] p-10 lg:p-12">
+                <span className="kb-grad-text absolute left-10 top-8 text-[64px] font-black opacity-15">
+                  <i className="fas fa-quote-right" />
+                </span>
+                <div className="kb-grid-overlay pointer-events-none absolute inset-0 opacity-60" aria-hidden="true" />
+
+                <h1 className="kb-display text-[34px] xl:text-[38px] leading-snug">
+                  معلش عليك مراجعة…
+                  <br />
+                  <span className="text-[#b8f0f3]">دايماً في وقت.</span>
+                </h1>
+                <p className="mt-4 max-w-[38ch] text-[15px] leading-relaxed text-[#d5edf0]">
+                  منصة المذاكرة والكورسات الأونلاين لطلاب مصر — كورسات منظّمة،
+                  امتحانات بتتصحح على فور، وتقدم بيتقاس خطوة بخطوة.
+                </p>
+
+                <div className="mt-10 grid grid-cols-3 gap-3">
+                  {[
+                    { value: '٧٥٪+', label: 'نسبة النجاح بالامتحان' },
+                    { value: '٢٤/٧', label: 'مذاكرة في أي وقت' },
+                    { value: 'SAR', label: 'تقدم واضح' },
+                  ].map((s, i) => (
+                    <div key={s.label} className="kb-rise" style={{ '--i': i + 1 } as CSSProperties}>
+                      <div className="rounded-2xl bg-white/10 p-4 backdrop-blur-sm" style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2)' }}>
+                        <p className="text-[22px] font-black text-white">{s.value}</p>
+                        <p className="mt-1 text-[11px] font-bold text-[#bfe9ec]">{s.label}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-8 flex items-center gap-3 text-[13px] font-bold text-[#d5edf0]">
+                  <span className="kb-dot-live" />
+                  <span>افتح حسابك وخش مذاكرة دلوقتي — أول خطوة هي الأصعب</span>
+                </div>
+              </div>
             </div>
 
-            {/* فاصل */}
-            <div className="relative my-7 h-px bg-slate-200">
-              <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white px-4 text-[13px] font-bold text-[var(--text-muted)]">
-                ابدأ التعلم الآن
-              </span>
-            </div>
-
-            <ul className="mb-6 grid grid-cols-3 gap-2 text-center">
-              {[
-                { icon: 'fa-book-open', label: 'كورسات منظمة' },
-                { icon: 'fa-clipboard-check', label: 'امتحانات وتصحيح' },
-                { icon: 'fa-certificate', label: 'متابعة التقدم' },
-              ].map((f) => (
-                <li key={f.icon} className="flex flex-col items-center gap-1.5 rounded-xl bg-[var(--bg-page)] px-2 py-3">
-                  <i className={`fas ${f.icon} text-[15px] text-[var(--primary-color)]`} />
-                  <span className="text-[11px] font-bold text-[var(--text-muted)]">{f.label}</span>
-                </li>
-              ))}
-            </ul>
-
-            {/* Google Sign In Button */}
+            {/* بطاقة الدخول */}
             <div
-              ref={googleButtonRef}
-              className="flex w-full justify-center"
-              aria-label="تسجيل الدخول بحساب جوجل"
-            />
+              className="kb-rise w-full lg:pl-10"
+              style={{ '--i': 1 } as CSSProperties}
+            >
+              <div className="kb-shell">
+                <div className="relative overflow-hidden p-8 text-center md:p-10">
+                  <div className="flex flex-col items-center gap-3.5">
+                    <span className="kb-stat-tile h-16 w-16 rounded-2xl">
+                      <i className="fas fa-graduation-cap text-[26px]" />
+                    </span>
+                    <h1 className="kb-display text-[26px] text-[var(--primary-color)]">
+                      أهلاً بيك في <span className="kb-grad-text">كله بيتعلم</span>
+                    </h1>
+                    <p className="-mt-1 text-[14px] font-bold text-[var(--text-muted)]">
+                      سجّل دخولك بمتابعة حساب جوجل عشان نبدأ
+                    </p>
+                  </div>
 
-            {/* Privacy */}
-            <p className="mt-5 text-[12px] leading-relaxed text-slate-500">
-              بتسجيل دخولك، أنت توافق على{' '}
-              <Link
-                to="/privacy"
-                className="font-bold text-[var(--primary-color)] hover:underline"
-                title="سياسة الخصوصية — منصة كله بيتعلم"
-              >
-                سياسة الخصوصية
-              </Link>{' '}
-              الخاصة بالمنصة.
-            </p>
+                  {/* فاصل */}
+                  <div className="relative my-7 h-px bg-slate-200">
+                    <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white px-4 text-[13px] font-bold text-[var(--text-muted)]">
+                      ابدأ التعلم الآن
+                    </span>
+                  </div>
+
+                  <ul className="mb-6 grid grid-cols-3 gap-2 text-center">
+                    {[
+                      { icon: 'fa-book-open', label: 'كورسات منظمة' },
+                      { icon: 'fa-clipboard-check', label: 'امتحانات وتصحيح' },
+                      { icon: 'fa-certificate', label: 'متابعة التقدم' },
+                    ].map((f) => (
+                      <li key={f.icon} className="flex flex-col items-center gap-1.5 rounded-2xl bg-[var(--grad-soft)] px-2 py-3">
+                        <i className={`fas ${f.icon} text-[15px] text-[var(--primary-color)]`} />
+                        <span className="text-[11px] font-bold text-[var(--text-muted)]">{f.label}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* Google Sign In Button */}
+                  <div
+                    ref={googleButtonRef}
+                    className="flex w-full justify-center"
+                    aria-label="تسجيل الدخول بحساب جوجل"
+                  />
+
+                  {/* Privacy */}
+                  <p className="mt-5 text-[12px] leading-relaxed text-slate-500">
+                    بتسجيل دخولك، أنت توافق على{' '}
+                    <Link
+                      to="/privacy"
+                      className="font-bold text-[var(--primary-color)] hover:underline"
+                      title="سياسة الخصوصية — منصة كله بيتعلم"
+                    >
+                      سياسة الخصوصية
+                    </Link>{' '}
+                    الخاصة بالمنصة.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </main>
 

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth, apiCall, publicApiCall } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import type { Course } from '@/types';
+import type { CSSProperties } from 'react';
 import { SiteHeader, PageFooter, KbModal, Spinner, EmptyState } from '@/components/kb/shared';
 
 export default function Courses() {
@@ -92,8 +93,8 @@ export default function Courses() {
           </span>
         ),
         button: (
-          <button className="kb-btn-soft px-5 py-2.5 text-sm">
-            متابعة التعلم <i className="fas fa-arrow-left" />
+          <button className="kb-btn-grad kb-shine px-6 py-2.5 text-sm">
+            متابعة التعلم <i className="fas fa-circle-play" />
           </button>
         ),
         action: () => navigate(`/course?id=${course.id}`),
@@ -106,7 +107,7 @@ export default function Courses() {
           </span>
         ),
         button: (
-          <button className="kb-btn-soft px-5 py-2.5 text-sm">
+          <button className="kb-btn-outline px-6 py-2.5 text-sm">
             تصفح الكورس <i className="fas fa-eye" />
           </button>
         ),
@@ -120,7 +121,7 @@ export default function Courses() {
           </span>
         ),
         button: (
-          <button className="kb-btn-ghost px-5 py-2.5 text-sm text-amber-600 border-amber-200 hover:border-amber-500 hover:text-amber-700">
+          <button className="kb-btn-outline px-6 py-2.5 text-sm text-amber-600 border-amber-200 hover:border-amber-500 hover:text-amber-700">
             تصفح الكورس <i className="fas fa-eye" />
           </button>
         ),
@@ -159,42 +160,48 @@ export default function Courses() {
           onLogoutClick={isAuthenticated && user ? handleLogoutClick : undefined}
         />
 
-        {/* Hero */}
-        <section className="relative overflow-hidden bg-gradient-to-br from-[var(--primary-color)] to-[var(--primary-dark)] text-white">
+        {/* Hero — لوحة متدرجة تشجّع على المذاكرة */}
+        <section className="relative overflow-hidden bg-[var(--grad-brand-deep)] text-white">
           <div
             className="pointer-events-none absolute inset-0"
             style={{
               backgroundImage:
-                'radial-gradient(rgba(255,255,255,0.14) 1px, transparent 1px)',
+                'radial-gradient(rgba(255,255,255,0.16) 1px, transparent 1px)',
               backgroundSize: '22px 22px',
+              maskImage: 'radial-gradient(70rem 34rem at 50% 0%, black 25%, transparent 75%)',
             }}
+            aria-hidden="true"
+          />
+          <div
+            className="pointer-events-none absolute -top-32 left-1/2 h-96 w-[52rem] -translate-x-1/2 rounded-full opacity-70 blur-3xl"
+            style={{ background: 'radial-gradient(30rem 18rem, rgba(31,182,191,0.35), transparent 65%)' }}
             aria-hidden="true"
           />
           <div className="relative mx-auto flex max-w-[1400px] flex-col items-center px-[5%] py-16 text-center md:py-20">
             {isAuthenticated && user ? (
-              <h2 className="mb-3 text-[32px] leading-tight font-extrabold md:text-[40px]">
-                أهلاً بك يا {user.name.split(' ')[0]}! مستعد تذاكر حاجة جديدة؟
+              <h2 className="kb-rise kb-display mb-3 text-[30px] text-white md:text-[42px]">
+                أهلاً يا <span className="text-[#b8f0f3]">{user.name.split(' ')[0]}</span>
+                <span className="block">مستعد تذاكر حاجة جديدة؟</span>
               </h2>
             ) : (
               <>
-                <span className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-1.5 text-[13px] font-bold backdrop-blur">
-                  <i className="fas fa-graduation-cap" /> منصة المذاكرة الأونلاين لطلاب مصر
+                <span className="kb-eyebrow mb-4 border-white/20 bg-white/10 text-white">
+                  <span className="kb-dot-live" /> منصة المذاكرة الأونلاين لطلاب مصر
                 </span>
-                <h2 className="mb-3 text-[32px] leading-tight font-extrabold md:text-[40px]">
-                  كله يتعلم من غير ما يلاقي حد يقفل عليه الباب
+                <h2 className="kb-rise kb-display mb-4 text-[32px] text-white md:text-[46px]">
+                  كله بيتعلم، <span className="text-[#b8f0f3]">من غير ما تلاقي حد يقفل عليه الباب</span>
                 </h2>
+                <p className="kb-rise max-w-[620px] text-[16px] leading-relaxed text-white/85 md:text-lg" style={{ '--i': 1 } as CSSProperties}>
+                  اختر الكورس اللي يناسبك، شاهد الشرح، اكمل الامتحانات، وتابع تقدمك خطوة بخطوة.
+                </p>
+                <button
+                  onClick={() => navigate('/login')}
+                  className="kb-rise kb-btn-grad kb-shine mt-8 px-9 py-4 text-base !bg-white !text-[var(--primary-color)] !shadow-none"
+                  style={{ '--i': 2 } as CSSProperties}
+                >
+                  <i className="fas fa-rocket" /> ابدأ التعلم مجاناً
+                </button>
               </>
-            )}
-            <p className="max-w-[640px] text-[16px] leading-relaxed text-white/85 md:text-lg">
-              اختر الكورس اللي يناسبك، شاهد الشرح، اكمل الامتحانات، وتابع تقدمك خطوة بخطوة.
-            </p>
-            {!isAuthenticated && (
-              <button
-                onClick={() => navigate('/login')}
-                className="mt-7 inline-flex items-center gap-2 rounded-xl bg-white px-8 py-3.5 text-base font-extrabold text-[var(--primary-color)] transition-all hover:-translate-y-0.5 hover:shadow-[0_5px_20px_rgba(0,0,0,0.2)]"
-              >
-                <i className="fas fa-rocket" /> ابدأ التعلم مجاناً
-              </button>
             )}
           </div>
         </section>
@@ -206,13 +213,18 @@ export default function Courses() {
             <p>اتعلم مهارات سوق العمل، البرمجة، اللغات، والتطوير الشخصي مع أفضل المدربين في مصر والعالم العربي.</p>
           </div>
 
-          <div className="mb-8 flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--primary-light)] text-xl text-[var(--primary-color)]">
+          <div className="mb-10 flex items-center gap-3">
+            <span className="kb-stat-tile h-11 w-11 rounded-xl">
               <i className="fas fa-compass" />
             </span>
-            <h2 className="text-[26px] font-extrabold text-[#1e293b] md:text-[30px]">
-              استكشف الدورات المتاحة
-            </h2>
+            <div>
+              <h2 className="kb-display text-[24px] text-[var(--text-main)] md:text-[30px]">
+                استكشف <span className="kb-grad-text">الدورات المتاحة</span>
+              </h2>
+              <p className="text-[13px] font-bold text-[var(--text-muted)]">
+                {courses.length} دورة · هيا بنا نبدأ المذاكرة
+              </p>
+            </div>
           </div>
 
           {isLoading ? (
@@ -239,14 +251,16 @@ export default function Courses() {
                   <article
                     key={course.id}
                     onClick={action.action}
-                    className="kb-surface kb-surface-hover group flex cursor-pointer flex-col overflow-hidden"
+                    className="kb-surface kb-surface-hover kb-rise group flex cursor-pointer flex-col overflow-hidden"
+                    style={{ '--i': course.id % 4 } as CSSProperties}
                     itemScope
                     itemType="https://schema.org/Course"
                   >
                     <div className="relative h-[190px] w-full overflow-hidden bg-slate-200">
+                      <div className="absolute inset-0 z-[1] bg-gradient-to-t from-[rgba(1,61,74,0.45)] via-transparent to-transparent" aria-hidden="true" />
                       {action.badge}
                       {courseSettings.badge && (
-                        <span className="absolute top-4 left-4 z-10 inline-flex animate-none items-center gap-1.5 rounded-full bg-orange-500 px-3 py-1.5 text-[13px] font-bold text-white shadow-lg">
+                        <span className="absolute top-4 left-4 z-10 inline-flex items-center gap-1.5 rounded-full bg-orange-500 px-3 py-1.5 text-[13px] font-bold text-white shadow-lg">
                           <i className="fas fa-star text-[10px]" /> {courseSettings.badge}
                         </span>
                       )}
@@ -254,7 +268,7 @@ export default function Courses() {
                         src={course.image_url || 'https://via.placeholder.com/600x400/015669/FFFFFF?text=كورس+جديد'}
                         alt={course.title}
                         loading="lazy"
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                         itemProp="image"
                       />
                     </div>

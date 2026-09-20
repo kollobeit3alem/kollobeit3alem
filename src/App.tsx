@@ -136,7 +136,7 @@ function App() {
           closeButton
           toastOptions={{
             style: {
-              fontFamily: 'AbdoLogo, sans-serif',
+              fontFamily: 'Rubik, sans-serif',
             },
           }}
         />

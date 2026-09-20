@@ -1,17 +1,14 @@
+/* الخط الجديد: Rubik — يدعم العربية باحتراف (يوروبي نظيف) */
+@import url('https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,300..900;1,300..900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ============================================================
-   الخط الأساسي — يبقى كما هو (قفل البراند)
+   النظام التصميمي — الطبعة الأوروبية (Premium Edu)
+   رمزيات: غلاف خارجي + لب داخلي، حواف شعرية، ظلال ملونة، تدرجات البراند
    ============================================================ */
-@font-face {
-  font-family: 'AbdoLogo';
-  src: url('/alfont_com_Abdo.Fonts_Abdo.Logo_.ttf') format('truetype');
-  font-weight: normal;
-  font-style: normal;
-}
-
 @layer base {
   :root {
     --background: 210 20% 98%;
@@ -33,27 +30,45 @@
     --border: 214 32% 91%;
     --input: 214 32% 91%;
     --ring: 189 98% 21%;
-    --radius: 1rem;
+    --radius: 1.25rem;
 
     /* براند المنصة — مقفول */
     --primary-color: #015669;
     --primary-dark: #013d4a;
     --primary-deeper: #014150;
     --primary-light: rgba(1, 86, 105, 0.1);
+    --brand-2: #0e8ba1;
+    --brand-3: #1fb6bf;
+    --brand-lumen: #7fd8de;
     --bg-page: #f4f7f9;
-    --text-main: #1e293b;
-    --text-muted: #64748b;
+    --text-main: #0f2430;
+    --text-muted: #5b7083;
     --success: #10b981;
     --warning: #f59e0b;
     --danger: #ef4444;
     --amber-deep: #d97706;
+
+    /* التدرجات المعتمدة على الهوية */
+    --grad-brand: linear-gradient(135deg, #015669 0%, #0e8ba1 55%, #1fb6bf 100%);
+    --grad-brand-deep: linear-gradient(135deg, #013d4a 0%, #015669 100%);
+    --grad-soft: linear-gradient(135deg, rgba(1, 86, 105, 0.07) 0%, rgba(31, 182, 191, 0.12) 100%);
+    --grad-text: linear-gradient(120deg, #015669 20%, #0e8ba1 60%, #1fb6bf 90%);
+    --grad-warm: linear-gradient(135deg, rgba(245, 158, 11, 0.14), rgba(255, 128, 0, 0.05));
+
+    /* التظليل — ملون بلون البراند وليس أسود خام */
+    --shadow-soft: 0 1px 2px rgba(1, 86, 105, 0.04), 0 14px 34px -12px rgba(1, 86, 105, 0.16);
+    --shadow-lift: 0 28px 60px -22px rgba(1, 86, 105, 0.28);
+
+    /* الحركة */
+    --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
 @layer base {
   * {
     @apply border-border;
-    font-family: 'AbdoLogo', sans-serif;
+    font-family: 'Rubik', system-ui, sans-serif;
   }
 
   html {
@@ -63,6 +78,16 @@
   body {
     @apply bg-[var(--bg-page)] text-[var(--text-main)] antialiased;
     min-height: 100vh;
+    background-image:
+      radial-gradient(46rem 30rem at 88% -8%, rgba(31, 182, 191, 0.09), transparent 60%),
+      radial-gradient(40rem 26rem at -6% 18%, rgba(1, 86, 105, 0.07), transparent 60%);
+    background-attachment: fixed;
+    letter-spacing: 0.01em;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Rubik', system-ui, sans-serif;
+    letter-spacing: -0.01em;
   }
 
   ::selection {
@@ -80,14 +105,14 @@ i,
 }
 
 /* ============================================================
-   تصميم-الأساس: مواد مشتركة
-   قواعد الأشكال: بطاقات 16px · أزرار وحقول 12px · شارات/حبوب دائرية
+   تصميم-الأساس: مواد مشتركة (الطبعة الأوروبية)
+   قواعد الأشكال: بطاقات 20px · أزرار 14px وحبوب دائرية · شارات دائرية
    ============================================================ */
 @layer components {
-  /* بطاقة أساس */
+  /* البطاقة الأساس — «لبّ داخلي» ببريق علوي ذهبي هادئ وظل ملون */
   .kb-surface {
-    @apply bg-white rounded-2xl border border-slate-200/70;
-    box-shadow: 0 10px 30px rgba(2, 8, 23, 0.04);
+    @apply bg-white rounded-[1.25rem] border border-slate-200/70 relative;
+    box-shadow: var(--shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.9);
   }
 
   .kb-surface-hover {
@@ -95,9 +120,51 @@ i,
   }
 
   .kb-surface-hover:hover {
-    @apply border-[var(--primary-color)];
+    @apply border-transparent;
+    border-color: rgba(1, 86, 105, 0.45);
     transform: translateY(-4px);
-    box-shadow: 0 20px 40px rgba(1, 86, 105, 0.14);
+    box-shadow: var(--shadow-lift), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+
+  /* الغلاف الخارجي (Double-Bezel) — إطار خارجي »
+     radius خارجي 24px · داخلي 18px */
+  .kb-shell {
+    @apply rounded-3xl bg-slate-100/70 border border-slate-200/60;
+    padding: 6px;
+  }
+
+  .kb-shell > * {
+    @apply rounded-[1.125rem] bg-white;
+  }
+
+  /* سطح متدرج داكن — للوحات الرئيسية في الهيرو/البنرات */
+  .kb-surface-grad {
+    position: relative;
+    overflow: hidden;
+    color: white;
+    background: var(--grad-brand);
+    box-shadow: var(--shadow-lift), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+
+  .kb-surface-grad::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(30rem 20rem at 90% -20%, rgba(127, 216, 222, 0.35), transparent 60%),
+      radial-gradient(24rem 18rem at 0% 120%, rgba(1, 61, 74, 0.45), transparent 55%);
+    pointer-events: none;
+  }
+
+  .kb-surface-grad > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* سطح متدرج ناعم — خلفية داخل البطاقات البيضاء */
+  .kb-surface-soft {
+    background: var(--grad-soft);
+    border: 1px solid rgba(1, 86, 105, 0.08);
   }
 
   /* حقل إدخال */
@@ -249,6 +316,80 @@ i,
     @apply bg-[#dc2626];
   }
 
+  /* زر أساسي متدرج — نقرة تحفيزية */
+  .kb-btn-grad {
+    @apply kb-btn text-white rounded-full;
+    background: var(--grad-brand);
+    box-shadow: 0 10px 26px -8px rgba(1, 86, 105, 0.5);
+    transition: box-shadow 0.3s var(--ease-spring), transform 0.3s var(--ease-spring),
+      background-position 0.3s var(--ease-spring);
+    background-size: 160% 160%;
+    background-position: 0% 0%;
+  }
+
+  .kb-btn-grad:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 34px -10px rgba(1, 86, 105, 0.55);
+    background-position: 100% 0%;
+  }
+
+  .kb-btn-grad:active {
+    transform: translateY(0) scale(0.97);
+  }
+
+  /* زر ناعم محفور — للثانوية */
+  .kb-btn-outline {
+    @apply kb-btn rounded-full text-[var(--primary-color)] bg-white border-[1.5px] border-[rgba(1,86,105,0.18)];
+    transition: border-color 0.25s var(--ease-spring), background 0.25s var(--ease-spring),
+      transform 0.25s var(--ease-spring), box-shadow 0.25s var(--ease-spring);
+  }
+
+  .kb-btn-outline:hover {
+    @apply border-[var(--primary-color)] bg-[var(--primary-light)];
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px -10px rgba(1, 86, 105, 0.4);
+  }
+
+  /* أيقونة داخلية داخل زر — دائرة بيضاء عائمة (Button-in-Button) */
+  .kb-btn-icon {
+    @apply w-7 h-7 rounded-full flex items-center justify-center text-[12px] shrink-0;
+    background: rgba(255, 255, 255, 0.22);
+    transition: transform 0.3s var(--ease-spring), background 0.3s var(--ease-spring);
+  }
+
+  .kb-btn-grad:hover .kb-btn-icon {
+    background: rgba(255, 255, 255, 0.35);
+  }
+
+  .kb-btn-outline .kb-btn-icon {
+    @apply bg-[var(--primary-light)] text-[var(--primary-color)];
+  }
+
+  .kb-btn-outline:hover .kb-btn-icon {
+    @apply bg-white text-[var(--primary-color)];
+    transform: translateX(-2px);
+  }
+
+  /* وميض عند مرور المحول فوق الزر المتدرج */
+  .kb-shine {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .kb-shine::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
+    transform: translateX(-120%);
+    transition: transform 0.7s var(--ease-spring);
+    pointer-events: none;
+  }
+
+  .kb-shine:hover::before {
+    transform: translateX(120%);
+  }
+
   /* شارة / حبة */
   .kb-chip {
     @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-bold;
@@ -291,6 +432,62 @@ i,
     @apply text-[15px] md:text-base text-[var(--text-muted)] leading-relaxed;
   }
 
+  /* عنوان ضخم (هيرو / دعوات) — حجم مضبوط مع توازن المسافات */
+  .kb-display {
+    @apply font-extrabold tracking-tight text-[var(--text-main)] leading-[1.12];
+  }
+
+  /* نص متدرج بلون الهوية */
+  .kb-grad-text {
+    background: var(--grad-text);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* شارة إيرباو صغيرة فوق العناوين — تُستعمل باعتدال (1 لكل 3 أقسام) */
+  .kb-eyebrow {
+    @apply inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[12px] font-bold tracking-wide;
+    background: var(--grad-soft);
+    color: var(--primary-color);
+    border: 1px solid rgba(1, 86, 105, 0.12);
+  }
+
+  /* نقطة خضراء نابضة — إيحاء النشاط والتشجيع */
+  .kb-dot-live {
+    @apply w-2 h-2 rounded-full bg-[var(--success)];
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);
+    animation: kb-pulse 2s var(--ease-soft) infinite;
+  }
+
+  /* لوحة إحصائية (Stat) — أيقونة متدرجة */
+  .kb-stat-tile {
+    @apply w-12 h-12 rounded-2xl flex items-center justify-center text-xl text-white;
+    background: var(--grad-brand);
+    box-shadow: 0 10px 20px -8px rgba(1, 86, 105, 0.45);
+  }
+
+  /* رقم إحصائي بارز */
+  .kb-stat-value {
+    @apply font-extrabold text-[26px] leading-none text-[var(--text-main)];
+    letter-spacing: -0.02em;
+  }
+
+  /* فاصل مرشّح داخل اللوحات */
+  .kb-divider {
+    @apply h-px w-full;
+    background: linear-gradient(90deg, transparent, rgba(1, 86, 105, 0.14), transparent);
+  }
+
+  /* شبكة بنتوبه لخلفيات الهيرو — خطوط شطرنجية خفيفة */
+  .kb-grid-overlay {
+    background-image:
+      linear-gradient(rgba(1, 86, 105, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(1, 86, 105, 0.05) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(60rem 30rem at 50% 0%, black 30%, transparent 75%);
+  }
+
   /* زر موحد في الجداول */
   .kb-table-action {
     @apply inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-bold cursor-pointer border-none transition-colors;
@@ -324,7 +521,7 @@ i,
 }
 
 /* ============================================================
-   الحركة — مهذبة وتكرم reduced-motion
+   الحركة — ربيعية مهذبة، تكرم reduced-motion، لا تؤثر على التخطيط
    ============================================================ */
 @keyframes kb-fade-up {
   from { opacity: 0; transform: translateY(12px); }
@@ -341,16 +538,47 @@ i,
   100% { transform: rotate(360deg); }
 }
 
+@keyframes kb-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45); }
+  70% { box-shadow: 0 0 0 9px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+@keyframes kb-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes kb-rise {
+  from { opacity: 0; transform: translateY(26px); filter: blur(4px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
 .animate-kb-spin {
   animation: kb-spin 1s linear infinite;
 }
 
 .animate-kb-fade-up {
-  animation: kb-fade-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: kb-fade-up 0.45s var(--ease-spring) both;
 }
 
 .animate-kb-fade-in {
   animation: kb-fade-in 0.3s ease both;
+}
+
+.animate-kb-float {
+  animation: kb-float 7s var(--ease-soft) infinite;
+}
+
+/* ظهور متتالٍ — استخدم --i كفهرس (تبدأ من 0) */
+.kb-rise {
+  animation: kb-rise 0.7s var(--ease-spring) both;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+
+/* تدرج دخول محافظ لأقسام الصفحات العامة */
+.kb-section-enter {
+  animation: kb-rise 0.8s var(--ease-spring) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -362,9 +590,18 @@ i,
   .animate-kb-fade-in,
   .animate-spin-slow,
   .animate-fade-in,
-  .animate-slide-in {
+  .animate-slide-in,
+  .animate-kb-float,
+  .animate-kb-wave,
+  .kb-rise,
+  .kb-section-enter,
+  .kb-dot-live,
+  .kb-shine::before {
     animation: none !important;
     transition: none !important;
+  }
+  body {
+    background-attachment: scroll;
   }
 }
 
